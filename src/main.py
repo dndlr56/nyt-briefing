@@ -79,8 +79,8 @@ def main() -> int:
     parser.add_argument(
         "--hours",
         type=int,
-        default=36,
-        help="수집할 최근 기사 시간 범위 (기본값: 36시간)",
+        default=24,
+        help="수집할 최근 기사 시간 범위 (기본값: 24시간)",
     )
     parser.add_argument(
         "--with-audio",
@@ -125,7 +125,7 @@ def main() -> int:
         "--voice",
         type=str,
         default=None,
-        help="앵커 목소리 이름 (기본값: ko-KR-Chirp3-HD-Charon)",
+        help="앵커 목소리 이름 (기본값: ko-KR-Neural2-C)",
     )
     parser.add_argument(
         "--tts-model",
@@ -154,6 +154,9 @@ def main() -> int:
 
     print(f"[1/5] Fetching global article candidates (last {args.hours}h)...")
     candidates = _fetch_combined_candidates(hours=args.hours)
+    if len(candidates) < 18 and args.hours < 36:
+        print(f"      Only {len(candidates)} articles in last {args.hours}h; widening window to 36h...")
+        candidates = _fetch_combined_candidates(hours=36)
     print(f"      Total candidate pool: {len(candidates)} articles.")
 
     if not candidates:
