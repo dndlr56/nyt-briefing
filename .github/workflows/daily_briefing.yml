@@ -1,12 +1,51 @@
 name: NYT Morning Briefing
 
 on:
-  # 기존 매일 오전 8시 30분 자동 예약 취소 (새 오디오·팟캐스트 파이프라인 확정 후 오전 8시 KST로 재설정 예정)
+  schedule:
+    # 매일 한국시간(KST, UTC+9) 오전 8시 00분 = UTC 23시 00분
+    - cron: '0 23 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: '실행 모드 선택'
+        required: true
+        default: 'podcast_and_telegram_text'
+        type: choice
+        options:
+          - podcast_and_telegram_text
+          - podcast_only
+          - telegram_text_and_audio
+          - telegram_audio_only
+      tts_provider:
+        description: 'TTS 엔진 선택 (기본값: edge_tts 무료)'
+        required: true
+        default: 'edge_tts'
+        type: choice
+        options:
+          - edge_tts
+          - google_cloud_tts
+          - gemini_tts
+      voice:
+        description: '앵커 목소리 선택 (기본값: ko-KR-HyunsuMultilingualNeural)'
+        required: true
+        default: 'ko-KR-HyunsuMultilingualNeural'
+        type: choice
+        options:
+          - ko-KR-HyunsuMultilingualNeural
+          - ko-KR-SunHiNeural
+          - ko-KR-InJoonNeural
+          - ko-KR-Chirp3-HD-Kore
+          - ko-KR-Chirp3-HD-Charon
+          - ko-KR-Chirp3-HD-Aoede
+          - ko-KR-Neural2-C
+          - ko-KR-Neural2-A
+          - ko-KR-Neural2-B
 
 jobs:
   send-briefing:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -18,12 +57,97 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      - name: Ensure ffmpeg is installed
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run NYT Morning Briefing
+      - name: Prepare existing gh-pages podcast directory
+        run: |
+          mkdir -p _gh_pages
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git archive origin/gh-pages | tar -x -C _gh_pages
+          fi
+
+      - name: Run Global Morning Briefing (AntennaPod RSS + Telegram Text)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLOUD_TTS_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CLOUD_TTS_CREDENTIALS_JSON }}
+          GUARDIAN_API_KEY: ${{ secrets.GUARDIAN_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python src/main.py
+          PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: |
+          MODE="podcast_and_telegram_text"
+          TTS_PROVIDER="edge_tts"
+          VOICE="ko-KR-HyunsuMultilingualNeural"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.mode }}"
+            TTS_PROVIDER="${{ inputs.tts_provider }}"
+            VOICE="${{ inputs.voice }}"
+          fi
+
+          if [ "$MODE" = "podcast_and_telegram_text" ]; then
+            python src/main.py \
+              --with-audio \
+              --skip-telegram-audio \
+              --podcast-dir _gh_pages \
+              --podcast-base-url "$PAGES_BASE_URL" \
+              --tts-provider "$TTS_PROVIDER" \
+              --voice "$VOICE" \
+              --output-dir output
+          elif [ "$MODE" = "podcast_only" ]; then
+            python src/main.py \
+              --with-audio \
+              --skip-telegram-text \
+              --skip-telegram-audio \
+              --podcast-dir _gh_pages \
+              --podcast-base-url "$PAGES_BASE_URL" \
+              --tts-provider "$TTS_PROVIDER" \
+              --voice "$VOICE" \
+              --output-dir output
+          elif [ "$MODE" = "telegram_text_and_audio" ]; then
+            python src/main.py \
+              --with-audio \
+              --tts-provider "$TTS_PROVIDER" \
+              --voice "$VOICE" \
+              --output-dir output
+          else
+            python src/main.py \
+              --audio-only \
+              --tts-provider "$TTS_PROVIDER" \
+              --voice "$VOICE" \
+              --output-dir output
+          fi
+
+      - name: Publish AntennaPod RSS feed to gh-pages
+        if: github.event_name == 'schedule' || inputs.mode == 'podcast_and_telegram_text' || inputs.mode == 'podcast_only'
+        run: |
+          if [ ! -f _gh_pages/feed.xml ]; then
+            echo "feed.xml not found; skipping gh-pages publish."
+            exit 0
+          fi
+          touch _gh_pages/.nojekyll
+          cd _gh_pages
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish Global Morning Briefing podcast feed ($(date -u +%Y-%m-%d))"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push --force origin gh-pages
+
+      - name: Upload generated script and MP3 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-audio-briefing-output
+          path: output/
+          retention-days: 7
+          if-no-files-found: ignore
