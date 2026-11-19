@@ -24,7 +24,7 @@ CLOUD_TTS_MAX_UTF8_BYTES = 4200  # Google Cloud TTS 5,000바이트 제한에 여
 
 DEFAULT_TTS_PROVIDER = "google_cloud_tts"
 DEFAULT_EDGE_TTS_VOICE = "ko-KR-HyunsuMultilingualNeural"
-DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Neural2-C"
+DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Charon"
 DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_GEMINI_TTS_VOICE = "Kore"
 DEFAULT_ANCHOR_STYLE = (

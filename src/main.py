@@ -126,7 +126,7 @@ def main() -> int:
         "--voice",
         type=str,
         default=None,
-        help="앵커 목소리 이름 (기본값: ko-KR-Neural2-C)",
+        help="앵커 목소리 이름 (기본값: ko-KR-Chirp3-HD-Charon)",
     )
     parser.add_argument(
         "--tts-model",
