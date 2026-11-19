@@ -9,11 +9,11 @@ on:
       mode:
         description: '실행 모드 선택'
         required: true
-        default: 'podcast_and_telegram_text'
+        default: 'podcast_only'
         type: choice
         options:
-          - podcast_and_telegram_text
           - podcast_only
+          - podcast_and_telegram_text
           - telegram_text_and_audio
           - telegram_audio_only
       tts_provider:
@@ -83,7 +83,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
-          MODE="podcast_and_telegram_text"
+          MODE="podcast_only"
           TTS_PROVIDER="edge_tts"
           VOICE="ko-KR-HyunsuMultilingualNeural"
 
