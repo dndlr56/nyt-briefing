@@ -76,7 +76,7 @@ def curate_briefing(
         raise ValueError("큐레이션할 NYT 기사가 없습니다.")
 
     selected_model = model or os.getenv("GEMINI_MODEL", "gemini-4-hydrogen")
-    client = genai.Client()
+    client = genai.Client(http_options={"api_version": "v1beta"})
 
     # 입력 토큰 효율을 위해 상위 60개 후보만 전달
     candidates = articles[:60]
