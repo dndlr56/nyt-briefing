@@ -18,19 +18,23 @@ on:
           - audio_only
           - text_only
       tts_provider:
-        description: 'TTS 엔진 (google_cloud_tts = 월 100만자 무료)'
+        description: 'TTS 엔진 선택 (edge_tts / google_cloud_tts 모두 무료)'
         required: true
-        default: 'google_cloud_tts'
+        default: 'edge_tts'
         type: choice
         options:
+          - edge_tts
           - google_cloud_tts
           - gemini_tts
       voice:
-        description: '앵커 목소리 선택 (Chirp3-HD 추천 / Neural2 아나운서 톤)'
+        description: '앵커 목소리 선택 (Edge: SunHi/Hyunsu/InJoon | Cloud: Chirp3-HD/Neural2)'
         required: true
-        default: 'ko-KR-Chirp3-HD-Kore'
+        default: 'ko-KR-HyunsuMultilingualNeural'
         type: choice
         options:
+          - ko-KR-HyunsuMultilingualNeural
+          - ko-KR-SunHiNeural
+          - ko-KR-InJoonNeural
           - ko-KR-Chirp3-HD-Kore
           - ko-KR-Chirp3-HD-Charon
           - ko-KR-Chirp3-HD-Aoede

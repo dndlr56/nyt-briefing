@@ -1,7 +1,8 @@
-"""Google Cloud TTS(무료 티어 기본) 또는 Gemini TTS로 단일 앵커 MP3 오디오를 생성합니다."""
+"""Edge TTS / Google Cloud TTS(무료 티어) / Gemini TTS로 단일 앵커 MP3 오디오를 생성합니다."""
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from dataclasses import dataclass
 import io
@@ -21,7 +22,8 @@ from script_writer import RoundupAudioScript, get_script_segments
 CLOUD_TTS_ENDPOINT = "https://texttospeech.googleapis.com/v1/text:synthesize"
 CLOUD_TTS_MAX_UTF8_BYTES = 4200  # Google Cloud TTS 5,000바이트 제한에 여유 버퍼 확보
 
-DEFAULT_TTS_PROVIDER = "google_cloud_tts"
+DEFAULT_TTS_PROVIDER = "edge_tts"
+DEFAULT_EDGE_TTS_VOICE = "ko-KR-HyunsuMultilingualNeural"
 DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Kore"
 DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_GEMINI_TTS_VOICE = "Kore"
@@ -57,8 +59,33 @@ def _get_wav_duration_seconds(wav_bytes: bytes) -> float:
     return 0.0
 
 
+def _get_media_duration_seconds(media_path: Path) -> float:
+    """ffprobe로 MP3 등 최종 오디오 파일의 정확한 재생 시간(초)을 조회합니다."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(media_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except (OSError, ValueError):
+        pass
+    return 0.0
+
+
 def _sanitize_plain_text(text: str) -> str:
-    """Cloud TTS plain text에 불필요한 태그나 과도한 공백을 정리합니다."""
+    """TTS plain text에 불필요한 태그나 과도한 공백을 정리합니다."""
     cleaned = _TAG_RE.sub(" ", text)
     return re.sub(r"\s+", " ", cleaned).strip()
 
@@ -113,10 +140,18 @@ def _split_text_by_utf8_bytes(
 
 def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
     """사용자가 드롭다운에서 다른 프로바이더용 보이스를 골라도 안전하게 보정합니다."""
+    if provider == "edge_tts":
+        raw = (voice or os.getenv("EDGE_TTS_VOICE") or DEFAULT_EDGE_TTS_VOICE).strip()
+        if raw.endswith("Neural"):
+            return raw
+        return DEFAULT_EDGE_TTS_VOICE
+
     if provider == "google_cloud_tts":
         raw = (voice or os.getenv("GOOGLE_CLOUD_TTS_VOICE") or DEFAULT_CLOUD_TTS_VOICE).strip()
-        if raw.startswith("ko-KR-"):
+        if raw.startswith("ko-KR-Chirp3-HD-") or raw.startswith("ko-KR-Neural2-") or raw.startswith("ko-KR-Wavenet-"):
             return raw
+        if raw.endswith("Neural"):
+            return DEFAULT_CLOUD_TTS_VOICE
         # Gemini 보이스 이름(Kore, Charon, Aoede 등)이 들어온 경우 Chirp3-HD로 자동 매핑
         return f"ko-KR-Chirp3-HD-{raw}"
 
@@ -126,6 +161,30 @@ def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
     if raw.startswith("ko-KR-"):
         return DEFAULT_GEMINI_TTS_VOICE
     return raw
+
+
+def _synthesize_edge_tts_segment(
+    text: str,
+    voice_name: str,
+    rate: str = "+0%",
+) -> bytes:
+    """Microsoft Edge TTS로 단일 세그먼트를 MP3 바이트로 합성합니다."""
+    import edge_tts
+
+    cleaned = _sanitize_plain_text(text)
+
+    async def _run() -> bytes:
+        communicate = edge_tts.Communicate(text=cleaned, voice=voice_name, rate=rate)
+        audio_buf = bytearray()
+        async for chunk in communicate.stream():
+            if chunk.get("type") == "audio":
+                audio_buf.extend(chunk["data"])
+        return bytes(audio_buf)
+
+    data = asyncio.run(_run())
+    if not data:
+        raise RuntimeError(f"Edge TTS 응답에서 오디오 데이터를 받지 못했습니다 (voice={voice_name}).")
+    return data
 
 
 CLOUD_TTS_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -268,23 +327,24 @@ def _synthesize_gemini_tts_part(
     raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
 
 
-def _concat_wavs_to_mp3(
-    wav_parts: list[bytes],
+def _concat_audio_parts_to_mp3(
+    audio_parts: list[bytes],
     output_mp3: Path,
+    input_suffix: str = ".wav",
     pause_seconds: float = SEGMENT_PAUSE_SECONDS,
 ) -> None:
-    """여러 WAV 파트를 자연스러운 무음 간격으로 이어 붙여 단일 MP3로 인코딩합니다."""
-    if not wav_parts:
-        raise ValueError("인코딩할 WAV 오디오 파트가 없습니다.")
+    """여러 오디오 파트(WAV/MP3)를 자연스러운 무음 간격으로 이어 붙여 단일 MP3로 인코딩합니다."""
+    if not audio_parts:
+        raise ValueError("인코딩할 오디오 파트가 없습니다.")
 
     output_mp3.parent.mkdir(parents=True, exist_ok=True)
     tmp_paths: list[Path] = []
 
     try:
-        for wav_bytes in wav_parts:
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
-                tmp_wav.write(wav_bytes)
-                tmp_paths.append(Path(tmp_wav.name))
+        for audio_bytes in audio_parts:
+            with tempfile.NamedTemporaryFile(suffix=input_suffix, delete=False) as tmp_file:
+                tmp_file.write(audio_bytes)
+                tmp_paths.append(Path(tmp_file.name))
 
         if len(tmp_paths) == 1:
             cmd = [
@@ -312,7 +372,11 @@ def _concat_wavs_to_mp3(
             filter_segments: list[str] = []
             concat_inputs: list[str] = []
             for idx in range(len(tmp_paths)):
-                concat_inputs.append(f"[{idx}:a]")
+                norm_label = f"a{idx}"
+                filter_segments.append(
+                    f"[{idx}:a]aresample=24000,aformat=channel_layouts=mono[{norm_label}]"
+                )
+                concat_inputs.append(f"[{norm_label}]")
                 if idx < len(tmp_paths) - 1:
                     silence_label = f"sil{idx}"
                     filter_segments.append(
@@ -364,7 +428,7 @@ def generate_audio_briefing(
 ) -> GeneratedAudio:
     """라운드업 대본을 단일 앵커 목소리로 합성해 하나의 MP3 파일로 결합합니다."""
     provider = (tts_provider or os.getenv("TTS_PROVIDER") or DEFAULT_TTS_PROVIDER).strip().lower()
-    if provider not in ("google_cloud_tts", "gemini_tts"):
+    if provider not in ("edge_tts", "google_cloud_tts", "gemini_tts"):
         raise ValueError(f"지원하지 않는 TTS 프로바이더입니다: {provider}")
 
     segments = get_script_segments(script)
@@ -372,10 +436,21 @@ def generate_audio_briefing(
         raise ValueError("음성으로 합성할 대본이 비어 있습니다.")
 
     selected_voice = _normalize_voice_for_provider(voice, provider)
-    wav_parts: list[bytes] = []
+    audio_parts: list[bytes] = []
+    input_suffix = ".wav"
     total_duration = 0.0
 
-    if provider == "google_cloud_tts":
+    if provider == "edge_tts":
+        selected_model = "microsoft-edge-tts"
+        input_suffix = ".mp3"
+        for idx, (label, text) in enumerate(segments, start=1):
+            print(f"      [Edge TTS] {idx}/{len(segments)} {label} ({len(text)} chars)...")
+            mp3_bytes = _synthesize_edge_tts_segment(
+                text=text,
+                voice_name=selected_voice,
+            )
+            audio_parts.append(mp3_bytes)
+    elif provider == "google_cloud_tts":
         auth_headers = _get_cloud_tts_auth_headers()
         selected_model = "google-cloud-tts"
 
@@ -393,7 +468,7 @@ def generate_audio_briefing(
                     auth_headers=auth_headers,
                 )
                 part_dur = _get_wav_duration_seconds(wav_bytes)
-                wav_parts.append(wav_bytes)
+                audio_parts.append(wav_bytes)
                 total_duration += part_dur
     else:
         selected_model = tts_model or os.getenv("GEMINI_TTS_MODEL", DEFAULT_GEMINI_TTS_MODEL)
@@ -418,17 +493,26 @@ def generate_audio_briefing(
                 style=selected_style,
             )
             part_dur = _get_wav_duration_seconds(wav_bytes)
-            wav_parts.append(wav_bytes)
+            audio_parts.append(wav_bytes)
             total_duration += part_dur
 
-    if len(wav_parts) > 1:
-        total_duration += SEGMENT_PAUSE_SECONDS * (len(wav_parts) - 1)
+    _concat_audio_parts_to_mp3(
+        audio_parts=audio_parts,
+        output_mp3=output_mp3,
+        input_suffix=input_suffix,
+    )
 
-    _concat_wavs_to_mp3(wav_parts, output_mp3)
+    probed_duration = _get_media_duration_seconds(output_mp3)
+    if probed_duration > 0:
+        final_duration = probed_duration
+    else:
+        if len(audio_parts) > 1:
+            total_duration += SEGMENT_PAUSE_SECONDS * (len(audio_parts) - 1)
+        final_duration = total_duration
 
     return GeneratedAudio(
         mp3_path=output_mp3,
-        duration_seconds=max(1, round(total_duration)),
+        duration_seconds=max(1, round(final_duration)),
         file_size_bytes=output_mp3.stat().st_size,
         voice=selected_voice,
         model=selected_model,

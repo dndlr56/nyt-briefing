@@ -93,7 +93,7 @@ def main() -> int:
     parser.add_argument(
         "--tts-provider",
         type=str,
-        choices=("google_cloud_tts", "gemini_tts"),
+        choices=("edge_tts", "google_cloud_tts", "gemini_tts"),
         default=None,
         help="사용할 TTS 엔진 (기본값: google_cloud_tts)",
     )
@@ -101,7 +101,7 @@ def main() -> int:
         "--voice",
         type=str,
         default=None,
-        help="앵커 목소리 이름 (예: ko-KR-Chirp3-HD-Kore, ko-KR-Neural2-C)",
+        help="앵커 목소리 이름 (예: ko-KR-SunHiNeural, ko-KR-HyunsuMultilingualNeural, ko-KR-Chirp3-HD-Kore)",
     )
     parser.add_argument(
         "--tts-model",
