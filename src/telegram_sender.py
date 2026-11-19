@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import html
 import os
+from pathlib import Path
 
 import requests
 
@@ -104,3 +105,51 @@ def send_telegram_messages(
                 f"{resp.status_code} {resp.text}"
             )
         print(f"[INFO] Sent Telegram message part {idx}/{len(messages)}")
+
+
+def send_telegram_audio(
+    audio_path: Path,
+    title: str,
+    performer: str = "NYT 모닝 브리핑",
+    caption: str | None = None,
+    duration: int | None = None,
+    bot_token: str | None = None,
+    chat_id: str | None = None,
+) -> None:
+    """MP3 오디오 브리핑을 텔레그램 sendAudio API로 전송합니다."""
+    token = bot_token or os.getenv("TELEGRAM_BOT_TOKEN")
+    target_chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID")
+
+    if not token or not target_chat_id:
+        raise ValueError(
+            "TELEGRAM_BOT_TOKEN 및 TELEGRAM_CHAT_ID 환경변수가 필요합니다."
+        )
+
+    if not audio_path.exists():
+        raise FileNotFoundError(f"오디오 파일을 찾을 수 없습니다: {audio_path}")
+
+    api_url = f"https://api.telegram.org/bot{token}/sendAudio"
+    data: dict[str, str | int] = {
+        "chat_id": target_chat_id,
+        "title": title,
+        "performer": performer,
+    }
+    if duration and duration > 0:
+        data["duration"] = duration
+    if caption:
+        data["caption"] = caption
+        data["parse_mode"] = "HTML"
+
+    with audio_path.open("rb") as audio_file:
+        resp = requests.post(
+            api_url,
+            data=data,
+            files={"audio": (audio_path.name, audio_file, "audio/mpeg")},
+            timeout=120,
+        )
+
+    if not resp.ok:
+        raise RuntimeError(
+            f"텔레그램 오디오 전송 실패: {resp.status_code} {resp.text}"
+        )
+    print(f"[INFO] Sent Telegram audio: {audio_path.name}")
