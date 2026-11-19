@@ -1,10 +1,7 @@
 name: NYT Morning Briefing
 
 on:
-  schedule:
-    # 매일 한국시간(KST, UTC+9) 오전 8시 30분 = UTC 23시 30분
-    - cron: '30 23 * * *'
-  # GitHub Actions 탭에서 언제든 수동으로 테스트 실행 가능
+  # 기존 매일 오전 8시 30분 자동 예약 취소 (새 오디오·팟캐스트 파이프라인 확정 후 오전 8시 KST로 재설정 예정)
   workflow_dispatch:
 
 jobs:
