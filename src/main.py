@@ -159,7 +159,7 @@ def main() -> int:
         print("[ERROR] No candidate articles fetched.", file=sys.stderr)
         return 1
 
-    print("[2/5] Stage 1 — Selecting top 8~10 global stories with Gemini...")
+    print("[2/5] Stage 1 — Selecting top 10~12 global stories with Gemini...")
     selected_pairs = select_articles(candidates)
     guardian_cnt = sum(1 for c, _ in selected_pairs if c.source == "The Guardian")
     nyt_cnt = sum(1 for c, _ in selected_pairs if c.source == "NYT")
@@ -190,7 +190,7 @@ def main() -> int:
     if include_audio:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
-        print("[4/5] Writing 7~9 min single-anchor roundup radio script...")
+        print("[4/5] Writing 15~18 min single-anchor briefing radio script...")
         script = write_roundup_script(full_articles)
         script_preview = format_script_preview(script)
         script_path = args.output_dir / f"global_briefing_{date_slug}_script.txt"

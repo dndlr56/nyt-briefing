@@ -163,14 +163,18 @@ def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
     return raw
 
 
-def _synthesize_edge_tts_segment(
+EDGE_TTS_MAX_UTF8_BYTES = 800  # 약 250~280자 단위로 쪼개 Edge TTS 지연/타임아웃 방지
+EDGE_TTS_CONCURRENCY = 3
+
+
+async def _synthesize_edge_tts_chunk_async(
     text: str,
     voice_name: str,
     rate: str = "+0%",
     max_retries: int = 4,
+    timeout_sec: int = 90,
 ) -> bytes:
-    """Microsoft Edge TTS로 단일 세그먼트를 MP3 바이트로 합성합니다 (일시적 오류 자동 재시도 포함)."""
-    import time
+    """Microsoft Edge TTS로 짧은 청크(~250자)를 비동기 MP3 바이트로 합성합니다."""
     import edge_tts
 
     cleaned = _sanitize_plain_text(text)
@@ -185,16 +189,13 @@ def _synthesize_edge_tts_segment(
 
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
-        # 재시도 시 혹시 모를 특수문자/기호 이슈를 피하기 위해 기본 문장부호만 남긴 텍스트로 정제
         candidate_text = cleaned
         if attempt >= 3:
             candidate_text = re.sub(r"[^\w\s.,?!%·가-힣a-zA-Z0-9-]", " ", cleaned)
             candidate_text = re.sub(r"\s+", " ", candidate_text).strip()
 
         try:
-            data = asyncio.run(
-                asyncio.wait_for(_run(candidate_text), timeout=45)
-            )
+            data = await asyncio.wait_for(_run(candidate_text), timeout=timeout_sec)
             if data:
                 return data
             last_exc = RuntimeError(
@@ -204,16 +205,69 @@ def _synthesize_edge_tts_segment(
             last_exc = exc
 
         if attempt < max_retries:
-            wait_sec = 1.5 * (2 ** (attempt - 1))
+            wait_sec = 2.0 * attempt
             print(
                 f"      [WARN] Edge TTS attempt {attempt}/{max_retries} failed "
                 f"({type(last_exc).__name__}: {last_exc}). Retrying in {wait_sec:.1f}s..."
             )
-            time.sleep(wait_sec)
+            await asyncio.sleep(wait_sec)
 
     raise RuntimeError(
         f"Edge TTS 합성 실패 ({max_retries}회 재시도 후 중단, voice={voice_name}): {last_exc}"
     )
+
+
+def _synthesize_edge_tts_all_segments(
+    segments: list[tuple[str, str]],
+    voice_name: str,
+    rate: str = "+0%",
+    concurrency: int = EDGE_TTS_CONCURRENCY,
+) -> list[bytes]:
+    """모든 세그먼트를 ~250자 청크로 분할해 제한된 동시성(3)으로 빠르게 합성합니다."""
+    # 각 세그먼트를 작은 청크로 분할해 (seg_idx, chunk_idx, label, chunk_text) 작업 목록 생성
+    segment_chunks: list[list[str]] = []
+    for _, text in segments:
+        chunks = _split_text_by_utf8_bytes(text, max_bytes=EDGE_TTS_MAX_UTF8_BYTES)
+        segment_chunks.append(chunks or [_sanitize_plain_text(text)])
+
+    total_chunks = sum(len(c) for c in segment_chunks)
+    print(
+        f"      [Edge TTS] Synthesizing {len(segments)} segments "
+        f"({total_chunks} chunks, concurrency={concurrency})..."
+    )
+
+    async def _run_all() -> list[list[bytes]]:
+        sem = asyncio.Semaphore(concurrency)
+        results: list[list[bytes]] = [[b""] * len(c) for c in segment_chunks]
+
+        async def _worker(s_idx: int, c_idx: int, label: str, chunk_text: str) -> None:
+            async with sem:
+                suffix = (
+                    f" ({c_idx + 1}/{len(segment_chunks[s_idx])})"
+                    if len(segment_chunks[s_idx]) > 1
+                    else ""
+                )
+                print(
+                    f"      [Edge TTS] {s_idx + 1}/{len(segments)} {label}{suffix} "
+                    f"({len(chunk_text)} chars)..."
+                )
+                results[s_idx][c_idx] = await _synthesize_edge_tts_chunk_async(
+                    text=chunk_text,
+                    voice_name=voice_name,
+                    rate=rate,
+                )
+
+        tasks = [
+            asyncio.create_task(_worker(s_idx, c_idx, segments[s_idx][0], chunk_text))
+            for s_idx, chunks in enumerate(segment_chunks)
+            for c_idx, chunk_text in enumerate(chunks)
+        ]
+        await asyncio.gather(*tasks)
+        return results
+
+    chunked_results = asyncio.run(_run_all())
+    # 같은 세그먼트 내부 청크는 MP3 프레임을 바로 이어 붙이고, 세그먼트 간에만 0.6초 무음 삽입
+    return [b"".join(chunks) for chunks in chunked_results]
 
 
 CLOUD_TTS_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -470,19 +524,12 @@ def generate_audio_briefing(
     total_duration = 0.0
 
     if provider == "edge_tts":
-        import time
-
         selected_model = "microsoft-edge-tts"
         input_suffix = ".mp3"
-        for idx, (label, text) in enumerate(segments, start=1):
-            print(f"      [Edge TTS] {idx}/{len(segments)} {label} ({len(text)} chars)...")
-            mp3_bytes = _synthesize_edge_tts_segment(
-                text=text,
-                voice_name=selected_voice,
-            )
-            audio_parts.append(mp3_bytes)
-            if idx < len(segments):
-                time.sleep(0.5)
+        audio_parts = _synthesize_edge_tts_all_segments(
+            segments=segments,
+            voice_name=selected_voice,
+        )
     elif provider == "google_cloud_tts":
         auth_headers = _get_cloud_tts_auth_headers()
         selected_model = "google-cloud-tts"
