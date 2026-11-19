@@ -22,6 +22,7 @@ def _escape(text: str) -> str:
 
 def _format_article(idx: int, art: CuratedArticle) -> str:
     cat = _escape(art.category_kr)
+    source = _escape(art.source)
     title_kr = _escape(art.title_kr)
     title_en = _escape(art.title_en)
     url = _escape(art.url)
@@ -30,7 +31,7 @@ def _format_article(idx: int, art: CuratedArticle) -> str:
 
     return (
         f"<b>{idx}. [{cat}] {title_kr}</b>\n"
-        f"<i>{title_en}</i>\n"
+        f"<i>{title_en}</i> ({source})\n"
         f"{bullets}\n"
         f"🔗 <a href=\"{url}\">원문 보기</a>"
     )
@@ -40,7 +41,7 @@ def build_messages(briefing: DailyBriefing) -> list[str]:
     """텔레그램 길이 제한(4096자)을 넘지 않도록 기사 단위로 안전하게 분할합니다."""
     today_kst = datetime.now(KST).strftime("%Y.%m.%d (%a)")
     header = (
-        f"🗞 <b>글로벌 모닝 브리핑 (The Guardian) | {_escape(today_kst)}</b>\n"
+        f"🗞 <b>글로벌 모닝 브리핑 | {_escape(today_kst)}</b>\n"
         f"{_escape(briefing.morning_intro_kr)}\n"
         f"{'─' * 20}"
     )

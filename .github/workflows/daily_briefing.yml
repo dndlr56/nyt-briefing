@@ -5,38 +5,38 @@ on:
     # 매일 한국시간(KST, UTC+9) 오전 8시 30분 = UTC 23시 30분
     # (참고: 예약 실행은 기본 브랜치인 main에서만 동작하며, 이 테스트 브랜치에서는 자동 실행되지 않습니다.)
     - cron: '30 23 * * *'
-  # GitHub Actions 탭에서 브랜치를 exp/fulltext-briefing으로 선택해 수동 1회 테스트 실행
+  # GitHub Actions 탭에서 브랜치를 exp/cloud-tts-roundup으로 선택해 수동 1회 테스트 실행
   workflow_dispatch:
     inputs:
       mode:
         description: '전송 방식 선택'
         required: true
-        default: 'audio_only'
+        default: 'text_and_audio'
         type: choice
         options:
-          - audio_only
           - text_and_audio
+          - audio_only
           - text_only
+      tts_provider:
+        description: 'TTS 엔진 (google_cloud_tts = 월 100만자 무료)'
+        required: true
+        default: 'google_cloud_tts'
+        type: choice
+        options:
+          - google_cloud_tts
+          - gemini_tts
       voice:
-        description: '앵커 목소리 선택 (전 구간 한 목소리 고정)'
+        description: '앵커 목소리 선택 (Chirp3-HD 추천 / Neural2 아나운서 톤)'
         required: true
-        default: 'Kore'
+        default: 'ko-KR-Chirp3-HD-Kore'
         type: choice
         options:
-          - Kore
-          - Charon
-          - Aoede
-          - Puck
-          - Fenrir
-          - Alnilam
-      tts_model:
-        description: 'TTS 모델 선택'
-        required: true
-        default: 'gemini-3.8-flash-tts'
-        type: choice
-        options:
-          - gemini-3.8-flash-tts
-          - gemini-3.8-flash-lite-tts
+          - ko-KR-Chirp3-HD-Kore
+          - ko-KR-Chirp3-HD-Charon
+          - ko-KR-Chirp3-HD-Aoede
+          - ko-KR-Neural2-C
+          - ko-KR-Neural2-A
+          - ko-KR-Neural2-B
 
 jobs:
   send-briefing:
@@ -62,9 +62,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Global Morning Briefing (The Guardian Full-Text)
+      - name: Run Global Morning Briefing (Guardian + NYT Roundup)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLOUD_TTS_API_KEY: ${{ secrets.GOOGLE_CLOUD_TTS_API_KEY }}
           GUARDIAN_API_KEY: ${{ secrets.GUARDIAN_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -72,13 +73,13 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ "${{ inputs.mode }}" = "audio_only" ]; then
               python src/main.py --audio-only \
+                --tts-provider "${{ inputs.tts_provider }}" \
                 --voice "${{ inputs.voice }}" \
-                --tts-model "${{ inputs.tts_model }}" \
                 --output-dir output
             elif [ "${{ inputs.mode }}" = "text_and_audio" ]; then
               python src/main.py --with-audio \
+                --tts-provider "${{ inputs.tts_provider }}" \
                 --voice "${{ inputs.voice }}" \
-                --tts-model "${{ inputs.tts_model }}" \
                 --output-dir output
             else
               python src/main.py
@@ -91,7 +92,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && inputs.mode != 'text_only'
         uses: actions/upload-artifact@v4
         with:
-          name: guardian-audio-briefing-output
+          name: global-audio-briefing-output
           path: output/
           retention-days: 7
           if-no-files-found: ignore

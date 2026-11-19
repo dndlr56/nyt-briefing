@@ -34,6 +34,7 @@ class ArticleCandidate:
     url: str
     published_at: datetime
     wordcount: int
+    source: str = "The Guardian"
 
 
 @dataclass
@@ -48,6 +49,7 @@ class FullArticle:
     url: str
     published_at: datetime
     wordcount: int
+    source: str = "The Guardian"
 
 
 def _clean_html(raw: str | None) -> str:
@@ -163,15 +165,34 @@ def fetch_guardian_candidates(
 
 def fetch_article_full_texts(
     selected_items: list[tuple[ArticleCandidate, str]],
-    max_body_chars: int = 10000,
+    max_body_chars: int = 8000,
     api_key: str | None = None,
     timeout: int = 20,
 ) -> list[FullArticle]:
-    """2단계: 선별된 5~6개 기사의 전문(bodyText)만 개별 조회합니다."""
-    key = _get_api_key(api_key)
+    """2단계: 선별된 Guardian 기사의 전문(bodyText)을 조회하고, NYT 보완 기사는 요약을 그대로 연결합니다."""
+    has_guardian = any(c.source == "The Guardian" for c, _ in selected_items)
+    key = _get_api_key(api_key) if has_guardian else ""
     full_articles: list[FullArticle] = []
 
     for candidate, category_kr in selected_items:
+        if candidate.source != "The Guardian":
+            full_articles.append(
+                FullArticle(
+                    article_id=candidate.article_id,
+                    section=candidate.section,
+                    category_kr=category_kr,
+                    title=candidate.title,
+                    trail_text=candidate.trail_text,
+                    byline="",
+                    body_text=candidate.trail_text or candidate.title,
+                    url=candidate.url,
+                    published_at=candidate.published_at,
+                    wordcount=candidate.wordcount,
+                    source=candidate.source,
+                )
+            )
+            continue
+
         params = {
             "api-key": key,
             "show-fields": "headline,trailText,byline,bodyText,wordcount",
@@ -210,6 +231,7 @@ def fetch_article_full_texts(
                 url=content.get("webUrl") or candidate.url,
                 published_at=candidate.published_at,
                 wordcount=candidate.wordcount,
+                source=candidate.source,
             )
         )
 

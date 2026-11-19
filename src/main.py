@@ -1,4 +1,4 @@
-"""The Guardian 기사 전문 기반 글로벌 모닝 브리핑 파이프라인 실행 진입점."""
+"""The Guardian(메인) + NYT(보완) 글로벌 모닝 라운드업 브리핑 파이프라인 실행 진입점."""
 
 from __future__ import annotations
 
@@ -11,8 +11,17 @@ from dotenv import load_dotenv
 
 from audio_generator import generate_audio_briefing
 from curator import select_articles, summarize_full_articles
-from guardian_fetcher import fetch_article_full_texts, fetch_guardian_candidates
-from script_writer import format_script_preview, write_longform_script
+from guardian_fetcher import (
+    ArticleCandidate,
+    fetch_article_full_texts,
+    fetch_guardian_candidates,
+)
+from nyt_fetcher import fetch_recent_articles as fetch_nyt_articles
+from script_writer import (
+    format_script_preview,
+    get_script_segments,
+    write_roundup_script,
+)
 from telegram_sender import (
     build_messages,
     send_telegram_audio,
@@ -21,13 +30,44 @@ from telegram_sender import (
 
 
 KST = timezone(timedelta(hours=9))
+NYT_SUPPLEMENT_SECTIONS = {"Business", "Economy", "Technology", "World", "Science", "Health"}
+
+
+def _fetch_combined_candidates(hours: int) -> list[ArticleCandidate]:
+    """The Guardian(전문 가능, 메인)과 NYT RSS(미국·글로벌 보완) 후보를 합칩니다."""
+    guardian_candidates = fetch_guardian_candidates(hours=hours)
+    print(f"      Guardian candidates: {len(guardian_candidates)}")
+
+    nyt_candidates: list[ArticleCandidate] = []
+    try:
+        nyt_raw = fetch_nyt_articles(hours=hours, max_per_feed=8)
+        filtered = [a for a in nyt_raw if a.section in NYT_SUPPLEMENT_SECTIONS][:20]
+        for idx, art in enumerate(filtered, start=1):
+            nyt_candidates.append(
+                ArticleCandidate(
+                    article_id=f"nyt:{idx}",
+                    section=art.section,
+                    title=art.title,
+                    trail_text=art.description,
+                    url=art.url,
+                    published_at=art.published_at,
+                    wordcount=0,
+                    source="NYT",
+                )
+            )
+        print(f"      NYT supplement candidates: {len(nyt_candidates)}")
+    except Exception as exc:
+        print(f"[WARN] NYT supplement fetch skipped due to error: {exc}")
+
+    # Guardian(전문 조회 가능)을 앞쪽에 최대 55개, NYT 보완을 뒤쪽에 최대 20개 배치
+    return guardian_candidates[:55] + nyt_candidates[:20]
 
 
 def main() -> int:
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        description="The Guardian 주요 기사 전문을 큐레이션해 10~13분 오디오/텍스트 브리핑으로 전송합니다."
+        description="The Guardian(메인) + NYT(보완) 8~10개 글로벌 기사를 큐레이션해 오디오/텍스트 브리핑으로 전송합니다."
     )
     parser.add_argument(
         "--dry-run",
@@ -43,7 +83,7 @@ def main() -> int:
     parser.add_argument(
         "--with-audio",
         action="store_true",
-        help="텍스트 브리핑과 함께 10~13분 오디오 브리핑도 생성·전송합니다.",
+        help="읽기용 텍스트 요약 브리핑과 함께 오디오 브리핑도 생성·전송합니다.",
     )
     parser.add_argument(
         "--audio-only",
@@ -51,16 +91,23 @@ def main() -> int:
         help="텍스트 브리핑은 생략하고 오디오 브리핑만 생성·전송합니다.",
     )
     parser.add_argument(
+        "--tts-provider",
+        type=str,
+        choices=("google_cloud_tts", "gemini_tts"),
+        default=None,
+        help="사용할 TTS 엔진 (기본값: google_cloud_tts)",
+    )
+    parser.add_argument(
         "--voice",
         type=str,
         default=None,
-        help="Gemini 3.8 TTS 앵커 목소리 이름 또는 커스텀 보이스 ID (기본값: Kore)",
+        help="앵커 목소리 이름 (예: ko-KR-Chirp3-HD-Kore, ko-KR-Neural2-C)",
     )
     parser.add_argument(
         "--tts-model",
         type=str,
         default=None,
-        help="사용할 Gemini TTS 모델 (기본값: gemini-3.8-flash-tts)",
+        help="gemini_tts 선택 시 사용할 모델 (기본값: gemini-3.8-flash-tts)",
     )
     parser.add_argument(
         "--output-dir",
@@ -73,29 +120,34 @@ def main() -> int:
     include_audio = args.with_audio or args.audio_only
     include_text = not args.audio_only
 
-    print(f"[1/5] Fetching Guardian article candidates (last {args.hours}h)...")
-    candidates = fetch_guardian_candidates(hours=args.hours)
-    print(f"      Collected {len(candidates)} candidate articles.")
+    print(f"[1/5] Fetching global article candidates (last {args.hours}h)...")
+    candidates = _fetch_combined_candidates(hours=args.hours)
+    print(f"      Total candidate pool: {len(candidates)} articles.")
 
     if not candidates:
-        print("[ERROR] No candidate articles fetched from The Guardian API.", file=sys.stderr)
+        print("[ERROR] No candidate articles fetched.", file=sys.stderr)
         return 1
 
-    print("[2/5] Stage 1 — Selecting top 5~6 articles with Gemini...")
+    print("[2/5] Stage 1 — Selecting top 8~10 global stories with Gemini...")
     selected_pairs = select_articles(candidates)
-    print(f"      Selected {len(selected_pairs)} articles for full-text deep dive.")
+    guardian_cnt = sum(1 for c, _ in selected_pairs if c.source == "The Guardian")
+    nyt_cnt = sum(1 for c, _ in selected_pairs if c.source == "NYT")
+    print(
+        f"      Selected {len(selected_pairs)} stories "
+        f"(Guardian: {guardian_cnt}, NYT supplement: {nyt_cnt})."
+    )
 
-    print("[3/5] Stage 2 — Fetching full article texts from The Guardian...")
+    print("[3/5] Stage 2 — Loading full texts for Guardian stories & NYT summaries...")
     full_articles = fetch_article_full_texts(selected_pairs)
-    print(f"      Loaded full text for {len(full_articles)} articles.")
+    print(f"      Loaded {len(full_articles)} articles.")
 
     if not full_articles:
-        print("[ERROR] Failed to load full text for selected articles.", file=sys.stderr)
+        print("[ERROR] Failed to load selected articles.", file=sys.stderr)
         return 1
 
     messages: list[str] = []
     if include_text:
-        print("[4/5] Summarizing full articles for Telegram text briefing...")
+        print("[4/5] Writing reading-friendly text summary for Telegram...")
         briefing = summarize_full_articles(full_articles)
         messages = build_messages(briefing)
         print(f"      Prepared {len(messages)} Telegram text message(s).")
@@ -106,19 +158,23 @@ def main() -> int:
         args.output_dir.mkdir(parents=True, exist_ok=True)
         date_slug = datetime.now(KST).strftime("%Y%m%d")
 
-        print("[4/5] Writing 10~13 min single-anchor longform radio script...")
-        script = write_longform_script(full_articles)
+        print("[4/5] Writing 7~9 min single-anchor roundup radio script...")
+        script = write_roundup_script(full_articles)
         script_preview = format_script_preview(script)
-        script_path = args.output_dir / f"guardian_briefing_{date_slug}_script.txt"
+        script_path = args.output_dir / f"global_briefing_{date_slug}_script.txt"
         script_path.write_text(script_preview, encoding="utf-8")
-        total_chars = len(script.part1_text) + len(script.part2_text)
-        print(f"      Prepared script ({total_chars} chars, saved to {script_path}).")
+        total_chars = sum(len(text) for _, text in get_script_segments(script))
+        print(
+            f"      Prepared script ({len(script.stories)} stories, {total_chars} chars, "
+            f"saved to {script_path})."
+        )
 
-        print("      Synthesizing single-voice longform MP3 with Gemini 3.8 TTS...")
-        mp3_path = args.output_dir / f"guardian_briefing_{date_slug}.mp3"
+        print("      Synthesizing single-voice MP3 audio...")
+        mp3_path = args.output_dir / f"global_briefing_{date_slug}.mp3"
         generated_audio = generate_audio_briefing(
             script=script,
             output_mp3=mp3_path,
+            tts_provider=args.tts_provider,
             voice=args.voice,
             tts_model=args.tts_model,
         )
@@ -126,7 +182,7 @@ def main() -> int:
         print(
             f"      Generated {generated_audio.mp3_path} "
             f"({generated_audio.duration_seconds}s, {size_mb:.2f} MB, "
-            f"voice={generated_audio.voice}, model={generated_audio.model})."
+            f"provider={generated_audio.provider}, voice={generated_audio.voice})."
         )
 
     if args.dry_run:
@@ -149,18 +205,18 @@ def main() -> int:
         minutes, seconds = divmod(generated_audio.duration_seconds, 60)
         caption = (
             f"🎧 <b>{script.episode_title}</b>\n"
-            f"약 {minutes}분 {seconds:02d}초 · The Guardian 전문 심층 브리핑 "
+            f"약 {minutes}분 {seconds:02d}초 · 글로벌 주요 뉴스 {len(script.stories)}건 "
             f"({generated_audio.voice})"
         )
         send_telegram_audio(
             audio_path=generated_audio.mp3_path,
             title=script.episode_title,
-            performer="글로벌 모닝 브리핑 (The Guardian)",
+            performer="글로벌 모닝 브리핑",
             caption=caption,
             duration=generated_audio.duration_seconds,
         )
 
-    print("[DONE] Morning briefing delivered successfully!")
+    print("[DONE] Global morning briefing delivered successfully!")
     return 0
 
 
