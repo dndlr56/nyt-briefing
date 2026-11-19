@@ -58,11 +58,25 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
+      - name: Cache static ffmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/ffmpeg-bin
+          key: ffmpeg-static-linux64-v1
+
       - name: Ensure ffmpeg is installed
         run: |
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y ffmpeg
+          if [ ! -x "$HOME/.local/ffmpeg-bin/ffmpeg" ] || [ ! -x "$HOME/.local/ffmpeg-bin/ffprobe" ]; then
+            mkdir -p "$HOME/.local/ffmpeg-bin" /tmp/ffmpeg-dl
+            curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
+              | tar -xJ --strip-components=2 -C /tmp/ffmpeg-dl --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+            mv /tmp/ffmpeg-dl/ffmpeg /tmp/ffmpeg-dl/ffprobe "$HOME/.local/ffmpeg-bin/"
+            chmod +x "$HOME/.local/ffmpeg-bin/ffmpeg" "$HOME/.local/ffmpeg-bin/ffprobe"
+            rm -rf /tmp/ffmpeg-dl
           fi
+          echo "$HOME/.local/ffmpeg-bin" >> "$GITHUB_PATH"
+          "$HOME/.local/ffmpeg-bin/ffmpeg" -version | head -n 1
 
       - name: Install dependencies
         run: pip install -r requirements.txt
