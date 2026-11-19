@@ -22,9 +22,9 @@ from script_writer import RoundupAudioScript, get_script_segments
 CLOUD_TTS_ENDPOINT = "https://texttospeech.googleapis.com/v1/text:synthesize"
 CLOUD_TTS_MAX_UTF8_BYTES = 4200  # Google Cloud TTS 5,000바이트 제한에 여유 버퍼 확보
 
-DEFAULT_TTS_PROVIDER = "edge_tts"
+DEFAULT_TTS_PROVIDER = "google_cloud_tts"
 DEFAULT_EDGE_TTS_VOICE = "ko-KR-HyunsuMultilingualNeural"
-DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Kore"
+DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Charon"
 DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_GEMINI_TTS_VOICE = "Kore"
 DEFAULT_ANCHOR_STYLE = (

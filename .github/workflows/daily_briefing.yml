@@ -17,29 +17,29 @@ on:
           - telegram_text_and_audio
           - telegram_audio_only
       tts_provider:
-        description: 'TTS 엔진 선택 (기본값: edge_tts 무료)'
+        description: 'TTS 엔진 선택 (기본값: google_cloud_tts 월 100만자 무료)'
         required: true
-        default: 'edge_tts'
+        default: 'google_cloud_tts'
         type: choice
         options:
-          - edge_tts
           - google_cloud_tts
+          - edge_tts
           - gemini_tts
       voice:
-        description: '앵커 목소리 선택 (기본값: ko-KR-HyunsuMultilingualNeural)'
+        description: '앵커 목소리 선택 (기본값: ko-KR-Chirp3-HD-Charon)'
         required: true
-        default: 'ko-KR-HyunsuMultilingualNeural'
+        default: 'ko-KR-Chirp3-HD-Charon'
         type: choice
         options:
-          - ko-KR-HyunsuMultilingualNeural
-          - ko-KR-SunHiNeural
-          - ko-KR-InJoonNeural
-          - ko-KR-Chirp3-HD-Kore
           - ko-KR-Chirp3-HD-Charon
+          - ko-KR-Chirp3-HD-Kore
           - ko-KR-Chirp3-HD-Aoede
           - ko-KR-Neural2-C
           - ko-KR-Neural2-A
           - ko-KR-Neural2-B
+          - ko-KR-HyunsuMultilingualNeural
+          - ko-KR-SunHiNeural
+          - ko-KR-InJoonNeural
 
 jobs:
   send-briefing:
@@ -100,8 +100,8 @@ jobs:
           PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           MODE="podcast_only"
-          TTS_PROVIDER="edge_tts"
-          VOICE="ko-KR-HyunsuMultilingualNeural"
+          TTS_PROVIDER="google_cloud_tts"
+          VOICE="ko-KR-Chirp3-HD-Charon"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             MODE="${{ inputs.mode }}"
