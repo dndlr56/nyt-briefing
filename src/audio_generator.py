@@ -564,11 +564,11 @@ def generate_audio_briefing(
         selected_style = style or os.getenv("GEMINI_TTS_STYLE", DEFAULT_ANCHOR_STYLE)
         client = genai.Client(http_options={"api_version": "v1beta"})
 
-        # Gemini TTS는 호출 횟수를 줄이기 위해 2개 파트로 균형 분할
-        midpoint = max(1, len(segments) // 2)
+        # Gemini TTS는 파트당 3~4분 내외로 안정적으로 생성되도록 3개 세그먼트씩 묶어 분할
+        chunk_size = 3
         grouped_parts = [
-            "\n\n".join(text for _, text in segments[:midpoint]),
-            "\n\n".join(text for _, text in segments[midpoint:]),
+            "\n\n".join(text for _, text in segments[i : i + chunk_size])
+            for i in range(0, len(segments), chunk_size)
         ]
         grouped_parts = [p for p in grouped_parts if p.strip()]
 

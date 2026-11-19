@@ -25,6 +25,14 @@ on:
           - google_cloud_tts
           - edge_tts
           - gemini_tts
+      tts_model:
+        description: 'gemini_tts 선택 시 모델'
+        required: false
+        default: 'gemini-3.8-flash-lite-tts'
+        type: choice
+        options:
+          - gemini-3.8-flash-lite-tts
+          - gemini-3.8-flash-tts
       voice:
         description: '앵커 목소리 선택 (기본값: ko-KR-Chirp3-HD-Charon)'
         required: true
@@ -101,11 +109,13 @@ jobs:
         run: |
           MODE="podcast_only"
           TTS_PROVIDER="google_cloud_tts"
+          TTS_MODEL="gemini-3.8-flash-lite-tts"
           VOICE="ko-KR-Chirp3-HD-Charon"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             MODE="${{ inputs.mode }}"
             TTS_PROVIDER="${{ inputs.tts_provider }}"
+            TTS_MODEL="${{ inputs.tts_model }}"
             VOICE="${{ inputs.voice }}"
           fi
 
@@ -116,6 +126,7 @@ jobs:
               --podcast-dir _gh_pages \
               --podcast-base-url "$PAGES_BASE_URL" \
               --tts-provider "$TTS_PROVIDER" \
+              --tts-model "$TTS_MODEL" \
               --voice "$VOICE" \
               --output-dir output
           elif [ "$MODE" = "podcast_only" ]; then
@@ -126,18 +137,21 @@ jobs:
               --podcast-dir _gh_pages \
               --podcast-base-url "$PAGES_BASE_URL" \
               --tts-provider "$TTS_PROVIDER" \
+              --tts-model "$TTS_MODEL" \
               --voice "$VOICE" \
               --output-dir output
           elif [ "$MODE" = "telegram_text_and_audio" ]; then
             python src/main.py \
               --with-audio \
               --tts-provider "$TTS_PROVIDER" \
+              --tts-model "$TTS_MODEL" \
               --voice "$VOICE" \
               --output-dir output
           else
             python src/main.py \
               --audio-only \
               --tts-provider "$TTS_PROVIDER" \
+              --tts-model "$TTS_MODEL" \
               --voice "$VOICE" \
               --output-dir output
           fi
