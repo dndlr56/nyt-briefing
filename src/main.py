@@ -17,6 +17,7 @@ from guardian_fetcher import (
     fetch_guardian_candidates,
 )
 from nyt_fetcher import fetch_recent_articles as fetch_nyt_articles
+from podcast_feed import publish_podcast_episode
 from script_writer import (
     format_script_preview,
     get_script_segments,
@@ -67,7 +68,7 @@ def main() -> int:
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        description="The Guardian(메인) + NYT(보완) 8~10개 글로벌 기사를 큐레이션해 오디오/텍스트 브리핑으로 전송합니다."
+        description="The Guardian(메인) + NYT(보완) 8~10개 글로벌 기사를 큐레이션해 팟캐스트 RSS 및 텔레그램 브리핑으로 전송합니다."
     )
     parser.add_argument(
         "--dry-run",
@@ -83,25 +84,47 @@ def main() -> int:
     parser.add_argument(
         "--with-audio",
         action="store_true",
-        help="읽기용 텍스트 요약 브리핑과 함께 오디오 브리핑도 생성·전송합니다.",
+        help="읽기용 텍스트 요약과 함께 오디오 브리핑도 생성합니다.",
     )
     parser.add_argument(
         "--audio-only",
         action="store_true",
-        help="텍스트 브리핑은 생략하고 오디오 브리핑만 생성·전송합니다.",
+        help="읽기용 텍스트 요약 없이 오디오 브리핑만 생성합니다.",
+    )
+    parser.add_argument(
+        "--skip-telegram-text",
+        action="store_true",
+        help="텔레그램 텍스트 메시지 전송을 건너뜁니다.",
+    )
+    parser.add_argument(
+        "--skip-telegram-audio",
+        action="store_true",
+        help="텔레그램 MP3 오디오 파일 전송을 건너뜁니다 (AntennaPod RSS 전용 배포 시 사용).",
+    )
+    parser.add_argument(
+        "--podcast-dir",
+        type=Path,
+        default=None,
+        help="AntennaPod RSS feed.xml과 MP3를 저장할 GitHub Pages 디렉터리",
+    )
+    parser.add_argument(
+        "--podcast-base-url",
+        type=str,
+        default=None,
+        help="GitHub Pages 공개 기본 URL (예: https://dndlr56.github.io/nyt-briefing)",
     )
     parser.add_argument(
         "--tts-provider",
         type=str,
         choices=("edge_tts", "google_cloud_tts", "gemini_tts"),
         default=None,
-        help="사용할 TTS 엔진 (기본값: google_cloud_tts)",
+        help="사용할 TTS 엔진 (기본값: edge_tts)",
     )
     parser.add_argument(
         "--voice",
         type=str,
         default=None,
-        help="앵커 목소리 이름 (예: ko-KR-SunHiNeural, ko-KR-HyunsuMultilingualNeural, ko-KR-Chirp3-HD-Kore)",
+        help="앵커 목소리 이름 (기본값: ko-KR-HyunsuMultilingualNeural)",
     )
     parser.add_argument(
         "--tts-model",
@@ -117,8 +140,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    include_audio = args.with_audio or args.audio_only
-    include_text = not args.audio_only
+    publish_podcast = args.podcast_dir is not None
+    if publish_podcast and not args.podcast_base_url:
+        print("[ERROR] --podcast-dir 사용 시 --podcast-base-url도 함께 지정해야 합니다.", file=sys.stderr)
+        return 1
+
+    include_audio = args.with_audio or args.audio_only or publish_podcast
+    # 팟캐스트 쇼노트(기사 요약 + 원문 링크)나 텔레그램 텍스트 중 하나라도 필요하면 읽기용 요약 생성
+    need_text_summary = (not args.audio_only) or publish_podcast
+    send_text_to_telegram = (not args.audio_only) and (not args.skip_telegram_text)
+    send_audio_to_telegram = include_audio and (not args.skip_telegram_audio)
 
     print(f"[1/5] Fetching global article candidates (last {args.hours}h)...")
     candidates = _fetch_combined_candidates(hours=args.hours)
@@ -145,18 +176,19 @@ def main() -> int:
         print("[ERROR] Failed to load selected articles.", file=sys.stderr)
         return 1
 
+    briefing = None
     messages: list[str] = []
-    if include_text:
-        print("[4/5] Writing reading-friendly text summary for Telegram...")
+    if need_text_summary:
+        print("[4/5] Writing reading-friendly summary (Telegram & Podcast show notes)...")
         briefing = summarize_full_articles(full_articles)
         messages = build_messages(briefing)
-        print(f"      Prepared {len(messages)} Telegram text message(s).")
+        print(f"      Prepared {len(messages)} reading-friendly message(s).")
 
     script = None
     generated_audio = None
+    date_slug = datetime.now(KST).strftime("%Y%m%d")
     if include_audio:
         args.output_dir.mkdir(parents=True, exist_ok=True)
-        date_slug = datetime.now(KST).strftime("%Y%m%d")
 
         print("[4/5] Writing 7~9 min single-anchor roundup radio script...")
         script = write_roundup_script(full_articles)
@@ -185,9 +217,21 @@ def main() -> int:
             f"provider={generated_audio.provider}, voice={generated_audio.voice})."
         )
 
+        if publish_podcast and args.podcast_dir and args.podcast_base_url:
+            feed_path = publish_podcast_episode(
+                pages_dir=args.podcast_dir,
+                base_url=args.podcast_base_url,
+                mp3_path=generated_audio.mp3_path,
+                episode_title=script.episode_title,
+                duration_seconds=generated_audio.duration_seconds,
+                date_slug=date_slug,
+                briefing=briefing,
+            )
+            print(f"      Updated AntennaPod RSS feed: {feed_path}")
+
     if args.dry_run:
         print("\n========== DRY RUN OUTPUT ==========")
-        if include_text:
+        if messages:
             for idx, msg in enumerate(messages, start=1):
                 print(f"\n--- Text Part {idx}/{len(messages)} ---\n{msg}")
         if script is not None:
@@ -197,11 +241,11 @@ def main() -> int:
         print("\n====================================")
         return 0
 
-    print("[5/5] Delivering briefing to Telegram...")
-    if include_text:
+    print("[5/5] Delivering briefing...")
+    if send_text_to_telegram and messages:
         send_telegram_messages(messages)
 
-    if generated_audio is not None and script is not None:
+    if send_audio_to_telegram and generated_audio is not None and script is not None:
         minutes, seconds = divmod(generated_audio.duration_seconds, 60)
         caption = (
             f"🎧 <b>{script.episode_title}</b>\n"
@@ -216,7 +260,7 @@ def main() -> int:
             duration=generated_audio.duration_seconds,
         )
 
-    print("[DONE] Global morning briefing delivered successfully!")
+    print("[DONE] Global morning briefing completed successfully!")
     return 0
 
 
