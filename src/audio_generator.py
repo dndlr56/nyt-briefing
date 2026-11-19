@@ -128,24 +128,60 @@ def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
     return raw
 
 
-def _get_cloud_tts_api_key(api_key: str | None = None) -> str:
-    """GOOGLE_CLOUD_TTS_API_KEY를 우선 사용하고, 미설정 시 GEMINI_API_KEY를 사용합니다."""
-    key = (
-        api_key
-        or os.getenv("GOOGLE_CLOUD_TTS_API_KEY")
-        or os.getenv("GEMINI_API_KEY")
+CLOUD_TTS_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+
+
+def _get_cloud_tts_auth_headers(
+    credentials_json: str | None = None,
+) -> dict[str, str]:
+    """Service Account JSON으로 Google Cloud TTS OAuth2 Bearer 토큰 헤더를 발급합니다."""
+    import json
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+    from google.oauth2 import service_account
+
+    raw = (
+        credentials_json
+        or os.getenv("GOOGLE_CLOUD_TTS_CREDENTIALS_JSON")
+        or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     )
-    if not key:
+    if not raw or not raw.strip():
         raise ValueError(
-            "GOOGLE_CLOUD_TTS_API_KEY (또는 GEMINI_API_KEY) 환경변수가 필요합니다."
+            "GOOGLE_CLOUD_TTS_CREDENTIALS_JSON 환경변수가 필요합니다. "
+            "Google Cloud Console에서 서비스 계정 JSON 키를 발급해 GitHub Secrets에 등록해 주세요."
         )
-    return key.strip()
+
+    raw = raw.strip()
+    if raw.startswith("{"):
+        info = json.loads(raw)
+        creds = service_account.Credentials.from_service_account_info(
+            info,
+            scopes=CLOUD_TTS_SCOPES,
+        )
+        project_id = info.get("project_id")
+    else:
+        creds = service_account.Credentials.from_service_account_file(
+            raw,
+            scopes=CLOUD_TTS_SCOPES,
+        )
+        project_id = getattr(creds, "project_id", None)
+
+    creds.refresh(GoogleAuthRequest())
+    if not creds.token:
+        raise RuntimeError("Google Cloud OAuth2 액세스 토큰 발급에 실패했습니다.")
+
+    headers = {
+        "Authorization": f"Bearer {creds.token}",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+    if project_id:
+        headers["x-goog-user-project"] = str(project_id)
+    return headers
 
 
 def _synthesize_cloud_tts_chunk(
     text: str,
     voice_name: str,
-    api_key: str,
+    auth_headers: dict[str, str],
     timeout: int = 45,
 ) -> bytes:
     """Google Cloud Text-to-Speech REST API로 단일 청크를 LINEAR16 WAV로 합성합니다."""
@@ -164,20 +200,17 @@ def _synthesize_cloud_tts_chunk(
 
     resp = requests.post(
         CLOUD_TTS_ENDPOINT,
-        headers={
-            "X-Goog-Api-Key": api_key,
-            "Content-Type": "application/json; charset=utf-8",
-        },
+        headers=auth_headers,
         json=payload,
         timeout=timeout,
     )
 
     if not resp.ok:
         hint = ""
-        if resp.status_code == 403:
+        if resp.status_code in (401, 403):
             hint = (
                 " (Google Cloud Console에서 'Cloud Text-to-Speech API'가 "
-                "사용 설정되어 있는지, 그리고 API 키 제한 설정에 차단되지 않았는지 확인해 주세요.)"
+                "사용 설정되어 있는지, 서비스 계정 JSON 키가 올바른지 확인해 주세요.)"
             )
         raise RuntimeError(
             f"Google Cloud TTS API 호출 실패 ({resp.status_code}): "
@@ -343,7 +376,7 @@ def generate_audio_briefing(
     total_duration = 0.0
 
     if provider == "google_cloud_tts":
-        api_key = _get_cloud_tts_api_key()
+        auth_headers = _get_cloud_tts_auth_headers()
         selected_model = "google-cloud-tts"
 
         for idx, (label, text) in enumerate(segments, start=1):
@@ -357,7 +390,7 @@ def generate_audio_briefing(
                 wav_bytes = _synthesize_cloud_tts_chunk(
                     text=chunk,
                     voice_name=selected_voice,
-                    api_key=api_key,
+                    auth_headers=auth_headers,
                 )
                 part_dur = _get_wav_duration_seconds(wav_bytes)
                 wav_parts.append(wav_bytes)
