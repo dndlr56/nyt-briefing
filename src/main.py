@@ -60,8 +60,8 @@ def _fetch_combined_candidates(hours: int) -> list[ArticleCandidate]:
     except Exception as exc:
         print(f"[WARN] NYT supplement fetch skipped due to error: {exc}")
 
-    # Guardian(전문 조회 가능)을 앞쪽에 최대 55개, NYT 보완을 뒤쪽에 최대 20개 배치
-    return guardian_candidates[:55] + nyt_candidates[:20]
+    # Guardian(전문 조회 가능)을 앞쪽에 최대 60개, NYT 보완을 뒤쪽에 최대 25개 배치
+    return guardian_candidates[:60] + nyt_candidates[:25]
 
 
 def main() -> int:

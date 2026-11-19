@@ -25,9 +25,9 @@ class SelectedArticleRef(BaseModel):
 
 class SelectionResult(BaseModel):
     selected: List[SelectedArticleRef] = Field(
-        min_length=8,
-        max_length=10,
-        description="독자 프로필에 맞춰 엄선된 8~10개 글로벌 기사 목록",
+        min_length=10,
+        max_length=12,
+        description="독자 프로필에 맞춰 엄선된 10~12개 글로벌 기사 목록",
     )
 
 
@@ -53,14 +53,14 @@ class DailyBriefing(BaseModel):
         description="오늘 아침 글로벌 뉴스의 핵심 흐름을 1~2문장으로 짚어주는 인사말"
     )
     articles: List[CuratedArticle] = Field(
-        min_length=8,
-        max_length=10,
-        description="읽기용으로 깔끔하게 정리한 8~10개의 글로벌 주요 기사",
+        min_length=10,
+        max_length=12,
+        description="읽기용으로 깔끔하게 정리한 10~12개의 글로벌 주요 기사",
     )
 
 
 SELECTION_SYSTEM_INSTRUCTION = """당신은 한국인 독자(초보 주식 투자자, 로스쿨 진학 예정, 글로벌 트렌드·경제·테크·건강 관심)를 위한 **글로벌 모닝 뉴스 브리핑** 수석 에디터입니다.
-제공된 The Guardian(전문 제공, 메인)과 NYT(미국·글로벌 보완) 기사 후보 목록에서 **9개(최소 8개, 최대 10개)** 기사를 엄선하세요.
+제공된 The Guardian(전문 제공, 메인)과 NYT(미국·글로벌 보완) 기사 후보 목록에서 **11개(최소 10개, 최대 12개)** 기사를 엄선하세요.
 
 [강력 선호 주제 — 최우선 선정]
 1. **빅테크·AI 산업 동향**: 엔비디아, OpenAI, Anthropic, 애플, MS, 구글 등 AI 경쟁, 신기술, 규제, 산업 판도 변화
@@ -76,16 +76,16 @@ SELECTION_SYSTEM_INSTRUCTION = """당신은 한국인 독자(초보 주식 투�
 - 한국 국내 뉴스는 다른 채널로 듣고 있으므로 글로벌 이슈에만 집중하세요.
 
 [소스 배분 및 정렬 규칙]
-1. 기사 전문(Full Text)을 읽을 수 있는 **The Guardian 기사를 메인(최소 6~8개)**으로 우선 선정하세요.
+1. 기사 전문(Full Text)을 읽을 수 있는 **The Guardian 기사를 메인(최소 8~10개)**으로 우선 선정하세요.
 2. 미국 빅테크·월가·글로벌 핵심 이슈 중 Guardian 목록에 빠졌거나 NYT가 훨씬 중요하게 다룬 주제가 있다면 **NYT 기사로 최대 2~3개 보완**하세요.
 3. 서로 다른 매체가 같은 사건을 다룬 경우 중복 선정하지 말고 더 충실한 기사(전문이 있는 Guardian 우선) 1건만 고르세요.
 4. `article_id`는 입력 목록에 적힌 값을 **한 글자도 바꾸지 말고 그대로** 복사하세요.
-5. 배치 순서: [테크·AI / 경제·투자 / 글로벌 기업]을 앞쪽(1~5번), [인프라·에너지 / 글로벌 시사 / 건강·과학]을 뒤쪽(6~10번)에 배치하세요.
+5. 배치 순서: [테크·AI / 경제·투자 / 글로벌 기업]을 앞쪽(1~6번), [인프라·에너지 / 글로벌 시사 / 건강·과학]을 뒤쪽(7~12번)에 배치하세요.
 """
 
 
 SUMMARY_SYSTEM_INSTRUCTION = """당신은 한국인 독자를 위한 글로벌 뉴스 모닝 브리핑 에디터입니다.
-제공된 8~10개 글로벌 기사를 읽고, **눈으로 빠르게 훑어 읽기 좋은 텍스트 브리핑**으로 정리하세요.
+제공된 10~12개 글로벌 기사를 읽고, **눈으로 빠르게 훑어 읽기 좋은 텍스트 브리핑**으로 정리하세요.
 
 [작성 규칙]
 1. 각 기사는 한국어 번역 제목(title_kr), 원문 영어 헤드라인(title_en), 출처(source), 원문 URL(url)을 함께 제공합니다.
@@ -99,14 +99,14 @@ def select_articles(
     candidates: list[ArticleCandidate],
     model: str | None = None,
 ) -> list[tuple[ArticleCandidate, str]]:
-    """1단계: Guardian(메인) + NYT(보완) 후보 목록에서 8~10개 글로벌 기사를 선별합니다."""
+    """1단계: Guardian(메인) + NYT(보완) 후보 목록에서 10~12개 글로벌 기사를 선별합니다."""
     if not candidates:
         raise ValueError("선별할 기사 후보가 없습니다.")
 
     selected_model = model or os.getenv("GEMINI_MODEL", "gemini-4-hydrogen")
     client = genai.Client(http_options={"api_version": "v1beta"})
 
-    pool = candidates[:75]
+    pool = candidates[:85]
     by_id = {c.article_id: c for c in pool}
 
     lines: list[str] = []
@@ -122,7 +122,7 @@ def select_articles(
 
     prompt = (
         "아래는 최근 수집된 The Guardian(메인) 및 NYT(보완) 글로벌 기사 후보 목록입니다.\n"
-        "독자 프로필에 맞춰 오늘 아침 라운드업 브리핑으로 다룰 9개(8~10개) 기사를 선별해 JSON으로 반환해 주세요.\n\n"
+        "독자 프로필에 맞춰 오늘 아침 15~18분 브리핑으로 다룰 11개(10~12개) 기사를 선별해 JSON으로 반환해 주세요.\n\n"
         + "\n".join(lines)
     )
 
