@@ -97,6 +97,10 @@ SUMMARY_SYSTEM_INSTRUCTION = """당신은 한국인 독자를 위한 글로벌 �
 """
 
 
+DEFAULT_SELECTION_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_SUMMARY_MODEL = "gemini-3.8-flash"
+
+
 def select_articles(
     candidates: list[ArticleCandidate],
     model: str | None = None,
@@ -106,7 +110,12 @@ def select_articles(
     if not candidates:
         raise ValueError("선별할 기사 후보가 없습니다.")
 
-    selected_model = model or os.getenv("GEMINI_MODEL", "gemini-4-hydrogen")
+    selected_model = (
+        model
+        or os.getenv("GEMINI_SELECTION_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or DEFAULT_SELECTION_MODEL
+    )
     client = genai.Client(http_options={"api_version": "v1beta"})
 
     pool = candidates[:85]
@@ -139,8 +148,8 @@ def select_articles(
             response_mime_type="application/json",
             response_format=SelectionResult.model_json_schema(),
             generation_config={
-                "thinking_level": "medium",
-                "max_output_tokens": 16384,
+                "thinking_level": "low",
+                "max_output_tokens": 8192,
             },
             store=False,
         )
@@ -184,11 +193,16 @@ def summarize_full_articles(
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
 ) -> DailyBriefing:
-    """2단계(읽기용 텍스트 브리핑): 선별된 10~12개 기사를 읽기 편한 요약으로 정리합니다."""
+    """2단계(텍스트 전용 모드): 선별된 10~12개 기사를 읽기 편한 요약으로 정리합니다."""
     if not articles:
         raise ValueError("요약할 기사가 없습니다.")
 
-    selected_model = model or os.getenv("GEMINI_MODEL", "gemini-4-hydrogen")
+    selected_model = (
+        model
+        or os.getenv("GEMINI_SUMMARY_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or DEFAULT_SUMMARY_MODEL
+    )
     client = genai.Client(http_options={"api_version": "v1beta"})
 
     blocks: list[str] = []

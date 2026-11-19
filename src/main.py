@@ -19,6 +19,7 @@ from guardian_fetcher import (
 from nyt_fetcher import fetch_recent_articles as fetch_nyt_articles
 from podcast_feed import publish_podcast_episode
 from script_writer import (
+    build_daily_briefing_from_script,
     format_script_preview,
     get_script_segments,
     write_roundup_script,
@@ -184,20 +185,20 @@ def main() -> int:
 
     briefing = None
     messages: list[str] = []
-    if need_text_summary:
-        print("[4/5] Writing reading-friendly summary (Telegram & Podcast show notes)...")
-        briefing = summarize_full_articles(full_articles, usage_tracker=usage_tracker)
-        messages = build_messages(briefing)
-        print(f"      Prepared {len(messages)} reading-friendly message(s).")
-
     script = None
     generated_audio = None
     date_slug = datetime.now(KST).strftime("%Y%m%d")
+
     if include_audio:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
-        print("[4/5] Writing 15~18 min single-anchor briefing radio script...")
+        print("[4/5] Writing show-notes summary & 15~18 min briefing script (single pass)...")
         script = write_roundup_script(full_articles, usage_tracker=usage_tracker)
+        if need_text_summary:
+            briefing = build_daily_briefing_from_script(script, full_articles)
+            messages = build_messages(briefing)
+            print(f"      Prepared {len(messages)} reading-friendly message(s) from unified output.")
+
         script_preview = format_script_preview(script)
         script_path = args.output_dir / f"global_briefing_{date_slug}_script.txt"
         script_path.write_text(script_preview, encoding="utf-8")
@@ -242,6 +243,11 @@ def main() -> int:
             )
             print(f"      Updated AntennaPod RSS feed: {feed_path}")
     else:
+        if need_text_summary:
+            print("[4/5] Writing reading-friendly summary (text-only mode)...")
+            briefing = summarize_full_articles(full_articles, usage_tracker=usage_tracker)
+            messages = build_messages(briefing)
+            print(f"      Prepared {len(messages)} reading-friendly message(s).")
         print(usage_tracker.format_console_summary())
 
     if args.dry_run:
