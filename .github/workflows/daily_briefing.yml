@@ -1,0 +1,32 @@
+name: NYT Morning Briefing
+
+on:
+  schedule:
+    # 매일 한국시간(KST, UTC+9) 오전 8시 30분 = UTC 23시 30분
+    - cron: '30 23 * * *'
+  # GitHub Actions 탭에서 언제든 수동으로 테스트 실행 가능
+  workflow_dispatch:
+
+jobs:
+  send-briefing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run NYT Morning Briefing
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python src/main.py
