@@ -17,8 +17,8 @@ from curator import DailyBriefing
 KST = timezone(timedelta(hours=9))
 DEFAULT_PODCAST_TITLE = "글로벌 모닝 브리핑"
 DEFAULT_PODCAST_DESCRIPTION = (
-    "매일 아침 8시(KST), The Guardian 전문과 NYT 주요 기사 중 "
-    "빅테크·AI·글로벌 경제·기업·인프라·건강 핵심 뉴스 8~10건을 엄선해 들려드리는 개인 모닝 브리핑입니다."
+    "매일 아침 7시(KST), The Guardian 전문과 NYT 주요 기사 중 "
+    "빅테크·AI·글로벌 경제·기업·인프라·건강 핵심 뉴스 10~12건을 엄선해 들려드리는 개인 모닝 브리핑입니다."
 )
 DEFAULT_PODCAST_AUTHOR = "Global Morning Briefing"
 MAX_EPISODES = 30

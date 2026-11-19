@@ -2,8 +2,8 @@ name: NYT Morning Briefing
 
 on:
   schedule:
-    # 매일 한국시간(KST, UTC+9) 오전 8시 00분 = UTC 23시 00분
-    - cron: '0 23 * * *'
+    # 매일 한국시간(KST, UTC+9) 오전 7시 00분 = UTC 22시 00분
+    - cron: '0 22 * * *'
   workflow_dispatch:
     inputs:
       mode:
