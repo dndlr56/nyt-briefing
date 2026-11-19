@@ -28,6 +28,7 @@ from telegram_sender import (
     send_telegram_audio,
     send_telegram_messages,
 )
+from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
@@ -159,8 +160,10 @@ def main() -> int:
         print("[ERROR] No candidate articles fetched.", file=sys.stderr)
         return 1
 
+    usage_tracker = RunUsageTracker()
+
     print("[2/5] Stage 1 — Selecting top 10~12 global stories with Gemini...")
-    selected_pairs = select_articles(candidates)
+    selected_pairs = select_articles(candidates, usage_tracker=usage_tracker)
     guardian_cnt = sum(1 for c, _ in selected_pairs if c.source == "The Guardian")
     nyt_cnt = sum(1 for c, _ in selected_pairs if c.source == "NYT")
     print(
@@ -180,7 +183,7 @@ def main() -> int:
     messages: list[str] = []
     if need_text_summary:
         print("[4/5] Writing reading-friendly summary (Telegram & Podcast show notes)...")
-        briefing = summarize_full_articles(full_articles)
+        briefing = summarize_full_articles(full_articles, usage_tracker=usage_tracker)
         messages = build_messages(briefing)
         print(f"      Prepared {len(messages)} reading-friendly message(s).")
 
@@ -191,7 +194,7 @@ def main() -> int:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
         print("[4/5] Writing 15~18 min single-anchor briefing radio script...")
-        script = write_roundup_script(full_articles)
+        script = write_roundup_script(full_articles, usage_tracker=usage_tracker)
         script_preview = format_script_preview(script)
         script_path = args.output_dir / f"global_briefing_{date_slug}_script.txt"
         script_path.write_text(script_preview, encoding="utf-8")
@@ -216,6 +219,12 @@ def main() -> int:
             f"({generated_audio.duration_seconds}s, {size_mb:.2f} MB, "
             f"provider={generated_audio.provider}, voice={generated_audio.voice})."
         )
+        usage_tracker.set_tts(
+            provider=generated_audio.provider,
+            voice=generated_audio.voice,
+            chars=total_chars,
+        )
+        print(usage_tracker.format_console_summary())
 
         if publish_podcast and args.podcast_dir and args.podcast_base_url:
             feed_path = publish_podcast_episode(
@@ -226,8 +235,11 @@ def main() -> int:
                 duration_seconds=generated_audio.duration_seconds,
                 date_slug=date_slug,
                 briefing=briefing,
+                usage_footer_html=usage_tracker.format_show_notes_html(),
             )
             print(f"      Updated AntennaPod RSS feed: {feed_path}")
+    else:
+        print(usage_tracker.format_console_summary())
 
     if args.dry_run:
         print("\n========== DRY RUN OUTPUT ==========")

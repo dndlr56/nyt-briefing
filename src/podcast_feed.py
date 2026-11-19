@@ -32,10 +32,14 @@ def _format_itunes_duration(seconds: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
-def build_episode_show_notes_html(briefing: DailyBriefing | None) -> str:
+def build_episode_show_notes_html(
+    briefing: DailyBriefing | None,
+    usage_footer_html: str | None = None,
+) -> str:
     """AntennaPod 에피소드 설명란에 표시할 읽기용 HTML 쇼노트를 생성합니다."""
+    footer = f"\n{usage_footer_html}" if usage_footer_html else ""
     if briefing is None:
-        return "<p>오늘의 글로벌 모닝 브리핑 오디오 에피소드입니다.</p>"
+        return f"<p>오늘의 글로벌 모닝 브리핑 오디오 에피소드입니다.</p>{footer}"
 
     parts: list[str] = [
         f"<p><strong>{html.escape(briefing.morning_intro_kr)}</strong></p>",
@@ -56,6 +60,8 @@ def build_episode_show_notes_html(briefing: DailyBriefing | None) -> str:
             f"<ul>{bullets_html}</ul>"
             f"<p><a href=\"{url}\">원문 기사 보기</a></p>"
         )
+    if usage_footer_html:
+        parts.append(usage_footer_html)
     return "\n".join(parts)
 
 
@@ -200,6 +206,7 @@ def publish_podcast_episode(
     duration_seconds: int,
     date_slug: str,
     briefing: DailyBriefing | None = None,
+    usage_footer_html: str | None = None,
     max_episodes: int = MAX_EPISODES,
 ) -> Path:
     """새 에피소드 MP3를 pages_dir에 복사하고 feed.xml 및 index.html을 갱신합니다."""
@@ -235,7 +242,10 @@ def publish_podcast_episode(
         "file_size_bytes": target_mp3.stat().st_size,
         "duration_seconds": int(duration_seconds),
         "summary_plain": build_episode_summary_plain(briefing, episode_title),
-        "description_html": build_episode_show_notes_html(briefing),
+        "description_html": build_episode_show_notes_html(
+            briefing,
+            usage_footer_html=usage_footer_html,
+        ),
     }
 
     # 같은 날짜 에피소드가 이미 있으면 교체 (중복 방지)

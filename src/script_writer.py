@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import os
+import time
 from typing import List
 
 from google import genai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from guardian_fetcher import FullArticle
+from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
@@ -77,6 +79,7 @@ SCRIPT_SYSTEM_INSTRUCTION = """당신은 한국의 프리미엄 아침 글로벌
 def write_roundup_script(
     articles: list[FullArticle],
     model: str | None = None,
+    usage_tracker: RunUsageTracker | None = None,
 ) -> RoundupAudioScript:
     """선별된 10~12개 기사로 15~18분 분량의 1인 앵커 해설 대본을 생성합니다."""
     if not articles:
@@ -108,20 +111,37 @@ def write_roundup_script(
         + "\n".join(article_blocks)
     )
 
-    interaction = client.interactions.create(
-        model=selected_model,
-        system_instruction=SCRIPT_SYSTEM_INSTRUCTION,
-        input=prompt,
-        response_mime_type="application/json",
-        response_format=RoundupAudioScript.model_json_schema(),
-        store=False,
-    )
+    last_exc: Exception | None = None
+    for attempt in range(1, 4):
+        interaction = client.interactions.create(
+            model=selected_model,
+            system_instruction=SCRIPT_SYSTEM_INSTRUCTION,
+            input=prompt,
+            response_mime_type="application/json",
+            response_format=RoundupAudioScript.model_json_schema(),
+            generation_config={
+                "thinking_level": "medium",
+                "max_output_tokens": 24576,
+            },
+            store=False,
+        )
+        if usage_tracker is not None:
+            usage_tracker.add_interaction(interaction, stage="오디오 대본", model=selected_model)
 
-    raw_json = interaction.output_text
-    if not raw_json:
-        raise RuntimeError("방송 대본 생성 중 Gemini API로부터 빈 응답을 받았습니다.")
+        raw_json = interaction.output_text
+        if not raw_json:
+            last_exc = RuntimeError("방송 대본 생성 중 Gemini API로부터 빈 응답을 받았습니다.")
+        else:
+            try:
+                return RoundupAudioScript.model_validate_json(raw_json)
+            except ValidationError as exc:
+                last_exc = exc
 
-    return RoundupAudioScript.model_validate_json(raw_json)
+        if attempt < 3:
+            print(f"      [WARN] Script JSON parse failed (attempt {attempt}/3): {last_exc}. Retrying...")
+            time.sleep(2 * attempt)
+
+    raise RuntimeError(f"방송 대본 JSON 파싱 3회 실패: {last_exc}")
 
 
 def get_script_segments(script: RoundupAudioScript) -> list[tuple[str, str]]:
