@@ -167,24 +167,51 @@ def _synthesize_edge_tts_segment(
     text: str,
     voice_name: str,
     rate: str = "+0%",
+    max_retries: int = 4,
 ) -> bytes:
-    """Microsoft Edge TTS로 단일 세그먼트를 MP3 바이트로 합성합니다."""
+    """Microsoft Edge TTS로 단일 세그먼트를 MP3 바이트로 합성합니다 (일시적 오류 자동 재시도 포함)."""
+    import time
     import edge_tts
 
     cleaned = _sanitize_plain_text(text)
 
-    async def _run() -> bytes:
-        communicate = edge_tts.Communicate(text=cleaned, voice=voice_name, rate=rate)
+    async def _run(target_text: str) -> bytes:
+        communicate = edge_tts.Communicate(text=target_text, voice=voice_name, rate=rate)
         audio_buf = bytearray()
         async for chunk in communicate.stream():
             if chunk.get("type") == "audio":
                 audio_buf.extend(chunk["data"])
         return bytes(audio_buf)
 
-    data = asyncio.run(_run())
-    if not data:
-        raise RuntimeError(f"Edge TTS 응답에서 오디오 데이터를 받지 못했습니다 (voice={voice_name}).")
-    return data
+    last_exc: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        # 재시도 시 혹시 모를 특수문자/기호 이슈를 피하기 위해 기본 문장부호만 남긴 텍스트로 정제
+        candidate_text = cleaned
+        if attempt >= 3:
+            candidate_text = re.sub(r"[^\w\s.,?!%·가-힣a-zA-Z0-9-]", " ", cleaned)
+            candidate_text = re.sub(r"\s+", " ", candidate_text).strip()
+
+        try:
+            data = asyncio.run(_run(candidate_text))
+            if data:
+                return data
+            last_exc = RuntimeError(
+                f"Edge TTS 응답이 비어 있습니다 (voice={voice_name})."
+            )
+        except Exception as exc:
+            last_exc = exc
+
+        if attempt < max_retries:
+            wait_sec = 1.5 * (2 ** (attempt - 1))
+            print(
+                f"      [WARN] Edge TTS attempt {attempt}/{max_retries} failed "
+                f"({type(last_exc).__name__}: {last_exc}). Retrying in {wait_sec:.1f}s..."
+            )
+            time.sleep(wait_sec)
+
+    raise RuntimeError(
+        f"Edge TTS 합성 실패 ({max_retries}회 재시도 후 중단, voice={voice_name}): {last_exc}"
+    )
 
 
 CLOUD_TTS_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -441,6 +468,8 @@ def generate_audio_briefing(
     total_duration = 0.0
 
     if provider == "edge_tts":
+        import time
+
         selected_model = "microsoft-edge-tts"
         input_suffix = ".mp3"
         for idx, (label, text) in enumerate(segments, start=1):
@@ -450,6 +479,8 @@ def generate_audio_briefing(
                 voice_name=selected_voice,
             )
             audio_parts.append(mp3_bytes)
+            if idx < len(segments):
+                time.sleep(0.5)
     elif provider == "google_cloud_tts":
         auth_headers = _get_cloud_tts_auth_headers()
         selected_model = "google-cloud-tts"
