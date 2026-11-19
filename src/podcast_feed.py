@@ -231,7 +231,7 @@ def publish_podcast_episode(
             episodes = []
 
     now_kst = datetime.now(KST)
-    guid = f"global-briefing-{date_slug}"
+    guid = f"global-briefing-{date_slug}-{now_kst.strftime('%H%M%S')}"
     new_entry: dict[str, Any] = {
         "guid": guid,
         "date_slug": date_slug,
@@ -248,8 +248,12 @@ def publish_podcast_episode(
         ),
     }
 
-    # 같은 날짜 에피소드가 이미 있으면 교체 (중복 방지)
-    episodes = [ep for ep in episodes if ep.get("guid") != guid]
+    # 같은 날짜 에피소드가 이미 있으면 교체하되, 새 guid를 부여해 안테나팟이 갱신을 감지하도록 함
+    episodes = [
+        ep
+        for ep in episodes
+        if ep.get("date_slug") != date_slug and ep.get("guid") != guid
+    ]
     episodes.insert(0, new_entry)
     episodes.sort(key=lambda ep: ep.get("published_iso", ""), reverse=True)
 
