@@ -192,7 +192,9 @@ def _synthesize_edge_tts_segment(
             candidate_text = re.sub(r"\s+", " ", candidate_text).strip()
 
         try:
-            data = asyncio.run(_run(candidate_text))
+            data = asyncio.run(
+                asyncio.wait_for(_run(candidate_text), timeout=45)
+            )
             if data:
                 return data
             last_exc = RuntimeError(
