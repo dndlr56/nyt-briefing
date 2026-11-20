@@ -1,10 +1,11 @@
-"""권위 있는 1차 소스(arXiv, PubMed Central OA, RSS/Atom, PDF/HTML) 수집 및 전문 추출."""
+"""권위 있는 1차 소스(OpenAlex, Europe PMC, Semantic Scholar, CORE 백업, arXiv, RSS) 수집 및 전문 추출."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import io
+import os
 from pathlib import Path
 import re
 import time
@@ -18,9 +19,11 @@ import requests
 from deep_dive.models import FetchedDocument, SourceCandidate
 from deep_dive.themes import (
     ArxivQuerySpec,
+    EuropePmcQuerySpec,
     OpenAlexQuerySpec,
     PmcQuerySpec,
     RssFeedSpec,
+    SemanticScholarQuerySpec,
     ThemeSlot,
 )
 
@@ -34,8 +37,12 @@ HTTP_HEADERS = {
     "Accept": "application/xml, application/rss+xml, text/html, application/pdf;q=0.9, */*;q=0.8",
 }
 
-ARXIV_API_URL = "https://export.arxiv.org/api/query"
 OPENALEX_API_URL = "https://api.openalex.org/works"
+EUROPE_PMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+EUROPE_PMC_FULLTEXT_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmc_id}/fullTextXML"
+SEMANTIC_SCHOLAR_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
+CORE_SEARCH_WORKS_URL = "https://api.core.ac.uk/v3/search/works"
+ARXIV_API_URL = "https://export.arxiv.org/api/query"
 NCBI_ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 NCBI_ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 NCBI_EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -71,6 +78,14 @@ def _local_tag(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
 
 
+def _normalize_doi(raw_doi: str) -> str:
+    cleaned = (raw_doi or "").strip()
+    for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+        if cleaned.lower().startswith(prefix):
+            cleaned = cleaned[len(prefix) :].strip()
+    return cleaned
+
+
 def _reconstruct_openalex_abstract(inverted_index: dict | None) -> str:
     """OpenAlex abstract_inverted_index를 읽기 가능한 원문 초록 문자열로 복원합니다."""
     if not isinstance(inverted_index, dict) or not inverted_index:
@@ -83,6 +98,21 @@ def _reconstruct_openalex_abstract(inverted_index: dict | None) -> str:
                     positioned.append((pos, str(word)))
     positioned.sort(key=lambda pair: pair[0])
     return _clean_text(" ".join(w for _, w in positioned))
+
+
+def _format_openalex_percentile(pct_obj: dict | None) -> str:
+    if not isinstance(pct_obj, dict):
+        return ""
+    if pct_obj.get("is_in_top_1_percent"):
+        return "Top 1%"
+    if pct_obj.get("is_in_top_10_percent"):
+        return "Top 10%"
+    val = pct_obj.get("value")
+    if isinstance(val, (int, float)) and 0 < val <= 1:
+        top_pct = max(1, round((1.0 - float(val)) * 100))
+        if top_pct <= 25:
+            return f"Top {top_pct}%"
+    return ""
 
 
 def _parse_published_datetime(raw: str) -> datetime | None:
@@ -126,7 +156,6 @@ def _filter_by_lookback(
         pub_dt = _parse_published_datetime(cand.published)
         if pub_dt is None or pub_dt >= cutoff:
             recent.append(cand)
-    # 엄격한 기간 내 0건이면 2배 기간으로 완화해 빈 결과 방지
     if not recent:
         relaxed_cutoff = ref - timedelta(days=lookback_days * 2)
         recent = [
@@ -142,38 +171,48 @@ def fetch_openalex_candidates(
     theme_id: str,
     now_utc: datetime | None = None,
 ) -> list[SourceCandidate]:
-    """OpenAlex API에서 피인용 수(cited_by_count)가 높은 오픈액세스(OA) 학술 문헌을 수집합니다."""
+    """OpenAlex API에서 철회 논문을 제외하고 FWCI·분야별 상위 백분위 OA 문헌을 수집합니다."""
     ref = now_utc or datetime.now(timezone.utc)
     from_date = (ref - timedelta(days=365 * max(1, spec.lookback_years))).strftime("%Y-%m-%d")
 
-    filters = [
-        "is_oa:true",
-        "language:en",
-        f"from_publication_date:{from_date}",
-    ]
-    if spec.min_citations > 0:
-        filters.append(f"cited_by_count:>{spec.min_citations}")
-    if spec.work_type:
-        filters.append(f"type:{spec.work_type}")
+    def _query(use_top10: bool) -> list[dict]:
+        filters = [
+            "is_oa:true",
+            "is_retracted:false",
+            "is_paratext:false",
+            "language:en",
+            f"from_publication_date:{from_date}",
+        ]
+        if spec.min_citations > 0:
+            filters.append(f"cited_by_count:>{spec.min_citations}")
+        if spec.work_type:
+            filters.append(f"type:{spec.work_type}")
+        if use_top10:
+            filters.append("citation_normalized_percentile.is_in_top_10_percent:true")
 
-    params = {
-        "search": spec.search,
-        "filter": ",".join(filters),
-        "sort": "cited_by_count:desc",
-        "per-page": spec.max_results,
-    }
-    resp = requests.get(
-        OPENALEX_API_URL,
-        params=params,
-        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
-        timeout=25,
-    )
-    resp.raise_for_status()
-    results = resp.json().get("results") or []
+        params = {
+            "search": spec.search,
+            "filter": ",".join(filters),
+            "sort": "cited_by_count:desc",
+            "per-page": spec.max_results,
+        }
+        resp = requests.get(
+            OPENALEX_API_URL,
+            params=params,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=25,
+        )
+        resp.raise_for_status()
+        return resp.json().get("results") or []
+
+    results = _query(use_top10=spec.prefer_top_10_percent)
+    if spec.prefer_top_10_percent and len(results) < 3:
+        time.sleep(0.25)
+        results = _query(use_top10=False)
 
     candidates: list[SourceCandidate] = []
     for work in results:
-        if not isinstance(work, dict):
+        if not isinstance(work, dict) or work.get("is_retracted"):
             continue
         title = _clean_text(work.get("display_name") or work.get("title") or "")
         if not title:
@@ -196,6 +235,10 @@ def fetch_openalex_candidates(
         journal = _clean_text(source_obj.get("display_name") or spec.name)
         pub_date = _clean_text(work.get("publication_date") or str(work.get("publication_year") or ""))
         cited = int(work.get("cited_by_count") or 0)
+        raw_fwci = work.get("fwci")
+        fwci_val = round(float(raw_fwci), 2) if isinstance(raw_fwci, (int, float)) else None
+        pct_label = _format_openalex_percentile(work.get("citation_normalized_percentile"))
+        doi = _normalize_doi(str(work.get("doi") or ""))
 
         authorships = work.get("authorships") or []
         authors = ", ".join(
@@ -205,9 +248,8 @@ def fetch_openalex_candidates(
         )
         abstract = _reconstruct_openalex_abstract(work.get("abstract_inverted_index"))
         if not abstract:
-            abstract = f"[OpenAlex High-Citation OA] Journal: {journal}. Cited by {cited} works."
+            abstract = f"[OpenAlex Top-Impact OA] Journal: {journal}. Cited by {cited} works."
 
-        # PMC ID가 있으면 직접 전문 XML 확보에도 활용
         pmc_id = ""
         ids_obj = work.get("ids") or {}
         raw_pmcid = str(ids_obj.get("pmcid") or "")
@@ -230,10 +272,203 @@ def fetch_openalex_candidates(
                 source_kind="review" if spec.work_type == "review" else "paper",
                 sub_topic_hint=spec.sub_topic_hint,
                 authority_tier=1,
+                doi=doi,
+                cited_by_count=cited,
+                fwci=fwci_val,
+                top_percentile_label=pct_label,
+            )
+        )
+    # FWCI와 피인용 수를 종합해 정렬
+    candidates.sort(key=lambda c: ((c.fwci or 0.0), c.cited_by_count), reverse=True)
+    return candidates
+
+
+def fetch_europe_pmc_candidates(
+    spec: EuropePmcQuerySpec,
+    theme_id: str,
+    now_utc: datetime | None = None,
+) -> list[SourceCandidate]:
+    """Europe PMC REST API에서 OPEN_ACCESS:y + 피인용 순(CITED desc) 고인용 의학·뇌과학 리뷰를 수집합니다."""
+    ref = now_utc or datetime.now(timezone.utc)
+    from_date = (ref - timedelta(days=365 * max(1, spec.lookback_years))).strftime("%Y-%m-%d")
+    to_date = ref.strftime("%Y-%m-%d")
+
+    full_query = f"({spec.query}) AND FIRST_PDATE:[{from_date} TO {to_date}]"
+    params = {
+        "query": full_query,
+        "resultType": "core",
+        "sort": "CITED desc",
+        "pageSize": spec.max_results,
+        "format": "json",
+    }
+    resp = requests.get(
+        EUROPE_PMC_SEARCH_URL,
+        params=params,
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        timeout=25,
+    )
+    resp.raise_for_status()
+    items = resp.json().get("resultList", {}).get("result", []) or []
+
+    candidates: list[SourceCandidate] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        title = _clean_text(item.get("title") or "")
+        if not title:
+            continue
+
+        pmc_id = str(item.get("pmcid") or "").strip().upper()
+        doi = _normalize_doi(str(item.get("doi") or ""))
+        journal = _clean_text(
+            (item.get("journalInfo") or {}).get("journal", {}).get("title")
+            or item.get("journalTitle")
+            or spec.name
+        )
+        pub_date = _clean_text(item.get("firstPublicationDate") or str(item.get("pubYear") or ""))
+        authors = _clean_text(item.get("authorString") or "")[:200]
+        abstract = _strip_html(str(item.get("abstractText") or ""))
+        cited = int(item.get("citedByCount") or 0)
+
+        pdf_url = ""
+        landing_url = f"https://europepmc.org/article/PMC/{pmc_id}" if pmc_id else ""
+        url_list = (item.get("fullTextUrlList") or {}).get("fullTextUrl") or []
+        for entry in url_list:
+            if not isinstance(entry, dict):
+                continue
+            u = str(entry.get("url") or "").strip()
+            style = str(entry.get("documentStyle") or "").lower()
+            avail = str(entry.get("availabilityCode") or "").upper()
+            if style == "pdf" and avail in ("OA", "F") and u:
+                pdf_url = u
+            elif not landing_url and u:
+                landing_url = u
+        if not landing_url and doi:
+            landing_url = f"https://doi.org/{doi}"
+        if not landing_url:
+            continue
+
+        candidates.append(
+            SourceCandidate(
+                title=title,
+                url=landing_url,
+                source_name=f"{journal} (Europe PMC OA)",
+                theme_id=theme_id,
+                published=pub_date[:10],
+                authors=authors,
+                abstract=(abstract or f"[Europe PMC OA] Journal: {journal}, Cited: {cited}")[:1500],
+                pdf_url=pdf_url,
+                pmc_id=pmc_id,
+                source_kind="review",
+                sub_topic_hint=spec.sub_topic_hint,
+                authority_tier=1,
+                doi=doi,
                 cited_by_count=cited,
             )
         )
     return candidates
+
+
+def fetch_semantic_scholar_candidates(
+    spec: SemanticScholarQuerySpec,
+    theme_id: str,
+    now_utc: datetime | None = None,
+) -> list[SourceCandidate]:
+    """Semantic Scholar Academic Graph API에서 실질적 핵심 인용(influentialCitationCount) 기반 OA 논문을 수집합니다."""
+    ref = now_utc or datetime.now(timezone.utc)
+    start_year = ref.year - max(1, spec.lookback_years)
+    year_range = f"{start_year}-{ref.year}"
+
+    params: dict[str, object] = {
+        "query": spec.query,
+        "year": year_range,
+        "minCitationCount": spec.min_citations,
+        "openAccessPdf": "",
+        "limit": max(spec.max_results * 2, 16),
+        "fields": (
+            "title,url,year,publicationDate,venue,authors,abstract,"
+            "citationCount,influentialCitationCount,openAccessPdf,externalIds,tldr"
+        ),
+    }
+    if spec.fields_of_study:
+        params["fieldsOfStudy"] = ",".join(spec.fields_of_study)
+
+    headers = {"User-Agent": USER_AGENT, "Accept": "application/json"}
+    api_key = (os.getenv("SEMANTIC_SCHOLAR_API_KEY") or "").strip()
+    if api_key:
+        headers["x-api-key"] = api_key
+
+    resp = requests.get(
+        SEMANTIC_SCHOLAR_SEARCH_URL,
+        params=params,
+        headers=headers,
+        timeout=25,
+    )
+    resp.raise_for_status()
+    rows = resp.json().get("data") or []
+
+    candidates: list[SourceCandidate] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        title = _clean_text(row.get("title") or "")
+        if not title:
+            continue
+
+        oa_pdf = row.get("openAccessPdf") or {}
+        pdf_url = str(oa_pdf.get("url") or "").strip()
+        ext_ids = row.get("externalIds") or {}
+        doi = _normalize_doi(str(ext_ids.get("DOI") or ""))
+        arxiv_id = str(ext_ids.get("ArXiv") or "").strip()
+        raw_pmc = str(ext_ids.get("PubMedCentral") or "").strip()
+        pmc_id = f"PMC{raw_pmc}" if raw_pmc and not raw_pmc.upper().startswith("PMC") else raw_pmc.upper()
+
+        if not pdf_url and arxiv_id:
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+
+        landing_url = str(row.get("url") or "").strip()
+        if arxiv_id and not landing_url:
+            landing_url = f"https://arxiv.org/abs/{arxiv_id}"
+        if not landing_url and doi:
+            landing_url = f"https://doi.org/{doi}"
+        if not landing_url:
+            continue
+
+        venue = _clean_text(row.get("venue") or spec.name)
+        pub_date = _clean_text(row.get("publicationDate") or str(row.get("year") or ""))
+        authors = ", ".join(
+            _clean_text(a.get("name") or "")
+            for a in (row.get("authors") or [])[:5]
+            if isinstance(a, dict) and a.get("name")
+        )
+        tldr_text = _clean_text((row.get("tldr") or {}).get("text") or "")
+        abstract = _clean_text(row.get("abstract") or "")
+        combined_abs = f"[TL;DR] {tldr_text} {abstract}".strip() if tldr_text else abstract
+        cited = int(row.get("citationCount") or 0)
+        influential = int(row.get("influentialCitationCount") or 0)
+
+        candidates.append(
+            SourceCandidate(
+                title=title,
+                url=landing_url,
+                source_name=f"{venue} (Semantic Scholar OA)",
+                theme_id=theme_id,
+                published=pub_date[:10],
+                authors=authors,
+                abstract=combined_abs[:1500],
+                pdf_url=pdf_url,
+                pmc_id=pmc_id,
+                source_kind="paper",
+                sub_topic_hint=spec.sub_topic_hint,
+                authority_tier=1,
+                doi=doi,
+                cited_by_count=cited,
+                influential_citations=influential,
+            )
+        )
+
+    candidates.sort(key=lambda c: (c.influential_citations, c.cited_by_count), reverse=True)
+    return candidates[: spec.max_results]
 
 
 def fetch_arxiv_candidates(spec: ArxivQuerySpec, theme_id: str) -> list[SourceCandidate]:
@@ -306,7 +541,7 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
     search_resp.raise_for_status()
     id_list = search_resp.json().get("esearchresult", {}).get("idlist", [])
     if not id_list and spec.lookback_days < 1825:
-        search_params["reldate"] = 1825  # 최대 5년까지 자동 확장
+        search_params["reldate"] = 1825
         time.sleep(0.4)
         retry_resp = requests.get(
             NCBI_ESEARCH_URL, params=search_params, headers=HTTP_HEADERS, timeout=25
@@ -316,12 +551,8 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
     if not id_list:
         return []
 
-    time.sleep(0.4)  # NCBI rate limit courtesy (<=3 req/s without key)
-    summary_params = {
-        "db": "pmc",
-        "id": ",".join(id_list),
-        "retmode": "json",
-    }
+    time.sleep(0.4)
+    summary_params = {"db": "pmc", "id": ",".join(id_list), "retmode": "json"}
     sum_resp = requests.get(
         NCBI_ESUMMARY_URL, params=summary_params, headers=HTTP_HEADERS, timeout=25
     )
@@ -439,30 +670,53 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
 
 
 def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
-    """주어진 테마 슬롯의 모든 소스(OpenAlex 고인용, PMC OA, arXiv, RSS)에서 후보를 병합 수집합니다."""
+    """주어진 테마 슬롯의 모든 소스(OpenAlex, Europe PMC, Semantic Scholar, PMC, arXiv, RSS)에서 후보를 병합 수집합니다."""
     all_candidates: list[SourceCandidate] = []
-    seen_urls: set[str] = set()
+    seen_keys: set[str] = set()
 
     def _extend(new_items: list[SourceCandidate]) -> None:
         for item in new_items:
             norm_url = item.url.strip().rstrip("/")
-            if norm_url and norm_url not in seen_urls:
-                seen_urls.add(norm_url)
-                all_candidates.append(item)
+            norm_doi = item.doi.lower().strip()
+            norm_title = re.sub(r"\W+", "", item.title.lower())[:60]
+            keys = [k for k in (norm_url, f"doi:{norm_doi}" if norm_doi else "", f"t:{norm_title}") if k]
+            if any(k in seen_keys for k in keys):
+                continue
+            for k in keys:
+                seen_keys.add(k)
+            all_candidates.append(item)
 
     for oq in theme.openalex_queries:
         try:
             items = fetch_openalex_candidates(oq, theme.theme_id)
-            print(f"   • [OpenAlex 고인용 OA] {oq.name}: {len(items)}건 수집")
+            print(f"   • [OpenAlex FWCI/OA] {oq.name}: {len(items)}건 수집")
             _extend(items)
             time.sleep(0.3)
         except Exception as exc:
             print(f"   • [WARN] OpenAlex 수집 실패 ({oq.name}): {exc}")
 
+    for eq in theme.europe_pmc_queries:
+        try:
+            items = fetch_europe_pmc_candidates(eq, theme.theme_id)
+            print(f"   • [Europe PMC OA] {eq.name}: {len(items)}건 수집")
+            _extend(items)
+            time.sleep(0.3)
+        except Exception as exc:
+            print(f"   • [WARN] Europe PMC 수집 실패 ({eq.name}): {exc}")
+
+    for sq in theme.semantic_scholar_queries:
+        try:
+            items = fetch_semantic_scholar_candidates(sq, theme.theme_id)
+            print(f"   • [Semantic Scholar] {sq.name}: {len(items)}건 수집")
+            _extend(items)
+            time.sleep(1.1)  # S2 1 RPS rate limit 준수
+        except Exception as exc:
+            print(f"   • [WARN] Semantic Scholar 수집 실패 ({sq.name}): {exc}")
+
     for pq in theme.pmc_queries:
         try:
             items = fetch_pmc_candidates(pq, theme.theme_id)
-            print(f"   • [PMC OA] {pq.name}: {len(items)}건 수집")
+            print(f"   • [NCBI PMC OA] {pq.name}: {len(items)}건 수집")
             _extend(items)
             time.sleep(0.5)
         except Exception as exc:
@@ -520,18 +774,9 @@ def _download_pdf(url: str, timeout: int = 45) -> bytes | None:
     return None
 
 
-def _fetch_pmc_fulltext_xml(pmc_id: str) -> str:
-    """PubMed Central EFetch XML에서 초록과 본문 전체를 추출합니다."""
-    numeric_id = pmc_id.upper().replace("PMC", "").strip()
-    resp = requests.get(
-        NCBI_EFETCH_URL,
-        params={"db": "pmc", "id": numeric_id, "retmode": "xml"},
-        headers=HTTP_HEADERS,
-        timeout=35,
-    )
-    resp.raise_for_status()
-
-    root = ET.fromstring(resp.content)
+def _parse_jats_fulltext_xml(xml_bytes: bytes) -> str:
+    """PMC / Europe PMC JATS XML에서 초록과 본문 섹션 전체를 추출합니다."""
+    root = ET.fromstring(xml_bytes)
     sections: list[str] = []
 
     for abstract in root.findall(".//abstract"):
@@ -543,10 +788,7 @@ def _fetch_pmc_fulltext_xml(pmc_id: str) -> str:
     if body is not None:
         for sec in body.findall(".//sec"):
             sec_title = _clean_text(sec.findtext("title", ""))
-            paras = [
-                _clean_text(" ".join(p.itertext()))
-                for p in sec.findall("p")
-            ]
+            paras = [_clean_text(" ".join(p.itertext())) for p in sec.findall("p")]
             paras = [p for p in paras if p]
             if paras:
                 header = f"## {sec_title}\n" if sec_title else ""
@@ -559,6 +801,75 @@ def _fetch_pmc_fulltext_xml(pmc_id: str) -> str:
     return "\n\n".join(sections).strip()
 
 
+def _fetch_pmc_fulltext_xml(pmc_id: str) -> str:
+    """Europe PMC fullTextXML 우선 시도 후 실패 시 NCBI PMC EFetch XML로 전문을 추출합니다."""
+    normalized = pmc_id.upper().strip()
+    if not normalized.startswith("PMC"):
+        normalized = f"PMC{normalized}"
+
+    try:
+        epmc_resp = requests.get(
+            EUROPE_PMC_FULLTEXT_URL.format(pmc_id=normalized),
+            headers=HTTP_HEADERS,
+            timeout=30,
+        )
+        if epmc_resp.ok and b"<body" in epmc_resp.content:
+            parsed = _parse_jats_fulltext_xml(epmc_resp.content)
+            if len(parsed) >= MIN_FULLTEXT_CHARS:
+                return parsed
+    except Exception:
+        pass
+
+    numeric_id = normalized.replace("PMC", "")
+    resp = requests.get(
+        NCBI_EFETCH_URL,
+        params={"db": "pmc", "id": numeric_id, "retmode": "xml"},
+        headers=HTTP_HEADERS,
+        timeout=35,
+    )
+    resp.raise_for_status()
+    return _parse_jats_fulltext_xml(resp.content)
+
+
+def _fetch_core_fulltext_fallback(candidate: SourceCandidate) -> tuple[str, bytes | None]:
+    """CORE API v3(무료 CORE_API_KEY 설정 시)로 대학 기관 리포지토리의 Green OA 전문/PDF를 회수합니다."""
+    api_key = (os.getenv("CORE_API_KEY") or "").strip()
+    if not api_key:
+        return "", None
+
+    query = f'doi:"{candidate.doi}"' if candidate.doi else f'title:"{candidate.title[:120]}"'
+    resp = requests.get(
+        CORE_SEARCH_WORKS_URL,
+        params={"q": query, "limit": 3},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+            "User-Agent": USER_AGENT,
+        },
+        timeout=25,
+    )
+    resp.raise_for_status()
+    results = resp.json().get("results") or []
+
+    for work in results:
+        if not isinstance(work, dict):
+            continue
+        full_text = _clean_text(str(work.get("fullText") or ""))
+        dl_url = str(work.get("downloadUrl") or "").strip()
+        pdf_bytes: bytes | None = None
+        if dl_url:
+            try:
+                pdf_bytes = _download_pdf(dl_url, timeout=35)
+                if pdf_bytes and len(full_text) < MIN_FULLTEXT_CHARS:
+                    full_text = extract_text_from_pdf_bytes(pdf_bytes)
+            except Exception:
+                pass
+        if len(full_text) >= MIN_FULLTEXT_CHARS:
+            return full_text, pdf_bytes
+
+    return "", None
+
+
 def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
     """웹페이지에서 본문 텍스트와 (존재 시) PDF 다운로드 링크를 추출합니다."""
     resp = requests.get(url, headers=HTTP_HEADERS, timeout=30)
@@ -569,7 +880,6 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # PDF 링크 탐색 (예: NBER, BIS, Nature OA, SCOTUS 등)
     discovered_pdf = ""
     meta_pdf = soup.find("meta", attrs={"name": "citation_pdf_url"})
     if meta_pdf and meta_pdf.get("content"):
@@ -581,7 +891,6 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
                 discovered_pdf = urljoin(url, href)
                 break
 
-    # 불필요한 네비게이션·광고·스크립트 제거
     for tag in soup(["script", "style", "noscript", "nav", "header", "footer", "aside", "form", "svg"]):
         tag.decompose()
 
@@ -627,16 +936,16 @@ def fetch_full_document(
 ) -> FetchedDocument | None:
     """
     원칙적 전문(Full-text) 확보:
-    1) PMC Open Access XML 우선
-    2) 직접 PDF URL 다운로드 & 텍스트 추출 (PDF 원본 바이트도 아카이빙용으로 보존)
-    3) HTML 본문 추출 (+ 페이지 내 PDF 링크가 발견되면 PDF까지 확보)
-    유료 장벽으로 전문을 확보하지 못하면 None 반환.
+    1) Europe PMC / NCBI PMC Open Access XML 우선
+    2) 직접 PDF URL 다운로드 & 텍스트 추출 (원본 PDF 바이트 보존)
+    3) HTML 본문 추출 (+ 페이지 내 PDF 링크 탐색)
+    4) CORE API v3 Green OA 리포지토리 백업 회수 (CORE_API_KEY 설정 시)
     """
     pdf_bytes: bytes | None = None
     full_text = ""
     text_source = ""
 
-    # 1) PMC Open Access XML
+    # 1) Europe PMC / NCBI PMC XML
     if candidate.pmc_id:
         try:
             xml_text = _fetch_pmc_fulltext_xml(candidate.pmc_id)
@@ -646,11 +955,10 @@ def fetch_full_document(
         except Exception as exc:
             print(f"      [WARN] PMC XML 추출 실패 ({candidate.pmc_id}): {exc}")
 
-    # 2) 직접 PDF URL이 있는 경우 (arXiv 등)
-    pdf_url = candidate.pdf_url
-    if pdf_url:
+    # 2) 직접 PDF URL
+    if candidate.pdf_url:
         try:
-            downloaded = _download_pdf(pdf_url)
+            downloaded = _download_pdf(candidate.pdf_url)
             if downloaded:
                 pdf_bytes = downloaded
                 if not full_text:
@@ -659,9 +967,9 @@ def fetch_full_document(
                         full_text = pdf_text
                         text_source = "pdf"
         except Exception as exc:
-            print(f"      [WARN] PDF 다운로드/파싱 실패 ({pdf_url}): {exc}")
+            print(f"      [WARN] PDF 다운로드/파싱 실패 ({candidate.pdf_url}): {exc}")
 
-    # 3) HTML 전문 추출 (또는 페이지에서 PDF 링크 탐색)
+    # 3) HTML 전문 추출
     if not full_text and candidate.url:
         try:
             html_text, discovered_pdf = _extract_html_article_and_pdf_link(candidate.url)
@@ -683,12 +991,23 @@ def fetch_full_document(
         except Exception as exc:
             print(f"      [WARN] HTML 전문 추출 실패 ({candidate.url}): {exc}")
 
+    # 4) CORE API v3 대학 리포지토리 전문/PDF 백업 회수
+    if not full_text and os.getenv("CORE_API_KEY"):
+        try:
+            core_text, core_pdf = _fetch_core_fulltext_fallback(candidate)
+            if len(core_text) >= min_chars:
+                full_text = core_text
+                text_source = "core_oa"
+                if core_pdf and pdf_bytes is None:
+                    pdf_bytes = core_pdf
+        except Exception as exc:
+            print(f"      [WARN] CORE API 백업 전문 추출 실패: {exc}")
+
     if not full_text or len(full_text) < min_chars:
         return None
 
     truncated = False
     if len(full_text) > max_llm_chars:
-        # 앞부분(서론·방법론·핵심 결과) 75% + 뒷부분(토론·결론·한계) 25% 보존
         head_len = int(max_llm_chars * 0.75)
         tail_len = max_llm_chars - head_len - 80
         full_text = (

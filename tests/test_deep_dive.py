@@ -261,6 +261,14 @@ class DeepDivePipelineTests(unittest.TestCase):
                     "display_name": "Metacognition and Retrieval Practice",
                     "publication_date": "2024-05-10",
                     "cited_by_count": 312,
+                    "fwci": 8.45,
+                    "is_retracted": False,
+                    "doi": "https://doi.org/10.1016/j.tics.2024.01.001",
+                    "citation_normalized_percentile": {
+                        "value": 0.996,
+                        "is_in_top_1_percent": True,
+                        "is_in_top_10_percent": True,
+                    },
                     "ids": {"pmcid": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1234567/"},
                     "primary_location": {
                         "landing_page_url": "https://example.org/meta",
@@ -283,15 +291,109 @@ class DeepDivePipelineTests(unittest.TestCase):
             def json(self) -> dict:
                 return payload
 
-        spec = OpenAlexQuerySpec(name="Test OA", search="metacognition", lookback_years=3, min_citations=50)
+        spec = OpenAlexQuerySpec(
+            name="Test OA",
+            search="metacognition",
+            lookback_years=3,
+            min_citations=50,
+            prefer_top_10_percent=False,
+        )
         with patch("deep_dive.sources.requests.get", return_value=_FakeJsonResp()):
             items = fetch_openalex_candidates(spec, theme_id="science_mind")
 
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].cited_by_count, 312)
+        self.assertEqual(items[0].fwci, 8.45)
+        self.assertEqual(items[0].top_percentile_label, "Top 1%")
+        self.assertEqual(items[0].doi, "10.1016/j.tics.2024.01.001")
         self.assertEqual(items[0].pmc_id, "PMC1234567")
-        self.assertEqual(items[0].pdf_url, "https://example.org/meta.pdf")
         self.assertEqual(items[0].abstract, "Retrieval strengthens memory.")
+
+    def test_europe_pmc_and_semantic_scholar_and_core_fallback(self) -> None:
+        from deep_dive.sources import (
+            _fetch_core_fulltext_fallback,
+            fetch_europe_pmc_candidates,
+            fetch_semantic_scholar_candidates,
+        )
+        from deep_dive.themes import EuropePmcQuerySpec, SemanticScholarQuerySpec
+
+        class _FakeResp:
+            def __init__(self, data: dict) -> None:
+                self._data = data
+
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return self._data
+
+        epmc_payload = {
+            "resultList": {
+                "result": [
+                    {
+                        "title": "Sleep Architecture and Memory Consolidation",
+                        "pmcid": "PMC7654321",
+                        "doi": "10.1038/s41591-024-0001",
+                        "journalTitle": "Nature Medicine",
+                        "firstPublicationDate": "2024-08-01",
+                        "authorString": "Smith A, Lee B",
+                        "abstractText": "<p>Comprehensive meta-analysis on slow-wave sleep.</p>",
+                        "citedByCount": 185,
+                    }
+                ]
+            }
+        }
+        epmc_spec = EuropePmcQuerySpec(name="EPMC", query="TITLE:sleep AND OPEN_ACCESS:y")
+        with patch("deep_dive.sources.requests.get", return_value=_FakeResp(epmc_payload)):
+            epmc_items = fetch_europe_pmc_candidates(epmc_spec, theme_id="health_medicine")
+        self.assertEqual(len(epmc_items), 1)
+        self.assertEqual(epmc_items[0].pmc_id, "PMC7654321")
+        self.assertEqual(epmc_items[0].cited_by_count, 185)
+
+        s2_payload = {
+            "data": [
+                {
+                    "title": "Reasoning Limits in Frontier Models",
+                    "url": "https://www.semanticscholar.org/paper/abc",
+                    "publicationDate": "2025-02-15",
+                    "venue": "NeurIPS",
+                    "authors": [{"name": "Alice Kim"}],
+                    "abstract": "Detailed empirical study.",
+                    "citationCount": 210,
+                    "influentialCitationCount": 47,
+                    "openAccessPdf": {"url": "https://arxiv.org/pdf/2502.00001.pdf"},
+                    "externalIds": {"DOI": "10.48550/arXiv.2502.00001", "ArXiv": "2502.00001"},
+                    "tldr": {"text": "Frontier models struggle on compositional generalization."},
+                }
+            ]
+        }
+        s2_spec = SemanticScholarQuerySpec(name="S2", query="reasoning frontier models")
+        with patch("deep_dive.sources.requests.get", return_value=_FakeResp(s2_payload)):
+            s2_items = fetch_semantic_scholar_candidates(s2_spec, theme_id="ai_tech")
+        self.assertEqual(len(s2_items), 1)
+        self.assertEqual(s2_items[0].influential_citations, 47)
+        self.assertIn("[TL;DR]", s2_items[0].abstract)
+
+        core_payload = {
+            "results": [
+                {
+                    "fullText": "Full institutional repository text body. " * 120,
+                    "downloadUrl": "",
+                }
+            ]
+        }
+        cand = SourceCandidate(
+            title="Behavioral Finance Study",
+            url="https://example.org/paywalled",
+            source_name="Journal of Finance",
+            theme_id="econ_geopolitics",
+            doi="10.1111/jofi.12345",
+        )
+        with patch.dict("os.environ", {"CORE_API_KEY": "test-core-key"}), patch(
+            "deep_dive.sources.requests.get", return_value=_FakeResp(core_payload)
+        ):
+            recovered_text, _ = _fetch_core_fulltext_fallback(cand)
+        self.assertGreater(len(recovered_text), 2400)
 
 
 if __name__ == "__main__":

@@ -11,16 +11,18 @@
 ---
 
 ## 2. 요일별 자동 테마 로테이션 (매일 오전 07:30 KST, 월~일)
-최신 단신보다 **학계에서 검증·고인용된 명작 리뷰·논문·판례**를 우선하기 위해 OpenAlex(피인용 순) + PMC OA + arXiv + 주요 RSS를 주제별 맞춤 기간으로 결합합니다.
+최신 단신보다 **학계·실무에서 검증된 고퀄리티 원전**을 우선하기 위해 다중 품질 지표(**OpenAlex FWCI·분야별 상위 1~10%·철회 논문 차단**, **Semantic Scholar 실질 인용(`influentialCitationCount`)**, **Europe PMC 고인용 OA 리뷰**, **CORE v3 기관 리포지토리 전문 백업**)를 결합합니다.
 
-| 요일 | 테마 ID | 분야 | 고인용·권위 1차 소스 및 탐색 기간 |
+| 요일 | 테마 ID | 분야 | 고퀄리티 1차 소스 및 탐색 기간 |
 | :--- | :--- | :--- | :--- |
-| 월 | `ai_tech` | AI·기술·사회 | OpenAlex 고인용 OA(**최근 2년**, 인용 25~40+회), arXiv 관련도순(**6~9개월**), Nature MI·DeepMind·MIT Tech Review(**6개월**) |
-| 화 | `science_mind` | 종합과학·뇌인지 | OpenAlex 고인용 리뷰(**최근 4년**, 인용 50+회), PMC OA 리뷰(**최근 3년**), Quanta·Nature·Science Advances(**6개월**) |
-| 수 | `health_medicine` | 의학·건강·장수 | OpenAlex 고인용 의학 리뷰(**최근 4년**, 인용 50~60+회), PMC OA 리뷰·메타분석(**최근 3년**), Nature Medicine·eLife(**6개월**) |
-| 목 | `econ_geopolitics` | 경제·금융·지정학 | OpenAlex 행동재무·거시·지정학(**최근 3~4년**, 인용 30~40+회), NBER·BIS·IMF·Brookings·RAND·CSIS(**6개월**), arXiv(`q-fin`/`econ`, **1년**) |
-| 금 | `law_cases` | 법학·판례 입문 | OpenAlex AI법·헌법·법경제학(**최근 3~5년**, 인용 25~30+회), Harvard Law Review(**1년**), SCOTUSblog·Lawfare·Verfassungsblog(**6개월**) |
-| 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**최근 5년**, 인용 80+회), Aeon·Foreign Affairs(**1년**), Quanta·Brookings·SCOTUSblog(**6개월**) |
+| 월 | `ai_tech` | AI·기술·사회 | OpenAlex FWCI/상위권(**2년**), Semantic Scholar 실질인용(**2년**), arXiv 관련도순(**6~9개월**), Nature MI·DeepMind·MIT Tech Review |
+| 화 | `science_mind` | 종합과학·뇌인지 | OpenAlex FWCI 리뷰(**4년**), Europe PMC 고인용 OA(**4년**), Semantic Scholar 인지심리(**4년**), Quanta·Nature·Science Advances |
+| 수 | `health_medicine` | 의학·건강·장수 | Europe PMC 고인용 리뷰·메타분석(**4년**), OpenAlex FWCI 리뷰(**4년**), Nature Medicine·eLife |
+| 목 | `econ_geopolitics` | 경제·금융·지정학 | OpenAlex 행동재무·거시·지정학(**3~4년**), Semantic Scholar 경제(**4년**), NBER·BIS·IMF·Brookings·RAND·CSIS, arXiv(`q-fin`/`econ`) |
+| 금 | `law_cases` | 법학·판례·법조 칼럼 | SCOTUSblog·Lawfare·Just Security·Volokh Conspiracy·JURIST·Verfassungsblog(법조 칼럼·판례 평석), Harvard Law Review, OpenAlex 법학(**3~5년**) |
+| 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**5년**), Semantic Scholar 명작(**5년**), Aeon·Quanta·Foreign Affairs·Just Security·Brookings |
+
+> **선택 API 키 (미등록해도 정상 동작)**: `SEMANTIC_SCHOLAR_API_KEY`(무료 1 RPS 전용 한도) 및 `CORE_API_KEY`([core.ac.uk](https://core.ac.uk/services/api) 무료 키 — 출판사 PDF가 막힐 때 대학 리포지토리 Green OA 전문 자동 회수)를 GitHub Secrets에 추가하면 탐색·전문 회수 안정성이 더욱 높아집니다.
 
 ---
 

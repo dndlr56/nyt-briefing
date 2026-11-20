@@ -21,10 +21,14 @@ class SourceCandidate:
     abstract: str = ""
     pdf_url: str = ""
     pmc_id: str = ""
-    source_kind: str = "article"  # paper | report | essay | case_law | review
+    source_kind: str = "article"  # paper | report | essay | case_law | review | legal_column
     sub_topic_hint: str = ""
     authority_tier: int = 1  # 1 = top-tier flagship, 2 = authoritative specialist
-    cited_by_count: int = 0  # 학계 주목도(피인용 수, OpenAlex 등 제공 시)
+    doi: str = ""
+    cited_by_count: int = 0  # 총 피인용 수 (OpenAlex / Europe PMC / Semantic Scholar)
+    influential_citations: int = 0  # 실질적 핵심 인용 수 (Semantic Scholar)
+    fwci: float | None = None  # 분야·연도 보정 인용 지수 (OpenAlex FWCI, 1.0=평균)
+    top_percentile_label: str = ""  # 분야·연도 정규화 상위 백분위 (예: 'Top 1%', 'Top 10%')
 
 
 @dataclass
