@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 import html
 import json
+import os
 from pathlib import Path
 import shutil
 from typing import Any
@@ -21,6 +22,7 @@ DEFAULT_PODCAST_DESCRIPTION = (
     "빅테크·AI·글로벌 경제·기업·인프라·건강 핵심 뉴스 10~12건을 엄선해 들려드리는 개인 모닝 브리핑입니다."
 )
 DEFAULT_PODCAST_AUTHOR = "Global Morning Briefing"
+DEFAULT_COVER_PATH = Path(__file__).resolve().parent.parent / "assets" / "cover.jpg"
 MAX_EPISODES = 30
 
 
@@ -85,11 +87,35 @@ def _render_rss_xml(
     podcast_title: str = DEFAULT_PODCAST_TITLE,
     podcast_description: str = DEFAULT_PODCAST_DESCRIPTION,
     podcast_author: str = DEFAULT_PODCAST_AUTHOR,
+    has_cover: bool = True,
+    owner_email: str | None = None,
 ) -> str:
     """에피소드 메타데이터 목록으로 표준 RSS 2.0 + iTunes XML을 생성합니다."""
     clean_base = base_url.rstrip("/")
     feed_url = f"{clean_base}/feed.xml"
+    cover_url = f"{clean_base}/cover.jpg"
     last_build = format_datetime(datetime.now(KST))
+
+    resolved_email = (owner_email or os.getenv("PODCAST_OWNER_EMAIL") or "").strip()
+    owner_block = ""
+    if resolved_email:
+        owner_block = (
+            "    <itunes:owner>\n"
+            f"      <itunes:name>{xml_escape(podcast_author)}</itunes:name>\n"
+            f"      <itunes:email>{xml_escape(resolved_email)}</itunes:email>\n"
+            "    </itunes:owner>\n"
+        )
+
+    cover_block = ""
+    if has_cover:
+        cover_block = (
+            f"    <itunes:image href=\"{xml_escape(cover_url)}\"/>\n"
+            "    <image>\n"
+            f"      <url>{xml_escape(cover_url)}</url>\n"
+            f"      <title>{xml_escape(podcast_title)}</title>\n"
+            f"      <link>{xml_escape(clean_base)}/</link>\n"
+            "    </image>\n"
+        )
 
     items_xml: list[str] = []
     for ep in episodes:
@@ -129,8 +155,10 @@ def _render_rss_xml(
         f"    <description>{xml_escape(podcast_description)}</description>\n"
         f"    <lastBuildDate>{xml_escape(last_build)}</lastBuildDate>\n"
         f"    <itunes:author>{xml_escape(podcast_author)}</itunes:author>\n"
+        f"{owner_block}"
         f"    <itunes:summary>{xml_escape(podcast_description)}</itunes:summary>\n"
         "    <itunes:explicit>false</itunes:explicit>\n"
+        f"{cover_block}"
         "    <itunes:category text=\"News\">\n"
         "      <itunes:category text=\"Daily News\"/>\n"
         "    </itunes:category>\n"
@@ -283,7 +311,20 @@ def publish_podcast_episode(
         encoding="utf-8",
     )
 
-    feed_xml = _render_rss_xml(episodes=episodes, base_url=base_url)
+    has_cover = False
+    target_cover = pages_dir / "cover.jpg"
+    if DEFAULT_COVER_PATH.exists():
+        if DEFAULT_COVER_PATH.resolve() != target_cover.resolve():
+            shutil.copy2(DEFAULT_COVER_PATH, target_cover)
+        has_cover = True
+    elif target_cover.exists():
+        has_cover = True
+
+    feed_xml = _render_rss_xml(
+        episodes=episodes,
+        base_url=base_url,
+        has_cover=has_cover,
+    )
     feed_path = pages_dir / "feed.xml"
     feed_path.write_text(feed_xml, encoding="utf-8")
 
