@@ -590,17 +590,36 @@ class DeepDivePipelineTests(unittest.TestCase):
 
     def test_writer_batching_and_gemini_tts_grouping(self) -> None:
         from audio_generator import _group_dialogue_turns_for_gemini
-        from deep_dive.writer import _build_section_batches
+        from deep_dive.writer import _build_section_batches, resolve_adaptive_target_minutes
 
-        batches_25m = _build_section_batches(chapter_count=5, target_minutes=25)
-        self.assertEqual(len(batches_25m), 2)
-        self.assertEqual(batches_25m[0][0], "opening")
-        self.assertEqual(batches_25m[-1][-1], "closing")
-        self.assertEqual(sum(len(b) for b in batches_25m), 7)
+        batches_20m = _build_section_batches(chapter_count=5, target_minutes=20)
+        self.assertEqual(len(batches_20m), 2)
+        self.assertEqual(batches_20m[0][0], "opening")
+        self.assertEqual(batches_20m[-1][-1], "closing")
+        self.assertEqual(sum(len(b) for b in batches_20m), 7)
+
+        batches_30m = _build_section_batches(chapter_count=5, target_minutes=30)
+        self.assertEqual(len(batches_30m), 3)
+        self.assertEqual(sum(len(b) for b in batches_30m), 7)
 
         batches_50m = _build_section_batches(chapter_count=6, target_minutes=50)
-        self.assertEqual(len(batches_50m), 3)
+        self.assertEqual(len(batches_50m), 4)
         self.assertEqual(sum(len(b) for b in batches_50m), 8)
+
+        short_doc = FetchedDocument(
+            candidate=SourceCandidate(title="Short", url="https://example.org/1", source_name="S", theme_id="ai_tech"),
+            full_text="word " * 2000,
+            text_source="html",
+        )
+        long_doc = FetchedDocument(
+            candidate=SourceCandidate(title="Long", url="https://example.org/2", source_name="S", theme_id="health_medicine"),
+            full_text="word " * 15000,
+            text_source="pdf",
+        )
+        self.assertEqual(resolve_adaptive_target_minutes([short_doc], 0), 25)
+        self.assertEqual(resolve_adaptive_target_minutes([short_doc, short_doc], 0), 35)
+        self.assertEqual(resolve_adaptive_target_minutes([long_doc], 0), 45)
+        self.assertEqual(resolve_adaptive_target_minutes([short_doc], 50), 50)
 
         # 9,600자 (40턴 x 240자) -> 5~6개 파트로 묶여 무료 티어 10 RPD 이하 유지
         sample_items = [

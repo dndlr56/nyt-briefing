@@ -1,10 +1,6 @@
 name: Deep Dive Knowledge Briefing
 
 on:
-  push:
-    # feat/deep-dive-briefing 테스트 전용: 푸시 시 2~3인 대화형 오디오 + 5개 핵심 탭 자동 배정 실측
-    branches:
-      - feat/deep-dive-briefing
   schedule:
     # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오전 7시 30분 = UTC 22시 30분
     # (매일 07:00 KST 뉴스 브리핑과 30분 간격 + concurrency 그룹으로 gh-pages 충돌 방지)
@@ -25,12 +21,12 @@ on:
           - law_cases
           - weekend_special
       target_minutes:
-        description: '목표 오디오 분량(분, 15~60 — 토큰 실측 후 조정 권장)'
+        description: '목표 오디오 분량 (auto=문헌 수·길이에 따라 25~45분 자동 조절, 최대 60분)'
         required: true
-        default: '25'
+        default: 'auto'
         type: choice
         options:
-          - '20'
+          - auto
           - '25'
           - '30'
           - '40'
@@ -161,7 +157,7 @@ jobs:
           DEEP_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/deep
         run: |
           THEME="auto"
-          TARGET_MINUTES="25"
+          TARGET_MINUTES="auto"
           API_TIER="auto"
           NOTE_MODEL="gemini-4-hydrogen"
           SCRIPT_MODEL="gemini-4-hydrogen"
@@ -171,16 +167,7 @@ jobs:
           SEARCH_TITLE=""
           SKIP_AUDIO="false"
 
-          if [ "${{ github.event_name }}" = "push" ]; then
-            THEME="weekend_special"
-            SEARCH_TITLE="Dementia prevention, intervention, and care: 2024 report of the Lancet standing Commission"
-            TARGET_MINUTES="25"
-            API_TIER="auto"
-            TTS_PROVIDER="gemini_tts"
-            TTS_MODEL="gemini-3.8-flash-lite-tts"
-            SKIP_AUDIO="false"
-            echo "[INFO] Feature branch push test: Lancet 2024 -> 2-speaker non-roleplay + 2-part cached script + gemini-3.8-flash-lite-tts (auto Free->Paid failover)."
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             THEME="${{ inputs.theme }}"
             TARGET_MINUTES="${{ inputs.target_minutes }}"
             API_TIER="${{ inputs.api_tier }}"
@@ -191,6 +178,10 @@ jobs:
             SOURCE_URL="${{ inputs.source_url }}"
             SEARCH_TITLE="${{ inputs.search_title }}"
             SKIP_AUDIO="${{ inputs.skip_audio }}"
+          fi
+
+          if [ "$TARGET_MINUTES" = "auto" ]; then
+            TARGET_MINUTES="0"
           fi
 
           export GEMINI_API_TIER="$API_TIER"

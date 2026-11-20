@@ -215,17 +215,51 @@ def _normalize_speaker_ids(
     return fixed
 
 
+def resolve_adaptive_target_minutes(
+    docs: list[FetchedDocument],
+    requested_minutes: int = 0,
+) -> int:
+    """
+    요청 분량이 0(auto)이면 그날 다루는 문헌 수와 원문 분량에 따라 25~45분으로 자동 결정합니다.
+    (직접 지정 시 12~60분 범위로 클램핑)
+    """
+    if requested_minutes > 0:
+        return max(12, min(60, int(requested_minutes)))
+
+    total_chars = sum(d.char_count for d in docs)
+    sample = "".join(d.full_text[:1000] for d in docs)
+    hangul_ratio = (
+        sum(1 for ch in sample if "\uac00" <= ch <= "\ud7a3") / max(1, len(sample))
+    )
+    effective_chars = int(total_chars * 1.8) if hangul_ratio >= 0.2 else total_chars
+    doc_count = len(docs)
+
+    if effective_chars >= 65_000 or (doc_count >= 3 and effective_chars >= 40_000):
+        return 45
+    if effective_chars >= 40_000 or doc_count >= 2:
+        return 35
+    if effective_chars >= 20_000:
+        return 30
+    return 25
+
+
 def _build_section_batches(
     chapter_count: int,
     target_minutes: int,
 ) -> list[list[str]]:
     """
-    호출 수와 입력 토큰을 절반 이하로 줄이기 위해 섹션을 2~3개 파트로 묶습니다.
-    - <=35분: 2파트 ([opening, ch_1..mid], [ch_{mid+1}..N, closing]) -> 총 2회 호출!
-    - 36~60분: 3파트 (긴 분량에서도 출력 잘림 방지)
+    호출 수와 입력 토큰을 줄이면서도 목표 분량(25~60분)이 과도하게 압축되지 않도록 섹션을 2~4개 파트로 묶습니다.
+    - <=24분: 2파트
+    - 25~44분: 3파트 (파트당 2~3섹션 -> 분량 충실 확보 + Stage 1 포함 총 4회 호출)
+    - 45~60분: 4파트
     """
     all_ids = ["opening", *[f"ch_{i}" for i in range(1, chapter_count + 1)], "closing"]
-    num_batches = 2 if target_minutes <= 35 else 3
+    if target_minutes <= 24:
+        num_batches = 2
+    elif target_minutes <= 44:
+        num_batches = 3
+    else:
+        num_batches = 4
     if len(all_ids) <= num_batches:
         return [[sid] for sid in all_ids]
 

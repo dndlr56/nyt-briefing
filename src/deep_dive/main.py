@@ -44,6 +44,7 @@ from deep_dive.writer import (
     format_script_markdown,
     generate_longform_script,
     generate_study_note,
+    resolve_adaptive_target_minutes,
 )
 from usage_tracker import RunUsageTracker
 
@@ -65,8 +66,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--target-minutes",
         type=int,
-        default=25,
-        help="목표 오디오 브리핑 길이(분, 12~60 권장, 기본 25)",
+        default=0,
+        help="목표 오디오 브리핑 길이(분, 0=문헌 수·분량에 따라 25~45분 자동 조절, 직접 지정 시 12~60)",
     )
     parser.add_argument(
         "--source-url",
@@ -355,16 +356,20 @@ def main() -> int:
     duration_seconds = 0
 
     if not args.skip_audio:
+        resolved_minutes = resolve_adaptive_target_minutes(
+            selected_docs, requested_minutes=args.target_minutes
+        )
+        mode_note = "자동 조절" if args.target_minutes <= 0 else "수동 지정"
         print(
             f"\n[4/6] Stage 2: {len(note.dialogue_cast.speakers)}인 대화형 오디오 대본 생성 중 "
-            f"(포맷={note.dialogue_cast.format_type}, 목표 ~{args.target_minutes}분)..."
+            f"(포맷={note.dialogue_cast.format_type}, 목표 ~{resolved_minutes}분 [{mode_note}])..."
         )
         script = generate_longform_script(
             docs=selected_docs,
             theme=display_theme,
             decision=decision,
             note=note,
-            target_minutes=args.target_minutes,
+            target_minutes=resolved_minutes,
             model=args.script_model,
             inter_call_sleep=args.inter_call_sleep,
             usage_tracker=usage_tracker,
