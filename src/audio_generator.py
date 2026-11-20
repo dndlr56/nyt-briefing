@@ -584,21 +584,23 @@ def _concat_audio_parts_to_mp3(
             path.unlink(missing_ok=True)
 
 
-def generate_audio_briefing(
-    script: RoundupAudioScript,
+def generate_audio_from_segments(
+    segments: list[tuple[str, str]],
     output_mp3: Path,
     tts_provider: str | None = None,
     voice: str | None = None,
     tts_model: str | None = None,
     style: str | None = None,
+    max_gemini_parts: int | None = None,
+    pause_seconds: float = SEGMENT_PAUSE_SECONDS,
 ) -> GeneratedAudio:
-    """라운드업 대본을 단일 앵커 목소리로 합성해 하나의 MP3 파일로 결합합니다."""
+    """임의의 (라벨, 발화 텍스트) 세그먼트 리스트를 단일 MP3 파일로 합성합니다."""
     provider = (tts_provider or os.getenv("TTS_PROVIDER") or DEFAULT_TTS_PROVIDER).strip().lower()
     if provider not in ("edge_tts", "google_cloud_tts", "gemini_tts"):
         raise ValueError(f"지원하지 않는 TTS 프로바이더입니다: {provider}")
 
-    segments = get_script_segments(script)
-    if not segments:
+    cleaned_segments = [(label, text.strip()) for label, text in segments if text and text.strip()]
+    if not cleaned_segments:
         raise ValueError("음성으로 합성할 대본이 비어 있습니다.")
 
     selected_voice = _normalize_voice_for_provider(voice, provider)
@@ -612,7 +614,7 @@ def generate_audio_briefing(
             selected_model = "microsoft-edge-tts"
             input_suffix = ".mp3"
             audio_parts = _synthesize_edge_tts_all_segments(
-                segments=segments,
+                segments=cleaned_segments,
                 voice_name=selected_voice,
             )
         except Exception as edge_exc:
@@ -635,7 +637,8 @@ def generate_audio_briefing(
             selected_style = style if style is not None else os.getenv("GEMINI_TTS_STYLE", DEFAULT_ANCHOR_STYLE)
             client = genai.Client(http_options={"api_version": "v1beta"})
 
-            grouped_parts = _group_segments_balanced(segments, max_parts=GEMINI_TTS_MAX_PARTS)
+            part_limit = max_gemini_parts if max_gemini_parts is not None else GEMINI_TTS_MAX_PARTS
+            grouped_parts = _group_segments_balanced(cleaned_segments, max_parts=part_limit)
             api_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
             min_interval = GEMINI_TTS_MIN_INTERVAL_SECONDS if api_tier == "free" else 0.0
 
@@ -678,18 +681,30 @@ def generate_audio_briefing(
                 total_duration = 0.0
                 input_suffix = ".wav"
             else:
-                raise
+                print(
+                    f"      [WARN] Gemini TTS failed ({gemini_exc}). "
+                    f"Falling back to Edge TTS ({DEFAULT_EDGE_TTS_VOICE})..."
+                )
+                provider = "edge_tts"
+                selected_voice = DEFAULT_EDGE_TTS_VOICE
+                selected_model = "microsoft-edge-tts"
+                input_suffix = ".mp3"
+                total_duration = 0.0
+                audio_parts = _synthesize_edge_tts_all_segments(
+                    segments=cleaned_segments,
+                    voice_name=selected_voice,
+                )
 
     if provider == "google_cloud_tts":
         auth_headers = _get_cloud_tts_auth_headers()
         selected_model = "google-cloud-tts"
 
-        for idx, (label, text) in enumerate(segments, start=1):
+        for idx, (label, text) in enumerate(cleaned_segments, start=1):
             chunks = _split_text_by_utf8_bytes(text)
             for chunk_idx, chunk in enumerate(chunks, start=1):
                 suffix = f" (part {chunk_idx}/{len(chunks)})" if len(chunks) > 1 else ""
                 print(
-                    f"      [Cloud TTS] {idx}/{len(segments)} {label}{suffix} "
+                    f"      [Cloud TTS] {idx}/{len(cleaned_segments)} {label}{suffix} "
                     f"({len(chunk)} chars, {len(chunk.encode('utf-8'))} bytes)..."
                 )
                 wav_bytes = _synthesize_cloud_tts_chunk(
@@ -705,6 +720,7 @@ def generate_audio_briefing(
         audio_parts=audio_parts,
         output_mp3=output_mp3,
         input_suffix=input_suffix,
+        pause_seconds=pause_seconds,
     )
 
     probed_duration = _get_media_duration_seconds(output_mp3)
@@ -712,7 +728,7 @@ def generate_audio_briefing(
         final_duration = probed_duration
     else:
         if len(audio_parts) > 1:
-            total_duration += SEGMENT_PAUSE_SECONDS * (len(audio_parts) - 1)
+            total_duration += pause_seconds * (len(audio_parts) - 1)
         final_duration = total_duration
 
     return GeneratedAudio(
@@ -723,3 +739,24 @@ def generate_audio_briefing(
         model=selected_model,
         provider=provider,
     )
+
+
+def generate_audio_briefing(
+    script: RoundupAudioScript,
+    output_mp3: Path,
+    tts_provider: str | None = None,
+    voice: str | None = None,
+    tts_model: str | None = None,
+    style: str | None = None,
+) -> GeneratedAudio:
+    """라운드업 대본을 단일 앵커 목소리로 합성해 하나의 MP3 파일로 결합합니다."""
+    segments = get_script_segments(script)
+    return generate_audio_from_segments(
+        segments=segments,
+        output_mp3=output_mp3,
+        tts_provider=tts_provider,
+        voice=voice,
+        tts_model=tts_model,
+        style=style,
+    )
+

@@ -1,0 +1,247 @@
+name: Deep Dive Knowledge Briefing
+
+on:
+  schedule:
+    # 월~금 한국시간(KST, UTC+9) 오전 8시 00분 = 일~목 UTC 23시 00분
+    # (매일 07:00 KST 뉴스 브리핑과 1시간 간격을 두어 gh-pages 충돌 방지)
+    - cron: '0 23 * * 0-4'
+    # 토요일 스페셜 (KST 토요일 오전 9시 00분 = UTC 토요일 00시 00분)
+    - cron: '0 0 * * 6'
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: '테마 슬롯 선택 (auto=요일별 로테이션)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - ai_tech
+          - science_mind
+          - health_medicine
+          - econ_geopolitics
+          - law_cases
+          - weekend_special
+      target_minutes:
+        description: '목표 오디오 분량(분, 15~60 — 토큰 실측 후 조정 권장)'
+        required: true
+        default: '30'
+        type: choice
+        options:
+          - '20'
+          - '30'
+          - '40'
+          - '50'
+          - '60'
+      api_tier:
+        description: 'Gemini API 키 선택 (free: GEMINI_FREE_API_KEY / paid: GEMINI_API_KEY)'
+        required: true
+        default: 'free'
+        type: choice
+        options:
+          - free
+          - paid
+      note_model:
+        description: 'Stage 1 구조화 독해 노트 모델'
+        required: true
+        default: 'gemini-3.8-flash'
+        type: choice
+        options:
+          - gemini-3.8-flash
+          - gemini-4-hydrogen
+          - gemini-3.5-flash-lite
+      script_model:
+        description: 'Stage 2 휴버만식 롱폼 오디오 대본 모델'
+        required: true
+        default: 'gemini-3.8-flash'
+        type: choice
+        options:
+          - gemini-3.8-flash
+          - gemini-4-hydrogen
+          - gemini-3.5-flash-lite
+      tts_provider:
+        description: 'TTS 엔진 (30~60분 롱폼은 무료·무제한인 edge_tts 권장)'
+        required: true
+        default: 'edge_tts'
+        type: choice
+        options:
+          - edge_tts
+          - gemini_tts
+          - google_cloud_tts
+      source_url:
+        description: '(선택) 자동 수집 대신 직접 해부할 특정 논문/기사/PDF URL'
+        required: false
+        default: ''
+      skip_audio:
+        description: '오디오 생성 생략 (웹 노트 + Drive 아카이빙만 실행)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  run-deep-dive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Cache static ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/ffmpeg-bin
+          key: ffmpeg-static-linux64-v1
+
+      - name: Ensure ffmpeg is installed
+        run: |
+          if [ ! -x "$HOME/.local/ffmpeg-bin/ffmpeg" ] || [ ! -x "$HOME/.local/ffmpeg-bin/ffprobe" ]; then
+            mkdir -p "$HOME/.local/ffmpeg-bin" /tmp/ffmpeg-dl
+            curl -fsSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
+              | tar -xJ --strip-components=2 -C /tmp/ffmpeg-dl --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+            mv /tmp/ffmpeg-dl/ffmpeg /tmp/ffmpeg-dl/ffprobe "$HOME/.local/ffmpeg-bin/"
+            chmod +x "$HOME/.local/ffmpeg-bin/ffmpeg" "$HOME/.local/ffmpeg-bin/ffprobe"
+            rm -rf /tmp/ffmpeg-dl
+          fi
+          echo "$HOME/.local/ffmpeg-bin" >> "$GITHUB_PATH"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch existing gh-pages snapshot (read history & preserve news feed)
+        run: |
+          mkdir -p _gh_pages/deep
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git archive origin/gh-pages | tar -x -C _gh_pages
+            mkdir -p _gh_pages/deep
+          fi
+
+      - name: Run Deep Dive Knowledge Briefing
+        env:
+          PYTHONUNBUFFERED: '1'
+          GEMINI_FREE_API_KEY: ${{ secrets.GEMINI_FREE_API_KEY }}
+          GEMINI_PAID_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLOUD_TTS_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CLOUD_TTS_CREDENTIALS_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PODCAST_OWNER_EMAIL: ${{ secrets.PODCAST_OWNER_EMAIL }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_ROOT_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_ROOT_FOLDER_ID }}
+          DEEP_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/deep
+        run: |
+          THEME="auto"
+          TARGET_MINUTES="30"
+          API_TIER="free"
+          NOTE_MODEL="gemini-3.8-flash"
+          SCRIPT_MODEL="gemini-3.8-flash"
+          TTS_PROVIDER="edge_tts"
+          SOURCE_URL=""
+          SKIP_AUDIO="false"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            THEME="${{ inputs.theme }}"
+            TARGET_MINUTES="${{ inputs.target_minutes }}"
+            API_TIER="${{ inputs.api_tier }}"
+            NOTE_MODEL="${{ inputs.note_model }}"
+            SCRIPT_MODEL="${{ inputs.script_model }}"
+            TTS_PROVIDER="${{ inputs.tts_provider }}"
+            SOURCE_URL="${{ inputs.source_url }}"
+            SKIP_AUDIO="${{ inputs.skip_audio }}"
+          fi
+
+          if [ "$API_TIER" = "free" ] && [ -n "$GEMINI_FREE_API_KEY" ]; then
+            export GEMINI_API_KEY="$GEMINI_FREE_API_KEY"
+            export GEMINI_API_TIER="free"
+            echo "[INFO] Using GEMINI_FREE_API_KEY (Free Tier $0)"
+          else
+            export GEMINI_API_KEY="$GEMINI_PAID_API_KEY"
+            export GEMINI_API_TIER="paid"
+            echo "[INFO] Using GEMINI_API_KEY (Paid Tier)"
+          fi
+
+          EXTRA_ARGS=()
+          if [ -n "$SOURCE_URL" ]; then
+            EXTRA_ARGS+=(--source-url "$SOURCE_URL")
+          fi
+          if [ "$SKIP_AUDIO" = "true" ]; then
+            EXTRA_ARGS+=(--skip-audio)
+          fi
+
+          python src/deep_dive/main.py \
+            --theme "$THEME" \
+            --target-minutes "$TARGET_MINUTES" \
+            --note-model "$NOTE_MODEL" \
+            --script-model "$SCRIPT_MODEL" \
+            --tts-provider "$TTS_PROVIDER" \
+            --podcast-dir _gh_pages/deep \
+            --podcast-base-url "$DEEP_BASE_URL" \
+            --output-dir output/deep_dive \
+            "${EXTRA_ARGS[@]}"
+
+      - name: Publish Deep Dive Web Reader & RSS to gh-pages (preserving root news feed)
+        run: |
+          if [ ! -f _gh_pages/deep/feed.xml ]; then
+            echo "deep/feed.xml not found; skipping gh-pages publish."
+            exit 0
+          fi
+
+          # 최신 origin/gh-pages를 다시 받아 _gh_pages/deep 만 안전하게 병합
+          mkdir -p _gh_pages_merge
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages --depth=1
+            git archive origin/gh-pages | tar -x -C _gh_pages_merge
+          fi
+          rm -rf _gh_pages_merge/deep
+          cp -r _gh_pages/deep _gh_pages_merge/deep
+          touch _gh_pages_merge/.nojekyll
+
+          cd _gh_pages_merge
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish Deep Dive Knowledge Briefing ($(date -u +%Y-%m-%d))"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push --force origin gh-pages
+
+      - name: Upload Deep Dive artifacts (notes, script, MP3, benchmark summary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deep-dive-briefing-output
+          path: output/deep_dive/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Notify Telegram on failure
+        if: failure() || cancelled()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MSG="⚠️ <b>Deep Dive 브리핑 워크플로우 (${JOB_STATUS})</b>%0A%0A• 실행 방식: <code>${{ github.event_name }}</code>%0A• 로그 확인: ${RUN_URL}"
+          curl -fsS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "parse_mode=HTML" \
+            -d "disable_web_page_preview=true" \
+            -d "text=${MSG}" >/dev/null || true

@@ -1,0 +1,480 @@
+"""Deep Dive Knowledge Briefing 메인 파이프라인 CLI 엔트리포인트."""
+
+from __future__ import annotations
+
+import argparse
+from datetime import datetime, timedelta, timezone
+import json
+import os
+from pathlib import Path
+import sys
+
+from dotenv import load_dotenv
+
+# `python src/deep_dive/main.py` 실행 시 `src/` 모듈 임포트 보장
+SRC_DIR = Path(__file__).resolve().parent.parent
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from audio_generator import (
+    DEFAULT_EDGE_TTS_VOICE,
+    DEFAULT_GEMINI_TTS_MODEL,
+    generate_audio_from_segments,
+)
+from deep_dive.curator import DEFAULT_CURATOR_MODEL, curate_candidates
+from deep_dive.drive_archiver import archive_to_google_drive, is_drive_configured
+from deep_dive.models import CurationDecision, CuratedPick, FetchedDocument
+from deep_dive.notifier import build_deep_dive_telegram_message, notify_deep_dive_telegram
+from deep_dive.sources import (
+    collect_candidates_for_theme,
+    fetch_full_document,
+    load_manual_source,
+)
+from deep_dive.themes import THEME_SLOTS, resolve_theme_slot
+from deep_dive.web_publisher import (
+    load_covered_urls_from_pages,
+    publish_deep_dive,
+    render_study_note_body_html,
+)
+from deep_dive.writer import (
+    DEFAULT_NOTE_MODEL,
+    DEFAULT_SCRIPT_MODEL,
+    format_script_markdown,
+    generate_longform_script,
+    generate_study_note,
+)
+from usage_tracker import RunUsageTracker
+
+
+KST = timezone(timedelta(hours=9))
+DEFAULT_DEEP_TTS_PROVIDER = "edge_tts"  # 30~60분 롱폼 기준 무료·무제한·안정 기본값
+DEFAULT_DEEP_TTS_STYLE = "thoughtful, articulate podcast lecture narration"
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Deep Dive Knowledge Briefing 자동화 파이프라인"
+    )
+    parser.add_argument(
+        "--theme",
+        default="auto",
+        choices=["auto", *THEME_SLOTS.keys()],
+        help="테마 슬롯 선택 (auto=KST 요일별 로테이션)",
+    )
+    parser.add_argument(
+        "--target-minutes",
+        type=int,
+        default=35,
+        help="목표 오디오 브리핑 길이(분, 12~60 권장, 기본 35)",
+    )
+    parser.add_argument(
+        "--source-url",
+        default=None,
+        help="자동 수집 대신 직접 분석할 특정 논문/기사/PDF URL",
+    )
+    parser.add_argument(
+        "--pdf-path",
+        type=Path,
+        default=None,
+        help="자동 수집 대신 직접 분석할 로컬 PDF 파일 경로",
+    )
+    parser.add_argument(
+        "--curator-model",
+        default=None,
+        help=f"문헌 선별 모델 (기본: {DEFAULT_CURATOR_MODEL})",
+    )
+    parser.add_argument(
+        "--note-model",
+        default=None,
+        help=f"구조화 노트 모델 (기본: {DEFAULT_NOTE_MODEL})",
+    )
+    parser.add_argument(
+        "--script-model",
+        default=None,
+        help=f"롱폼 오디오 대본 모델 (기본: {DEFAULT_SCRIPT_MODEL})",
+    )
+    parser.add_argument(
+        "--tts-provider",
+        choices=["edge_tts", "gemini_tts", "google_cloud_tts"],
+        default=DEFAULT_DEEP_TTS_PROVIDER,
+        help="오디오 합성 TTS 엔진 (기본: edge_tts)",
+    )
+    parser.add_argument(
+        "--tts-model",
+        default=DEFAULT_GEMINI_TTS_MODEL,
+        help=f"gemini_tts 선택 시 모델 (기본: {DEFAULT_GEMINI_TTS_MODEL})",
+    )
+    parser.add_argument(
+        "--voice",
+        default=None,
+        help=f"TTS 목소리 (edge_tts 기본: {DEFAULT_EDGE_TTS_VOICE})",
+    )
+    parser.add_argument(
+        "--inter-call-sleep",
+        type=float,
+        default=None,
+        help="챕터 대본 생성 호출 간 대기 초 (미지정 시 free=22초, paid=2초)",
+    )
+    parser.add_argument(
+        "--podcast-dir",
+        type=Path,
+        default=None,
+        help="웹 리더 및 독립 RSS 배포 디렉터리 (예: _gh_pages/deep)",
+    )
+    parser.add_argument(
+        "--podcast-base-url",
+        default="",
+        help="웹 리더/RSS 공개 기본 URL (예: https://dndlr56.github.io/nyt-briefing/deep)",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("output/deep_dive"),
+        help="로컬 산출물(노트/대본/MP3/원문) 저장 디렉터리",
+    )
+    parser.add_argument(
+        "--dry-run-fetch",
+        action="store_true",
+        help="Gemini/TTS 호출 없이 소스 수집 및 전문 추출만 테스트",
+    )
+    parser.add_argument(
+        "--skip-audio",
+        action="store_true",
+        help="구조화 노트만 생성하고 오디오(대본/MP3) 단계 생략",
+    )
+    parser.add_argument(
+        "--skip-drive",
+        action="store_true",
+        help="Google Drive 3단 아카이빙 생략",
+    )
+    parser.add_argument(
+        "--skip-telegram",
+        action="store_true",
+        help="텔레그램 알림 발송 생략",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    load_dotenv()
+    args = _parse_args()
+
+    now_kst = datetime.now(KST)
+    date_slug = now_kst.strftime("%Y-%m-%d")
+    theme = resolve_theme_slot(args.theme, now_kst=now_kst)
+
+    api_tier = (os.getenv("GEMINI_API_TIER") or "free").strip().lower()
+    usage_tracker = RunUsageTracker(api_tier=api_tier)
+
+    print(f"=== Deep Dive Knowledge Briefing ({date_slug} KST) ===")
+    print(f"테마: {theme.emoji} {theme.label_kr} ({theme.theme_id}) | 목표 분량: ~{args.target_minutes}분")
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    covered_urls = (
+        load_covered_urls_from_pages(args.podcast_dir)
+        if args.podcast_dir is not None
+        else set()
+    )
+
+    # ── Step 1 & 2: 문헌 수집 + 선별 + 전문(Full-text) 확보 ──
+    selected_docs: list[FetchedDocument] = []
+    decision: CurationDecision | None = None
+
+    if args.source_url or args.pdf_path:
+        print("\n[1/6] 수동 지정 원문 로드 중...")
+        doc = load_manual_source(
+            source_url=args.source_url,
+            pdf_path=args.pdf_path,
+            theme_id=theme.theme_id,
+        )
+        selected_docs = [doc]
+        decision = CurationDecision(
+            mode="single_deep_dive",
+            unifying_angle_kr="사용자 직접 지정 원문의 핵심 논증과 실질적 시사점 완전 해부",
+            sub_subject_kr=theme.label_kr,
+            picks=[CuratedPick(candidate_index=1, why_selected_kr="사용자 직접 지정 문헌")],
+        )
+        print(
+            f"   -> 로드 완료: '{doc.candidate.title}' "
+            f"({doc.text_source}, {doc.char_count:,}자, PDF={'있음' if doc.pdf_bytes else '없음'})"
+        )
+    else:
+        print("\n[1/6] 1차 소스 후보 수집 중...")
+        candidates = collect_candidates_for_theme(theme)
+        print(f"   -> 총 {len(candidates)}건 수집 완료 (기다룬 URL {len(covered_urls)}건 제외 예정)")
+
+        if args.dry_run_fetch:
+            print("\n[DRY-RUN] 상위 5건 전문 추출 테스트 실행...")
+            ok_count = 0
+            for idx, cand in enumerate(candidates[:8], start=1):
+                doc = fetch_full_document(cand)
+                status = (
+                    f"OK ({doc.text_source}, {doc.char_count:,}자, PDF={'Y' if doc.pdf_bytes else 'N'})"
+                    if doc
+                    else "SKIP (페이월/본문 부족)"
+                )
+                print(f"   [{idx}] {cand.source_name} | {cand.title[:65]} -> {status}")
+                if doc:
+                    ok_count += 1
+                    if ok_count >= 3:
+                        break
+            print(f"\n[DRY-RUN 완료] 전문 추출 성공: {ok_count}건")
+            return 0
+
+        print("\n[2/6] 문헌 선별 및 전문(Full-text) 추출 중...")
+        decision = curate_candidates(
+            candidates=candidates,
+            theme=theme,
+            covered_urls=covered_urls,
+            model=args.curator_model,
+            usage_tracker=usage_tracker,
+        )
+        fresh_pool = [
+            c for c in candidates if c.url.strip().rstrip("/") not in covered_urls
+        ] or candidates
+        pool = fresh_pool[:35]
+
+        print(
+            f"   -> 선별 모드: {decision.mode} | 세부 주제: {decision.sub_subject_kr}\n"
+            f"   -> 관통 질문: {decision.unifying_angle_kr}"
+        )
+
+        # 선별된 후보들의 전문 확보 시도
+        tried_indices: set[int] = set()
+        for pick in decision.picks:
+            tried_indices.add(pick.candidate_index)
+            cand = pool[pick.candidate_index - 1]
+            print(f"   • 전문 추출 시도: [{cand.source_name}] {cand.title[:70]}")
+            doc = fetch_full_document(cand)
+            if doc is not None:
+                selected_docs.append(doc)
+                print(
+                    f"     ✓ 확보 성공 ({doc.text_source}, {doc.char_count:,}자, "
+                    f"PDF={'있음' if doc.pdf_bytes else '없음'})"
+                )
+            else:
+                print("     ✗ 유료 장벽 또는 본문 부족으로 제외")
+
+        # 선별 문헌이 모두 페이월 등으로 실패 시, PDF/PMC OA 우선 백업 후보에서 자동 보충
+        if not selected_docs:
+            print("   [WARN] 1차 선별 문헌의 전문 확보 실패 -> 오픈액세스 백업 후보 탐색...")
+            prioritized = sorted(
+                (
+                    (idx, c)
+                    for idx, c in enumerate(pool, start=1)
+                    if idx not in tried_indices
+                ),
+                key=lambda pair: (0 if (pair[1].pmc_id or pair[1].pdf_url) else 1, pair[0]),
+            )
+            for _, cand in prioritized[:10]:
+                doc = fetch_full_document(cand)
+                if doc is not None:
+                    selected_docs.append(doc)
+                    decision.mode = "single_deep_dive"
+                    print(f"     ✓ 백업 문헌 확보: [{cand.source_name}] {cand.title[:70]}")
+                    break
+
+        if not selected_docs:
+            raise RuntimeError("전문(Full-text)을 확보할 수 있는 문헌을 찾지 못했습니다.")
+
+    assert decision is not None
+    if args.dry_run_fetch:
+        print("[DRY-RUN 완료]")
+        return 0
+
+    # ── Step 3: Stage 1 구조화 독해 노트 생성 ──
+    print("\n[3/6] Stage 1: 구조화 비판적 독해 노트 및 챕터 설계도 생성 중...")
+    note = generate_study_note(
+        docs=selected_docs,
+        theme=theme,
+        decision=decision,
+        model=args.note_model,
+        usage_tracker=usage_tracker,
+    )
+    print(f"   -> 제목: {note.episode_title_kr}")
+    print(f"   -> 챕터 수: {len(note.chapters)}개 | 용어집: {len(note.key_terms)}개 | 인용: {len(note.key_quotes)}개")
+
+    note_json_path = args.output_dir / f"study_note_{date_slug}_{theme.theme_id}.json"
+    note_json_path.write_text(note.model_dump_json(indent=2), encoding="utf-8")
+
+    # ── Step 4: Stage 2 롱폼 오디오 대본 + TTS 합성 ──
+    script = None
+    generated_audio = None
+    mp3_path: Path | None = None
+    duration_seconds = 0
+
+    if not args.skip_audio:
+        print(f"\n[4/6] Stage 2: 챕터 분할 휴버만식 오디오 대본 생성 중 (목표 ~{args.target_minutes}분)...")
+        script = generate_longform_script(
+            docs=selected_docs,
+            theme=theme,
+            decision=decision,
+            note=note,
+            target_minutes=args.target_minutes,
+            model=args.script_model,
+            inter_call_sleep=args.inter_call_sleep,
+            usage_tracker=usage_tracker,
+        )
+        script_md_path = args.output_dir / f"script_{date_slug}_{theme.theme_id}.md"
+        script_md_path.write_text(format_script_markdown(script, note), encoding="utf-8")
+        print(f"   -> 대본 완성: 총 {script.total_chars:,}자 ({script_md_path})")
+
+        mp3_path = args.output_dir / f"deep_dive_{date_slug}_{theme.theme_id}.mp3"
+        print(f"\n   -> TTS 음성 합성 시작 (provider={args.tts_provider})...")
+        generated_audio = generate_audio_from_segments(
+            segments=script.to_segments(),
+            output_mp3=mp3_path,
+            tts_provider=args.tts_provider,
+            voice=args.voice,
+            tts_model=args.tts_model,
+            style=DEFAULT_DEEP_TTS_STYLE,
+            max_gemini_parts=10 if api_tier == "paid" else 7,
+            pause_seconds=0.8,
+        )
+        duration_seconds = generated_audio.duration_seconds
+        usage_tracker.set_tts(
+            provider=generated_audio.provider,
+            model=generated_audio.model,
+            voice=generated_audio.voice,
+            chars=script.total_chars,
+        )
+        print(
+            f"   -> MP3 완성: {mp3_path} "
+            f"({duration_seconds // 60}분 {duration_seconds % 60}초, "
+            f"{generated_audio.file_size_bytes / (1024 * 1024):.1f} MB)"
+        )
+    else:
+        print("\n[4/6] --skip-audio 지정으로 오디오 단계 생략")
+
+    # 로컬 아카이빙 백업(PDF + full_text.txt)
+    for idx, d in enumerate(selected_docs, start=1):
+        if d.pdf_bytes:
+            (args.output_dir / (d.pdf_filename or f"source_{idx}.pdf")).write_bytes(d.pdf_bytes)
+    (args.output_dir / f"full_text_{date_slug}_{theme.theme_id}.txt").write_text(
+        "\n\n".join(f"=== {d.candidate.title} ===\n{d.full_text}" for d in selected_docs),
+        encoding="utf-8",
+    )
+
+    usage_footer_html = usage_tracker.format_show_notes_html()
+    usage_console_text = usage_tracker.format_console_summary()
+
+    # ── Step 5: Google Drive 3단 아카이빙 + 웹 리더/RSS 발행 ──
+    print("\n[5/6] 배포 및 Google Drive 아카이빙 중...")
+    published = None
+    drive_result = None
+
+    # 웹 리더 선행 생성 (Drive Sheet에 웹 리더 링크를 함께 기록하기 위해)
+    if args.podcast_dir is not None and args.podcast_base_url:
+        published = publish_deep_dive(
+            deep_dir=args.podcast_dir,
+            base_url=args.podcast_base_url,
+            date_slug=date_slug,
+            theme=theme,
+            decision=decision,
+            note=note,
+            docs=selected_docs,
+            script=script,
+            mp3_path=mp3_path,
+            duration_seconds=duration_seconds,
+            usage_footer_html=usage_footer_html,
+        )
+        print(f"   -> 웹 리더 발행: {published.article_url}")
+        print(f"   -> 독립 RSS 갱신: {published.feed_url}")
+
+    if not args.skip_drive and is_drive_configured():
+        try:
+            doc_html = render_study_note_body_html(
+                note=note,
+                docs=selected_docs,
+                theme=theme,
+                decision=decision,
+                article_url=published.article_url if published else None,
+                usage_footer_html=usage_footer_html,
+            )
+            drive_result = archive_to_google_drive(
+                date_slug=date_slug,
+                theme=theme,
+                decision=decision,
+                note=note,
+                docs=selected_docs,
+                doc_html=doc_html,
+                web_article_url=published.article_url if published else "",
+            )
+            print(f"   -> Google Drive 아카이빙 완료: {drive_result.folder_url}")
+            print(f"      Doc: {drive_result.doc_url} | PDF {drive_result.uploaded_pdf_count}건")
+            print(f"      Master Sheet: {drive_result.sheet_url}")
+
+            # Drive 링크를 웹 리더 페이지에도 반영
+            if args.podcast_dir is not None and args.podcast_base_url:
+                published = publish_deep_dive(
+                    deep_dir=args.podcast_dir,
+                    base_url=args.podcast_base_url,
+                    date_slug=date_slug,
+                    theme=theme,
+                    decision=decision,
+                    note=note,
+                    docs=selected_docs,
+                    script=script,
+                    mp3_path=mp3_path,
+                    duration_seconds=duration_seconds,
+                    drive_doc_url=drive_result.doc_url,
+                    usage_footer_html=usage_footer_html,
+                )
+        except Exception as exc:
+            print(f"   [WARN] Google Drive 아카이빙 실패 (파이프라인은 계속 진행): {exc}")
+    elif not args.skip_drive:
+        print("   -> Google Drive OAuth 시크릿 미설정으로 Drive 아카이빙 생략 (docs/DEEP_DIVE_SETUP.md 참고)")
+
+    # ── Step 6: 텔레그램 알림 & 토큰 리포트 ──
+    print("\n[6/6] 텔레그램 알림 및 사용량 리포트 출력...")
+    print(usage_console_text)
+
+    if not args.skip_telegram:
+        if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
+            tg_msg = build_deep_dive_telegram_message(
+                date_slug=date_slug,
+                theme=theme,
+                decision=decision,
+                note=note,
+                docs=selected_docs,
+                published=published,
+                drive_result=drive_result,
+                duration_seconds=duration_seconds,
+                usage_summary_text=usage_console_text,
+            )
+            notify_deep_dive_telegram(tg_msg)
+        else:
+            print("   -> TELEGRAM_BOT_TOKEN/CHAT_ID 미설정으로 알림 생략")
+
+    # 벤치마크 메타 JSON 저장
+    bench_summary = {
+        "date_slug": date_slug,
+        "theme": theme.theme_id,
+        "mode": decision.mode,
+        "title": note.episode_title_kr,
+        "docs": [
+            {
+                "title": d.candidate.title,
+                "source": d.candidate.source_name,
+                "text_source": d.text_source,
+                "char_count": d.char_count,
+                "has_pdf": d.pdf_bytes is not None,
+            }
+            for d in selected_docs
+        ],
+        "script_chars": script.total_chars if script else 0,
+        "duration_seconds": duration_seconds,
+        "total_tokens": usage_tracker.total_tokens,
+        "estimated_usd": round(usage_tracker.estimate_usd(), 4),
+    }
+    (args.output_dir / f"run_summary_{date_slug}_{theme.theme_id}.json").write_text(
+        json.dumps(bench_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    print("\n✅ Deep Dive Knowledge Briefing 파이프라인 완료!")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
