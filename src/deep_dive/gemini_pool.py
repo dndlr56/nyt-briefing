@@ -149,21 +149,26 @@ class GeminiClientPool:
         stage: str,
         usage_tracker: RunUsageTracker | None = None,
         max_retries: int = 3,
+        timeout: float = 210.0,
         **create_kwargs: Any,
     ) -> tuple[Any, str]:
         """
-        client.interactions.create(...)를 호출하며 무료 티어 한도 도달 시
-        실행 중인 단계 그대로 유료 키로 전환해 이어서 수행합니다.
+        client.interactions.create(...)를 호출하며:
+        - 각 호출에 기본 210초(3분 30초) 타임아웃을 걸어 무한 대기(hang)를 방지합니다.
+        - 무료 티어 한도 도달 또는 연속 타임아웃/503 시 유료 프로젝트로 자동 전환합니다.
         반환: (interaction, actual_tier)
         """
         last_exc: Exception | None = None
         rpm_waited_on_free = False
+        timeout_or_503_on_free = False
 
         for attempt in range(1, max_retries + 2):
             tier = self.active_tier_for(model)
             client = self._get_client(tier)
+            call_kwargs = dict(create_kwargs)
+            call_kwargs.setdefault("timeout", timeout)
             try:
-                interaction = client.interactions.create(model=model, **create_kwargs)
+                interaction = client.interactions.create(model=model, **call_kwargs)
                 if usage_tracker is not None:
                     usage_tracker.add_interaction(
                         interaction, stage=stage, model=model, tier=tier
@@ -171,7 +176,15 @@ class GeminiClientPool:
                 return interaction, tier
             except Exception as exc:
                 last_exc = exc
+                err_lower = str(exc).lower()
                 is_quota = _is_quota_or_rate_error(exc)
+                is_timeout_or_503 = (
+                    "timeout" in err_lower
+                    or "timed out" in err_lower
+                    or "503" in err_lower
+                    or "unavailable" in err_lower
+                    or "timeout" in type(exc).__name__.lower()
+                )
 
                 if tier == "free" and is_quota and self.has_paid_fallback:
                     # 일일 한도(RPD) 소진이거나 이미 1회 RPM 대기를 거쳤다면 즉시 유료 프로젝트로 전환
@@ -185,6 +198,20 @@ class GeminiClientPool:
                         "(재발 시 유료 프로젝트로 자동 전환)..."
                     )
                     time.sleep(22)
+                    continue
+
+                if tier == "free" and is_timeout_or_503 and self.has_paid_fallback:
+                    if timeout_or_503_on_free:
+                        self.switch_group_to_paid(
+                            model, reason=f"무료 티어 응답 지연/타임아웃 반복 ({type(exc).__name__})"
+                        )
+                        continue
+                    timeout_or_503_on_free = True
+                    print(
+                        f"      [WARN] {stage} 무료 티어 응답 지연/타임아웃 ({type(exc).__name__}) -> "
+                        "5초 후 1회 재시도 (재발 시 유료 전환)..."
+                    )
+                    time.sleep(5)
                     continue
 
                 if attempt <= max_retries:
