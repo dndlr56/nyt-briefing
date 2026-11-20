@@ -17,12 +17,13 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from audio_generator import (
+    DEFAULT_DEEP_GEMINI_TTS_MODEL,
     DEFAULT_EDGE_TTS_VOICE,
-    DEFAULT_GEMINI_TTS_MODEL,
     generate_dialogue_audio,
 )
 from deep_dive.curator import DEFAULT_CURATOR_MODEL, curate_candidates
 from deep_dive.drive_archiver import archive_to_google_drive, is_drive_configured
+from deep_dive.gemini_pool import GeminiClientPool
 from deep_dive.models import CurationDecision, CuratedPick, FetchedDocument
 from deep_dive.notifier import build_deep_dive_telegram_message, notify_deep_dive_telegram
 from deep_dive.sources import (
@@ -48,8 +49,7 @@ from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
-DEFAULT_DEEP_TTS_PROVIDER = "edge_tts"  # 30~60분 롱폼 기준 무료·무제한·안정 기본값
-DEFAULT_DEEP_TTS_STYLE = "thoughtful, articulate podcast lecture narration"
+DEFAULT_DEEP_TTS_PROVIDER = "gemini_tts"  # 기본: gemini-3.8-flash-lite-tts (2인 네이티브 대화 + 무료->유료 자동 전환)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -65,8 +65,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--target-minutes",
         type=int,
-        default=35,
-        help="목표 오디오 브리핑 길이(분, 12~60 권장, 기본 35)",
+        default=25,
+        help="목표 오디오 브리핑 길이(분, 12~60 권장, 기본 25)",
     )
     parser.add_argument(
         "--source-url",
@@ -101,14 +101,14 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--tts-provider",
-        choices=["edge_tts", "gemini_tts", "google_cloud_tts"],
+        choices=["gemini_tts", "google_cloud_tts", "edge_tts"],
         default=DEFAULT_DEEP_TTS_PROVIDER,
-        help="오디오 합성 TTS 엔진 (기본: edge_tts)",
+        help=f"오디오 합성 TTS 엔진 (기본: {DEFAULT_DEEP_TTS_PROVIDER})",
     )
     parser.add_argument(
         "--tts-model",
-        default=DEFAULT_GEMINI_TTS_MODEL,
-        help=f"gemini_tts 선택 시 모델 (기본: {DEFAULT_GEMINI_TTS_MODEL})",
+        default=DEFAULT_DEEP_GEMINI_TTS_MODEL,
+        help=f"gemini_tts 선택 시 모델 (기본: {DEFAULT_DEEP_GEMINI_TTS_MODEL})",
     )
     parser.add_argument(
         "--voice",
@@ -169,11 +169,16 @@ def main() -> int:
     date_slug = now_kst.strftime("%Y-%m-%d")
     theme = resolve_theme_slot(args.theme, now_kst=now_kst)
 
-    api_tier = (os.getenv("GEMINI_API_TIER") or "free").strip().lower()
-    usage_tracker = RunUsageTracker(api_tier=api_tier)
+    gemini_pool = GeminiClientPool()
+    initial_tier = gemini_pool.active_tier_for(DEFAULT_NOTE_MODEL)
+    usage_tracker = RunUsageTracker(api_tier=initial_tier)
 
     print(f"=== Deep Dive Knowledge Briefing ({date_slug} KST) ===")
-    print(f"테마: {theme.emoji} {theme.label_kr} ({theme.theme_id}) | 목표 분량: ~{args.target_minutes}분")
+    print(
+        f"테마: {theme.emoji} {theme.label_kr} ({theme.theme_id}) | 목표 분량: ~{args.target_minutes}분 | "
+        f"API 모드: {gemini_pool.mode} (무료키={'Y' if gemini_pool.has_free_key else 'N'}, "
+        f"유료폴백={'Y' if gemini_pool.has_paid_fallback else 'N'})"
+    )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     covered_urls = (
@@ -196,7 +201,7 @@ def main() -> int:
         selected_docs = [doc]
         decision = CurationDecision(
             mode="single_deep_dive",
-            unifying_angle_kr="사용자 직접 지정 원문의 핵심 논증과 실질적 시사점 완전 해부",
+            unifying_angle_kr="사용자 직접 지정 원문의 핵심 논증과 실질적 시사점 충실 요약",
             sub_subject_kr=theme.label_kr,
             picks=[CuratedPick(candidate_index=1, why_selected_kr="사용자 직접 지정 문헌")],
         )
@@ -211,7 +216,7 @@ def main() -> int:
             selected_docs = [found_doc]
             decision = CurationDecision(
                 mode="single_deep_dive",
-                unifying_angle_kr=f"지정 핵심 문헌 '{found_doc.candidate.title}'의 주요 근거·방법론·정책적·실생활 시사점 완전 해부",
+                unifying_angle_kr=f"지정 핵심 문헌 '{found_doc.candidate.title}'의 주요 근거·방법론·결론 충실 요약",
                 sub_subject_kr=theme.label_kr,
                 picks=[CuratedPick(candidate_index=1, why_selected_kr="사용자 지정 제목 DB 검색 확보")],
             )
@@ -250,6 +255,7 @@ def main() -> int:
             covered_urls=covered_urls,
             model=args.curator_model,
             usage_tracker=usage_tracker,
+            gemini_pool=gemini_pool,
         )
         fresh_pool = [
             c for c in candidates if c.url.strip().rstrip("/") not in covered_urls
@@ -312,6 +318,7 @@ def main() -> int:
         decision=decision,
         model=args.note_model,
         usage_tracker=usage_tracker,
+        gemini_pool=gemini_pool,
     )
 
     if (
@@ -361,6 +368,7 @@ def main() -> int:
             model=args.script_model,
             inter_call_sleep=args.inter_call_sleep,
             usage_tracker=usage_tracker,
+            gemini_pool=gemini_pool,
         )
         script_md_path = args.output_dir / f"script_{date_slug}_{display_theme.theme_id}.md"
         script_md_path.write_text(format_script_markdown(script, note), encoding="utf-8")
@@ -369,11 +377,17 @@ def main() -> int:
         )
 
         mp3_path = args.output_dir / f"deep_dive_{date_slug}_{display_theme.theme_id}.mp3"
-        print(f"\n   -> 다중 화자 TTS 음성 합성 시작 (provider={args.tts_provider})...")
+        print(
+            f"\n   -> 다중 화자 TTS 음성 합성 시작 "
+            f"(provider={args.tts_provider}, model={args.tts_model})..."
+        )
         generated_audio = generate_dialogue_audio(
             dialogue_items=script.to_dialogue_items(),
             output_mp3=mp3_path,
             tts_provider=args.tts_provider,
+            tts_model=args.tts_model,
+            gemini_pool=gemini_pool,
+            usage_tracker=usage_tracker,
         )
         duration_seconds = generated_audio.duration_seconds
         usage_tracker.set_tts(
@@ -381,12 +395,13 @@ def main() -> int:
             model=generated_audio.model,
             voice=generated_audio.voice,
             chars=script.total_chars,
+            tier=gemini_pool.active_tier_for(args.tts_model),
         )
         print(
             f"   -> MP3 완성: {mp3_path} "
             f"({duration_seconds // 60}분 {duration_seconds % 60}초, "
             f"{generated_audio.file_size_bytes / (1024 * 1024):.1f} MB, "
-            f"엔진={generated_audio.provider}, 화자={generated_audio.voice})"
+            f"엔진={generated_audio.provider}/{generated_audio.model}, 화자={generated_audio.voice})"
         )
     else:
         print("\n[4/6] --skip-audio 지정으로 오디오 단계 생략")
@@ -501,6 +516,8 @@ def main() -> int:
         "dialogue_format": note.dialogue_cast.format_type,
         "speaker_count": len(note.dialogue_cast.speakers),
         "total_turns": script.total_turns if script else 0,
+        "tts_provider": generated_audio.provider if generated_audio else "",
+        "tts_model": generated_audio.model if generated_audio else "",
         "docs": [
             {
                 "title": d.candidate.title,
@@ -514,7 +531,10 @@ def main() -> int:
         "script_chars": script.total_chars if script else 0,
         "duration_seconds": duration_seconds,
         "total_tokens": usage_tracker.total_tokens,
+        "cached_tokens": usage_tracker.total_cached_tokens,
+        "actual_paid_usd": round(usage_tracker.actual_paid_usd(), 4),
         "estimated_usd": round(usage_tracker.estimate_usd(), 4),
+        "failover_events": gemini_pool.failover_events,
     }
     (args.output_dir / f"run_summary_{date_slug}_{display_theme.theme_id}.json").write_text(
         json.dumps(bench_summary, ensure_ascii=False, indent=2),

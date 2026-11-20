@@ -525,6 +525,93 @@ class DeepDivePipelineTests(unittest.TestCase):
                 out_path = norm_cmd[-1]
                 self.assertNotEqual(in_path, out_path)
 
+    def test_gemini_client_pool_free_to_paid_failover(self) -> None:
+        from types import SimpleNamespace
+        from deep_dive.gemini_pool import GeminiClientPool
+        from usage_tracker import RunUsageTracker
+
+        pool = GeminiClientPool(
+            free_api_key="free-key",
+            paid_api_key="paid-key",
+            mode="auto",
+        )
+        tracker = RunUsageTracker(api_tier="free")
+
+        class _FakeInteractions:
+            def __init__(self, fail_quota: bool) -> None:
+                self.fail_quota = fail_quota
+                self.calls = 0
+
+            def create(self, **kwargs: object) -> object:
+                self.calls += 1
+                if self.fail_quota:
+                    raise RuntimeError("429 RESOURCE_EXHAUSTED: GenerateRequestsPerDay free_tier limit reached")
+                return SimpleNamespace(
+                    output_text="ok",
+                    usage={
+                        "total_input_tokens": 1000,
+                        "total_cached_tokens": 0,
+                        "total_output_tokens": 500,
+                        "total_thought_tokens": 0,
+                        "total_tokens": 1500,
+                    },
+                )
+
+        fake_free = SimpleNamespace(interactions=_FakeInteractions(fail_quota=True))
+        fake_paid = SimpleNamespace(interactions=_FakeInteractions(fail_quota=False))
+        pool._free_client = fake_free  # type: ignore[assignment]
+        pool._paid_client = fake_paid  # type: ignore[assignment]
+
+        # 1) 텍스트 호출이 무료 일일 한도 초과 시 즉시 유료 프로젝트로 전환
+        _, tier1 = pool.create_interaction(
+            model="gemini-4-hydrogen",
+            stage="Stage 1",
+            usage_tracker=tracker,
+            input="hello",
+        )
+        self.assertEqual(tier1, "paid")
+        self.assertEqual(pool.active_tier_for("gemini-4-hydrogen"), "paid")
+        # TTS 그룹은 별도 할당량이므로 여전히 무료 티어 우선 유지
+        self.assertEqual(pool.active_tier_for("gemini-3.8-flash-lite-tts"), "free")
+        self.assertEqual(len(pool.failover_events), 1)
+        self.assertGreater(tracker.actual_paid_usd(), 0.0)
+
+        # 2) TTS는 무료 키로 성공 기록 시 mixed tier 리포트 검증
+        fake_free.interactions.fail_quota = False
+        _, tier2 = pool.create_interaction(
+            model="gemini-3.8-flash-lite-tts",
+            stage="TTS Part 1",
+            usage_tracker=tracker,
+            input="hello",
+        )
+        self.assertEqual(tier2, "free")
+        self.assertTrue(tracker.is_mixed_tier)
+        self.assertIn("free->paid", tracker.format_console_summary())
+
+    def test_writer_batching_and_gemini_tts_grouping(self) -> None:
+        from audio_generator import _group_dialogue_turns_for_gemini
+        from deep_dive.writer import _build_section_batches
+
+        batches_25m = _build_section_batches(chapter_count=5, target_minutes=25)
+        self.assertEqual(len(batches_25m), 2)
+        self.assertEqual(batches_25m[0][0], "opening")
+        self.assertEqual(batches_25m[-1][-1], "closing")
+        self.assertEqual(sum(len(b) for b in batches_25m), 7)
+
+        batches_50m = _build_section_batches(chapter_count=6, target_minutes=50)
+        self.assertEqual(len(batches_50m), 3)
+        self.assertEqual(sum(len(b) for b in batches_50m), 8)
+
+        # 9,600자 (40턴 x 240자) -> 5~6개 파트로 묶여 무료 티어 10 RPD 이하 유지
+        sample_items = [
+            (f"Chapter {(i // 8) + 1}", "S1" if i % 2 == 0 else "S2", "가" * 240, (i + 1) % 8 == 0)
+            for i in range(40)
+        ]
+        grouped = _group_dialogue_turns_for_gemini(sample_items)
+        self.assertLessEqual(len(grouped), 7)
+        self.assertGreaterEqual(len(grouped), 4)
+        self.assertEqual(sum(len(turns) for turns, _ in grouped), 40)
+
 
 if __name__ == "__main__":
     unittest.main()

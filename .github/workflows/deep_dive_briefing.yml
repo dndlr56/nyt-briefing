@@ -37,11 +37,12 @@ on:
           - '50'
           - '60'
       api_tier:
-        description: 'Gemini API 키 선택 (free: GEMINI_FREE_API_KEY / paid: GEMINI_API_KEY)'
+        description: 'Gemini API 모드 (auto=무료 우선 후 한도 소진 시 유료 자동 전환 / free=무료 전용 / paid=유료 전용)'
         required: true
-        default: 'free'
+        default: 'auto'
         type: choice
         options:
+          - auto
           - free
           - paid
       note_model:
@@ -61,14 +62,22 @@ on:
           - gemini-4-hydrogen
           - gemini-3.5-flash-lite
       tts_provider:
-        description: '다중 화자 TTS 엔진 (google_cloud_tts=Chirp3-HD 3화자 월 100만자 무료 / edge_tts=무료 무제한 3화자)'
+        description: '다중 화자 TTS 엔진 (gemini_tts=2인 네이티브 대화 기본 / google_cloud_tts=Chirp3-HD 병렬 / edge_tts=무료 무제한)'
         required: true
-        default: 'google_cloud_tts'
+        default: 'gemini_tts'
         type: choice
         options:
+          - gemini_tts
           - google_cloud_tts
           - edge_tts
-          - gemini_tts
+      tts_model:
+        description: 'gemini_tts 모델 선택 (기본: gemini-3.8-flash-lite-tts)'
+        required: true
+        default: 'gemini-3.8-flash-lite-tts'
+        type: choice
+        options:
+          - gemini-3.8-flash-lite-tts
+          - gemini-3.8-flash-tts
       source_url:
         description: '(선택) 자동 수집 대신 직접 해부할 특정 논문/기사/PDF URL'
         required: false
@@ -153,10 +162,11 @@ jobs:
         run: |
           THEME="auto"
           TARGET_MINUTES="25"
-          API_TIER="free"
+          API_TIER="auto"
           NOTE_MODEL="gemini-4-hydrogen"
           SCRIPT_MODEL="gemini-4-hydrogen"
-          TTS_PROVIDER="google_cloud_tts"
+          TTS_PROVIDER="gemini_tts"
+          TTS_MODEL="gemini-3.8-flash-lite-tts"
           SOURCE_URL=""
           SEARCH_TITLE=""
           SKIP_AUDIO="false"
@@ -165,9 +175,11 @@ jobs:
             THEME="weekend_special"
             SEARCH_TITLE="Dementia prevention, intervention, and care: 2024 report of the Lancet standing Commission"
             TARGET_MINUTES="25"
-            TTS_PROVIDER="google_cloud_tts"
+            API_TIER="auto"
+            TTS_PROVIDER="gemini_tts"
+            TTS_MODEL="gemini-3.8-flash-lite-tts"
             SKIP_AUDIO="false"
-            echo "[INFO] Feature branch push test: Lancet 2024 -> core tab auto-classification + 2-3 speaker dialogue audio."
+            echo "[INFO] Feature branch push test: Lancet 2024 -> 2-speaker non-roleplay + 2-part cached script + gemini-3.8-flash-lite-tts (auto Free->Paid failover)."
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             THEME="${{ inputs.theme }}"
             TARGET_MINUTES="${{ inputs.target_minutes }}"
@@ -175,19 +187,22 @@ jobs:
             NOTE_MODEL="${{ inputs.note_model }}"
             SCRIPT_MODEL="${{ inputs.script_model }}"
             TTS_PROVIDER="${{ inputs.tts_provider }}"
+            TTS_MODEL="${{ inputs.tts_model }}"
             SOURCE_URL="${{ inputs.source_url }}"
             SEARCH_TITLE="${{ inputs.search_title }}"
             SKIP_AUDIO="${{ inputs.skip_audio }}"
           fi
 
-          if [ "$API_TIER" = "free" ] && [ -n "$GEMINI_FREE_API_KEY" ]; then
-            export GEMINI_API_KEY="$GEMINI_FREE_API_KEY"
-            export GEMINI_API_TIER="free"
-            echo "[INFO] Using GEMINI_FREE_API_KEY (Free Tier $0)"
-          else
+          export GEMINI_API_TIER="$API_TIER"
+          if [ "$API_TIER" = "paid" ]; then
             export GEMINI_API_KEY="$GEMINI_PAID_API_KEY"
-            export GEMINI_API_TIER="paid"
-            echo "[INFO] Using GEMINI_API_KEY (Paid Tier)"
+            echo "[INFO] Gemini API mode: paid (GEMINI_PAID_API_KEY)"
+          elif [ "$API_TIER" = "free" ]; then
+            export GEMINI_API_KEY="$GEMINI_FREE_API_KEY"
+            echo "[INFO] Gemini API mode: free-only (GEMINI_FREE_API_KEY)"
+          else
+            export GEMINI_API_KEY="${GEMINI_FREE_API_KEY:-$GEMINI_PAID_API_KEY}"
+            echo "[INFO] Gemini API mode: auto (Free first -> automatic Paid failover on quota exhaustion)"
           fi
 
           EXTRA_ARGS=()
@@ -207,6 +222,7 @@ jobs:
             --note-model "$NOTE_MODEL" \
             --script-model "$SCRIPT_MODEL" \
             --tts-provider "$TTS_PROVIDER" \
+            --tts-model "$TTS_MODEL" \
             --podcast-dir _gh_pages/deep \
             --podcast-base-url "$DEEP_BASE_URL" \
             --output-dir output/deep_dive \

@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import time
 
-from google import genai
 from pydantic import ValidationError
 
+from deep_dive.gemini_pool import GeminiClientPool
 from deep_dive.models import CurationDecision, SourceCandidate
 from deep_dive.themes import ThemeSlot
 from usage_tracker import RunUsageTracker
@@ -24,7 +24,7 @@ CURATOR_SYSTEM_INSTRUCTION = """당신은 서울대학교 철학·심리학 전�
 2. AI·과학 패러다임 변화 이해(프론티어 모델 원리·한계, 안전성/정렬, 에이전트, 기초과학·신소재 돌파구)
 3. 건강·장수 의학(수면, 운동생리학·VO2max, 영양·대사·노화, 정신건강·도파민)
 4. 경제·투자 감각 및 지정학(거시·통화정책, 투자 철학·행동재무학, 기업 해자, 미중·에너지·인구)
-5. 법적 사고력 입문(SCOTUS/헌재 주요 판례, AI·플랫폼 규제, 헌법·기본권·법과 경제학)
+5. 법적 사고력 입문(대한민국 대법원·헌재 주요 판례, AI·플랫폼 규제, 법학·법조 칼럼)
 
 [선별 원칙]
 - 단순 단신 뉴스, 보도자료, 지엽적 실험(예: 특정 마우스 유전자 하나만 건드린 초미세 논문)은 제외하세요.
@@ -42,6 +42,7 @@ def curate_candidates(
     covered_urls: set[str] | None = None,
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
+    gemini_pool: GeminiClientPool | None = None,
 ) -> CurationDecision:
     """수집된 후보 중 이미 다룬 URL을 제외하고 오늘의 문헌 1~3편을 선별합니다."""
     seen = {u.strip().rstrip("/") for u in (covered_urls or set()) if u}
@@ -93,13 +94,15 @@ def curate_candidates(
     ):
         raw_thinking = "low"
     thinking_level = raw_thinking
-    client = genai.Client(http_options={"api_version": "v1beta"})
+    client_pool = gemini_pool or GeminiClientPool()
 
     last_exc: Exception | None = None
-    for attempt in range(1, 4):
+    for attempt in range(1, 3):
         try:
-            interaction = client.interactions.create(
+            interaction, _ = client_pool.create_interaction(
                 model=selected_model,
+                stage="문헌 선별",
+                usage_tracker=usage_tracker,
                 system_instruction=CURATOR_SYSTEM_INSTRUCTION,
                 input=prompt,
                 response_mime_type="application/json",
@@ -110,17 +113,11 @@ def curate_candidates(
                 },
                 store=False,
             )
-            if usage_tracker is not None:
-                usage_tracker.add_interaction(
-                    interaction, stage="문헌 선별", model=selected_model
-                )
-
             raw = interaction.output_text
             if not raw:
                 last_exc = RuntimeError("문헌 선별 중 빈 응답을 받았습니다.")
             else:
                 decision = CurationDecision.model_validate_json(raw)
-                # 유효 인덱스 검증
                 valid_picks = [
                     p for p in decision.picks if 1 <= p.candidate_index <= len(pool)
                 ]
@@ -132,9 +129,8 @@ def curate_candidates(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 3:
-            wait_sec = 15 * attempt if "429" in str(last_exc) else 3 * attempt
-            print(f"      [WARN] Curation attempt {attempt}/3 failed: {last_exc}. Retrying in {wait_sec}s...")
-            time.sleep(wait_sec)
+        if attempt < 2:
+            print(f"      [WARN] Curation JSON validation failed ({last_exc}). Retrying...")
+            time.sleep(3)
 
-    raise RuntimeError(f"문헌 선별 3회 실패: {last_exc}")
+    raise RuntimeError(f"문헌 선별 실패: {last_exc}")

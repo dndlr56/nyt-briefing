@@ -122,35 +122,35 @@ class SummaryTableRow(BaseModel):
 
 class SpeakerProfile(BaseModel):
     speaker_id: SpeakerId = Field(
-        description="화자 ID ('S1'=여성 목소리, 'S2'=남성 목소리 1, 'S3'=남성/여성 목소리 2)"
+        description="화자 ID ('S1'=여성 목소리, 'S2'=남성 목소리 1, 'S3'=남성 목소리 2)"
     )
     name_kr: str = Field(
-        description="대화 중 부르기 자연스러운 짧은 한국어 이름 (예: S1='지수', S2='현수', S3='인준')"
+        description="짧은 한국어 이름 (반드시 성별 일치: S1 여성='지수', S2 남성='현수', S3 남성='인준')"
     )
     role_title_kr: str = Field(
-        description="역할 라벨 (예: '사회자', '패널', '역학·예방 담당 패널', '다수의견 해설 패널')"
+        description="담백한 역할 라벨 (기본: S1='진행', S2='해설' — 과장된 상황극/가상 직함 금지)"
     )
     perspective_kr: str = Field(
-        description="이 화자가 원문에서 주로 맡아 설명하거나 대변할 영역/관점 1문장 (반드시 원문 근거 기반)"
+        description="이 화자가 원문 정리에서 맡는 간단한 역할 1문장 (반드시 원문 기반, 상황극 페르소나 금지)"
     )
 
 
 class DialogueCast(BaseModel):
     format_type: DialogueFormatType = Field(
         description=(
-            "글의 성격에 맞는 최적 대화 포맷: "
-            "'host_and_expert'(사회자1+패널1), 'two_panelists'(패널2), "
-            "'host_and_two_panelists'(사회자1+패널2 — 상반된 두 관점/다수·반대의견/다학제), "
-            "'three_panelists'(패널3 — 3개 축 대형 보고서·복수 논문 종합)"
+            "기본값은 반드시 'host_and_expert'(사회자 1명 S1 + 패널 1명 S2)로 설정하세요. "
+            "원문이 상반된 두 견해·다수의견 대 반대의견(판례)·서로 다른 두 이론/논문을 뚜렷하게 대조하는 경우에만 "
+            "'two_panelists'(패널2) 또는 'host_and_two_panelists'(사회자1+패널2)를 예외적으로 선택하세요. "
+            "'three_panelists'는 극히 예외적인 경우 외에는 선택하지 마세요."
         )
     )
     format_reason_kr: str = Field(
-        description="이 문헌의 특성상 이 화자 구성을 선택한 이유 1문장"
+        description="이 화자 구성을 선택한 이유 1문장"
     )
     speakers: list[SpeakerProfile] = Field(
         min_length=2,
         max_length=3,
-        description="실제 참여하는 2명(S1, S2) 또는 3명(S1, S2, S3)의 화자 구성",
+        description="기본 2명(S1, S2). 상반된 두 관점 대조 등 꼭 필요한 예외 상황에서만 3명(S1, S2, S3)",
     )
 
 
@@ -223,7 +223,7 @@ class DeepDiveStudyNote(BaseModel):
         description="원문에서 그대로 발췌한 핵심 문장 2~3개와 자연스러운 한국어 번역",
     )
     dialogue_cast: DialogueCast = Field(
-        description="원문 성격에 맞춘 2인 또는 3인 대화형 오디오 캐스팅 설계"
+        description="원문 성격에 맞춘 담백한 대화형 오디오 캐스팅 설계 (기본: 사회자 1 + 패널 1)"
     )
     chapters: list[ChapterBlueprint] = Field(
         min_length=4,
@@ -233,11 +233,11 @@ class DeepDiveStudyNote(BaseModel):
 
 
 class DialogueTurn(BaseModel):
-    speaker_id: SpeakerId = Field(description="발언 화자 ID ('S1', 'S2', 또는 'S3')")
+    speaker_id: SpeakerId = Field(description="발언 화자 ID ('S1', 'S2', 또는 예외적 3인일 때 'S3')")
     text: str = Field(
         description=(
-            "마크다운·불릿·URL·태그·불필요한 영문 병기 없이 귀로 자연스럽게 들리는 "
-            "순수 한국어 대화 발화 (보통 2~5문장)"
+            "마크다운·불릿·URL·태그·불필요한 영문 병기·과장된 상황극 없이 귀로 자연스럽게 들리는 "
+            "담백한 한국어 대화 발화 (보통 2~5문장)"
         )
     )
 
@@ -246,6 +246,23 @@ class ChapterDialogueOutput(BaseModel):
     turns: list[DialogueTurn] = Field(
         min_length=2,
         description="해당 챕터(또는 오프닝/클로징)를 구성하는 화자 간 대화 턴 목록",
+    )
+
+
+class SectionDialogueOutput(BaseModel):
+    section_id: str = Field(
+        description="요청된 섹션 식별자 (예: 'opening', 'ch_1', 'ch_2', 'closing')"
+    )
+    turns: list[DialogueTurn] = Field(
+        min_length=2,
+        description="해당 섹션의 화자 간 대화 턴 목록",
+    )
+
+
+class PartDialogueOutput(BaseModel):
+    sections: list[SectionDialogueOutput] = Field(
+        min_length=1,
+        description="요청된 순서대로 작성된 각 섹션별 대화 턴 목록",
     )
 
 

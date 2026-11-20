@@ -1,4 +1,4 @@
-"""2단계 API 생성기: (1) 원문 충실 번역·구조화 요약 + 대화 캐스팅 설계 → (2) 2~3인 대화형 롱폼 오디오 대본 생성."""
+"""2단계 API 생성기: (1) 원문 충실 번역·구조화 요약 + 대화 캐스팅 설계 → (2) 컨텍스트 캐싱 최적화 묶음 대화형 대본 생성."""
 
 from __future__ import annotations
 
@@ -6,15 +6,14 @@ from datetime import datetime, timedelta, timezone
 import os
 import time
 
-from google import genai
-
+from deep_dive.gemini_pool import GeminiClientPool
 from deep_dive.models import (
-    ChapterDialogueOutput,
     CurationDecision,
     DeepDiveScript,
     DeepDiveStudyNote,
     DialogueTurn,
     FetchedDocument,
+    PartDialogueOutput,
 )
 from deep_dive.themes import ThemeSlot
 from usage_tracker import RunUsageTracker
@@ -25,9 +24,8 @@ DEFAULT_NOTE_MODEL = "gemini-4-hydrogen"
 DEFAULT_SCRIPT_MODEL = "gemini-4-hydrogen"
 # gemini-4-hydrogen 공식 지원 추론 레벨: low | medium | high (기본) | xhigh  (minimal 미지원 -> 400 에러)
 DEFAULT_NOTE_THINKING = "high"       # Stage 1: 원문 정독·정확한 번역·구조화 요약·캐스팅 설계 (1회 호출)
-DEFAULT_CHAPTER_THINKING = "low"     # Stage 2: 챕터 설계도 기반 2~3인 자연스러운 대화 전개
-DEFAULT_BOOKEND_THINKING = "low"     # Stage 2: 오프닝/클로징 대화 (Hydrogen 최저 레벨 = low)
-DEFAULT_CHARS_PER_MINUTE = 400       # 대화형 턴 간 호흡(0.28s) 포함 한국어 낭독 기준 ~400자/분
+DEFAULT_CHAPTER_THINKING = "low"     # Stage 2: 묶음 파트별 담백한 대화형 대본 전개
+DEFAULT_CHARS_PER_MINUTE = 400       # 대화형 턴 간 호흡 포함 한국어 낭독 기준 ~400자/분
 
 
 def sanitize_thinking_level(model: str, level: str) -> str:
@@ -60,29 +58,31 @@ STUDY_NOTE_SYSTEM_INSTRUCTION = """당신은 학술 논문·장문 보고서·�
    - 한계(`author_stated_limitations_kr`)와 결론·시사점(`author_conclusions_kr`) 역시 **반드시 원문(저자·보고서·법원·반대의견 등)에 명시된 근거와 서술에 기반**해 작성하세요.
 4. **5대 핵심 분야 분류 (`primary_theme_id`)**:
    - 문헌의 실제 내용에 가장 정확히 맞는 분야(`ai_tech`, `science_mind`, `health_medicine`, `econ_geopolitics`, `law_cases`)를 지정하세요.
-5. **내용 맞춤형 2~3인 대화 캐스팅 (`dialogue_cast`)**:
-   - 1인 독백 대신 청취 집중도를 높일 수 있는 2인 또는 3인 대화 구성을 문헌 성격에 맞게 설계하세요:
-     - `host_and_expert` (S1 사회자 + S2 패널): 단일 심층 연구·리뷰를 질문과 해설로 명쾌히 풀어갈 때
-     - `two_panelists` (S1 패널 + S2 패널): 두 전문가가 동등하게 논점을 주고받거나, 글 속 상반된 두 입장을 각각 균형 있게 설명할 때
-     - `host_and_two_panelists` (S1 사회자 + S2 패널 + S3 패널): 원문이 상반된 두 관점(찬반·다수/반대의견·정책 논쟁)이나 2개 이상 축을 균형 있게 다룰 때
-     - `three_panelists` (S1, S2, S3 패널 3인): 다학제 대형 보고서(예: 역학·임상·정책이 결합된 위원회 보고서)나 복수 문헌 종합 시 각자 담당 축을 나눠 정리할 때
-   - 화자 ID는 반드시 2인일 때 `S1, S2`, 3인일 때 `S1, S2, S3`를 사용하고, 부르기 자연스러운 짧은 한국어 이름(예: S1=`지수`, S2=`현수`, S3=`서연`)을 지정하세요.
+5. **담백한 대화 캐스팅 (`dialogue_cast`) — 기본 2인, 상황극 금지**:
+   - **기본값은 반드시 `host_and_expert` (사회자 1명 `S1` + 패널 1명 `S2`)**로 설정하세요.
+   - **예외적인 경우에만 구성을 변경하세요**:
+     - 원문이 상반된 두 견해·찬반 논쟁·다수의견 대 반대의견(판례)·서로 다른 두 논문을 뚜렷하게 대조하는 경우에만 `two_panelists` (패널 2명 `S1, S2`) 또는 `host_and_two_panelists` (사회자 `S1` + 패널 2명 `S2, S3`)를 선택하세요.
+     - 단순히 보고서가 길거나 분야가 넓다는 이유만으로 3인 구성을 쓰지 마세요 (`three_panelists`는 극히 예외적일 때만 사용).
+   - **화자 ID와 성별 일치**: `S1`은 여성(`지수`), `S2`는 남성(`현수`), 예외적 3인일 때 `S3`는 남성(`인준`)으로 지정하고, 과장된 가상 전문가 직함 대신 담백한 라벨(`사회자`, `패널`, `다수의견 해설`, `반대의견 해설` 등)을 사용하세요.
 """
 
 
-DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION = """당신은 권위 있는 학술 논문·보고서·판례의 내용을 **2~3명의 출연자가 자연스럽게 대화를 나누며 충실하게 전달하는 한국어 지식 팟캐스트 작가**입니다.
+DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION = """당신은 권위 있는 학술 논문·보고서·판례의 내용을 **두 사람(예외 시 세 사람)의 서로 다른 목소리로 담백하고 명료하게 전달하는 한국어 지식 브리핑 작가**입니다.
 
 [대화형 발화 품질 원칙]
-1. **순수 발화용 한국어 텍스트만 작성**: 마크다운(`**`, `##`, `-`), 번호 매기기, URL, 이모지, 무대 지시문(`(웃음)`, `(잠시 멈춤)`)을 절대 넣지 마세요.
-2. **불필요한 영어 병기·읽어주기 금지**: "영어로는 ~라고 하는데요" 같은 번거로운 영어 병기 없이 자연스러운 우리말로 매끄럽게 말하세요. (`LDL`, `LLM`, 고유명사 등 한국어에서도 그대로 쓰는 약어만 자연스럽게 발음)
-3. **원문 충실 전달 (AI 임의 추론·뇌피셜 금지)**:
-   - 모든 대화 발언은 제공된 원문의 사실, 수치, 연구 방법, 근거, 저자(또는 법원)가 직접 밝힌 한계와 결론에 충실히 기반해야 합니다.
-   - 상반된 관점을 다루는 구성이라도, **원문에 실제로 제시된 양측 논거·반론·한계**만 균형 있게 대변하고 AI가 원문에 없는 주장을 지어내지 마세요.
-4. **자연스럽고 밀도 있는 대화 호흡**:
-   - "맞아요.", "그렇군요." 같은 의미 없는 1어절 추임새 턴은 쓰지 말고, 각 턴은 **보통 2~5문장**으로 실질적인 정보를 주고받으며 자연스럽게 다음 화자에게 바통을 넘기세요.
-   - 화자 이름을 가끔 자연스럽게 불러 생동감을 살리되(예: "현수 님, 그럼 보고서에서는...", "방금 지수 님이 짚어주신 부분에서..."), 과하게 반복하지 마세요.
-   - 오직 캐스팅에 포함된 `speaker_id`(`S1`, `S2`, 또는 3인일 때 `S3`)만 사용하세요.
-5. **이전 챕터와의 자연스러운 연결**: 직전 챕터의 마지막 대화를 자연스럽게 이어받되 앞선 내용을 중복 반복하지 마세요.
+1. **상황극·인위적 역할극 금지 (가장 중요)**:
+   - "안녕하세요, 역학 담당 지수입니다", "오늘 모신 임상 전문가 현수 님 반갑습니다", "정말 놀랍네요!", "저도 공감합니다" 같은 **어색한 라디오 상황극, 가상 전문가 연기, 과장된 추임새·맞장구를 절대 넣지 마세요.**
+   - 여러 목소리를 쓰는 목적은 장시간 청취 시 집중력을 유지하고 논점을 깔끔하게 구분하기 위함입니다.
+   - **사회자(`S1`)**는 간결하게 주제를 전환하고 독자가 궁금해할 핵심 질문을 짚어주며, **패널(`S2`, 필요 시 `S3`)**은 원문의 내용·수치·근거를 차분하고 또렷하게 설명하는 담백한 정보 전달 톤을 유지하세요.
+   - 서로 이름을 불필요하게 자주 부르거나 친한 척 농담하지 마세요.
+2. **순수 발화용 한국어 텍스트만 작성**: 마크다운(`**`, `##`, `-`), 번호 매기기, URL, 이모지, 무대 지시문(`(웃음)`, `(잠시 멈춤)`)을 절대 넣지 마세요.
+3. **불필요한 영어 병기·읽어주기 금지**: "영어로는 ~라고 하는데요" 같은 번거로운 영어 병기 없이 자연스러운 우리말로 매끄럽게 말하세요. (`LDL`, `LLM`, 고유명사 등 한국어에서도 그대로 쓰는 약어만 자연스럽게 발음)
+4. **원문 충실 전달 (AI 임의 추론·뇌피셜 금지)**:
+   - 모든 발언은 제공된 원문의 사실, 수치, 연구 방법, 근거, 저자(또는 법원)가 직접 밝힌 한계와 결론에 충실히 기반해야 합니다.
+   - 상반된 관점을 다루는 구성이라도, **원문에 실제로 제시된 양측 논거·반론·한계**만 균형 있게 전달하고 AI가 원문에 없는 주장을 지어내지 마세요.
+5. **밀도 있는 턴 호흡**:
+   - "맞아요.", "그렇군요." 같은 의미 없는 1어절 턴은 쓰지 말고, 질문 턴은 1~2문장으로 간결하게, 해설 턴은 **3~6문장**으로 밀도 있게 구성해 자연스럽게 목소리를 교차하세요.
+   - 오직 캐스팅에 포함된 `speaker_id`만 사용하세요.
 """
 
 
@@ -111,8 +111,8 @@ def _build_documents_context(docs: list[FetchedDocument]) -> str:
     return "\n\n".join(blocks)
 
 
-def _call_interactions_with_retry(
-    client: genai.Client,
+def _call_json_interaction(
+    pool: GeminiClientPool,
     model: str,
     system_instruction: str,
     prompt: str,
@@ -123,39 +123,24 @@ def _call_interactions_with_retry(
     usage_tracker: RunUsageTracker | None = None,
 ) -> str:
     safe_thinking = sanitize_thinking_level(model, thinking_level)
-    last_exc: Exception | None = None
-    for attempt in range(1, 4):
-        try:
-            interaction = client.interactions.create(
-                model=model,
-                system_instruction=system_instruction,
-                input=prompt,
-                response_mime_type="application/json",
-                response_format=schema,
-                generation_config={
-                    "thinking_level": safe_thinking,
-                    "max_output_tokens": max_output_tokens,
-                },
-                store=False,
-            )
-            if usage_tracker is not None:
-                usage_tracker.add_interaction(interaction, stage=stage, model=model)
-
-            raw = interaction.output_text
-            if raw:
-                return raw
-            last_exc = RuntimeError(f"{stage}: Gemini API 빈 응답")
-        except Exception as exc:
-            last_exc = exc
-
-        if attempt < 3:
-            msg = str(last_exc).lower()
-            is_rate = "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
-            wait_sec = 30 * attempt if is_rate else 5 * attempt
-            print(f"      [WARN] {stage} failed (attempt {attempt}/3): {last_exc}. Retrying in {wait_sec}s...")
-            time.sleep(wait_sec)
-
-    raise RuntimeError(f"{stage} 3회 실패: {last_exc}")
+    interaction, _ = pool.create_interaction(
+        model=model,
+        stage=stage,
+        usage_tracker=usage_tracker,
+        system_instruction=system_instruction,
+        input=prompt,
+        response_mime_type="application/json",
+        response_format=schema,
+        generation_config={
+            "thinking_level": safe_thinking,
+            "max_output_tokens": max_output_tokens,
+        },
+        store=False,
+    )
+    raw = interaction.output_text
+    if not raw:
+        raise RuntimeError(f"{stage}: Gemini API 빈 응답")
+    return raw
 
 
 def generate_study_note(
@@ -164,34 +149,44 @@ def generate_study_note(
     decision: CurationDecision,
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
+    gemini_pool: GeminiClientPool | None = None,
 ) -> DeepDiveStudyNote:
-    """Stage 1: 원문 전문을 자연스러운 한국어로 충실하게 번역·구조화 요약하고 2~3인 대화 캐스팅 및 챕터 설계도를 생성합니다."""
+    """Stage 1: 원문 전문을 자연스러운 한국어로 충실하게 번역·구조화 요약하고 대화 캐스팅 및 챕터 설계도를 생성합니다."""
     selected_model = model or os.getenv("DEEP_NOTE_MODEL", DEFAULT_NOTE_MODEL)
     note_thinking = sanitize_thinking_level(
         selected_model, os.getenv("DEEP_NOTE_THINKING", DEFAULT_NOTE_THINKING)
     )
-    client = genai.Client(http_options={"api_version": "v1beta"})
+    pool = gemini_pool or GeminiClientPool()
+    docs_context = _build_documents_context(docs)
 
-    today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일")
-    mode_label = (
-        "단일 문헌 충실 요약 (Single Deep Dive)"
-        if decision.mode == "single_deep_dive"
-        else f"복수 문헌 종합 요약 ({len(docs)}편 Multi-Synthesis)"
+    mode_guide = (
+        "단일 원문을 처음부터 끝까지 빠짐없이 충실하게 번역·요약하는 모드입니다."
+        if len(docs) == 1
+        else f"선별된 {len(docs)}편의 원문 핵심 내용을 왜곡 없이 충실하게 정리·대조하는 모드입니다."
     )
 
+    # 컨텍스트 캐시 친화적으로 대용량 원문(docs_context)을 맨 앞에 배치
     prompt = (
-        f"오늘 날짜(KST): {today_kst}\n"
-        f"수집 트랙: {theme.emoji} {theme.label_kr} | 세부 주제: {decision.sub_subject_kr}\n"
-        f"구성 방식: {mode_label}\n"
-        f"핵심 주제: {decision.unifying_angle_kr}\n\n"
-        "아래 원문 텍스트의 내용을 빠짐없이 충실하게 번역·요약하고, "
-        "이 글의 성격에 가장 잘 맞는 5대 핵심 분야(`primary_theme_id`)와 2~3인 대화 캐스팅(`dialogue_cast`)을 "
-        "함께 설계해 JSON으로 작성해 주세요. 불필요한 영문 괄호 병기와 본문에 없는 AI 자의적 추론은 넣지 마세요.\n\n"
-        + _build_documents_context(docs)
+        f"{docs_context}\n\n"
+        f"=== 요약 및 설계 지시 ===\n"
+        f"오늘의 테마 힌트: {theme.emoji} {theme.label_kr} ({theme.theme_id})\n"
+        f"세부 주제: {decision.sub_subject_kr}\n"
+        f"핵심 주제: {decision.unifying_angle_kr}\n"
+        f"모드: {mode_guide}\n\n"
+        "위 원문 텍스트만을 엄격한 근거로 삼아, 불필요한 영어 병기나 AI의 임의 추론·재가공 없이 "
+        "원문 내용을 충실하게 담은 한국어 구조화 요약 노트(DeepDiveStudyNote), "
+        "5대 핵심 아카이브 분야 분류(primary_theme_id), "
+        "담백한 대화 캐스팅(dialogue_cast — 기본은 사회자1+패널1, 상반된 두 관점 대조 시에만 예외 변경), "
+        "4~6개 오디오 챕터 설계도를 JSON으로 작성해 주세요."
     )
 
-    raw_json = _call_interactions_with_retry(
-        client=client,
+    tier_label = pool.active_tier_for(selected_model)
+    print(
+        f"      [Stage 1] 원문 충실 번역·구조화 요약·캐스팅 생성 중 "
+        f"(model={selected_model}, thinking={note_thinking}, tier={tier_label})..."
+    )
+    raw_json = _call_json_interaction(
+        pool=pool,
         model=selected_model,
         system_instruction=STUDY_NOTE_SYSTEM_INSTRUCTION,
         prompt=prompt,
@@ -208,7 +203,7 @@ def _normalize_speaker_ids(
     turns: list[DialogueTurn],
     valid_ids: list[str],
 ) -> list[DialogueTurn]:
-    """모델이 캐스팅에 없는 speaker_id를 냈을 경우 유효 화자로 안전 보정합니다."""
+    """생성된 턴의 speaker_id가 캐스팅 목록 안에 있도록 보정합니다."""
     if not valid_ids:
         return turns
     fixed: list[DialogueTurn] = []
@@ -220,42 +215,58 @@ def _normalize_speaker_ids(
     return fixed
 
 
+def _build_section_batches(
+    chapter_count: int,
+    target_minutes: int,
+) -> list[list[str]]:
+    """
+    호출 수와 입력 토큰을 절반 이하로 줄이기 위해 섹션을 2~3개 파트로 묶습니다.
+    - <=35분: 2파트 ([opening, ch_1..mid], [ch_{mid+1}..N, closing]) -> 총 2회 호출!
+    - 36~60분: 3파트 (긴 분량에서도 출력 잘림 방지)
+    """
+    all_ids = ["opening", *[f"ch_{i}" for i in range(1, chapter_count + 1)], "closing"]
+    num_batches = 2 if target_minutes <= 35 else 3
+    if len(all_ids) <= num_batches:
+        return [[sid] for sid in all_ids]
+
+    batches: list[list[str]] = []
+    base_size, rem = divmod(len(all_ids), num_batches)
+    cursor = 0
+    for b_idx in range(num_batches):
+        size = base_size + (1 if b_idx < rem else 0)
+        batches.append(all_ids[cursor : cursor + size])
+        cursor += size
+    return batches
+
+
 def generate_longform_script(
     docs: list[FetchedDocument],
     theme: ThemeSlot,
     decision: CurationDecision,
     note: DeepDiveStudyNote,
-    target_minutes: int = 30,
+    target_minutes: int = 25,
     model: str | None = None,
     inter_call_sleep: float | None = None,
     usage_tracker: RunUsageTracker | None = None,
+    gemini_pool: GeminiClientPool | None = None,
 ) -> DeepDiveScript:
     """
-    Stage 2: 2~3인 대화 캐스팅과 챕터 설계도를 바탕으로
-    오프닝 → 각 챕터 → 클로징을 분할 생성해 20~60분 분량의 다중 화자 대화 대본을 조립합니다.
+    Stage 2: 컨텍스트 캐싱 친화적 고정 프리픽스 + 2~3회 묶음 호출로
+    담백한 2인(예외 시 3인) 대화형 롱폼 오디오 대본을 생성합니다.
     """
     selected_model = model or os.getenv("DEEP_SCRIPT_MODEL", DEFAULT_SCRIPT_MODEL)
     chapter_thinking = sanitize_thinking_level(
         selected_model, os.getenv("DEEP_CHAPTER_THINKING", DEFAULT_CHAPTER_THINKING)
     )
-    bookend_thinking = sanitize_thinking_level(
-        selected_model, os.getenv("DEEP_BOOKEND_THINKING", DEFAULT_BOOKEND_THINKING)
-    )
-    api_tier = (os.getenv("GEMINI_API_TIER") or "free").strip().lower()
-    sleep_sec = (
-        inter_call_sleep
-        if inter_call_sleep is not None
-        else (22.0 if api_tier == "free" else 2.0)
-    )
+    pool = gemini_pool or GeminiClientPool()
 
     clamped_minutes = max(12, min(60, int(target_minutes)))
     total_target_chars = clamped_minutes * DEFAULT_CHARS_PER_MINUTE
-    opening_target = 550
-    closing_target = 450
+    opening_target = 450
+    closing_target = 400
     chapter_count = max(1, len(note.chapters))
     per_chapter_target = max(1200, (total_target_chars - opening_target - closing_target) // chapter_count)
 
-    client = genai.Client(http_options={"api_version": "v1beta"})
     docs_context = _build_documents_context(docs)
     today_title_date = datetime.now(KST).strftime("%Y.%m.%d")
     episode_title = f"[{theme.label_kr}] {note.episode_title_kr} | {today_title_date}"
@@ -270,122 +281,133 @@ def generate_longform_script(
         )
     )
     chapter_toc = "\n".join(
-        f"- Chapter {ch.chapter_number}. {ch.title_kr}: {ch.focus_kr}"
+        f"- ch_{ch.chapter_number} (Chapter {ch.chapter_number}. {ch.title_kr}): {ch.focus_kr}"
         for ch in note.chapters
     )
+    conclusions_str = "\n".join(f"- {c}" for c in note.author_conclusions_kr)
 
-    # 1) 오프닝 대화 생성
-    print(
-        f"      [Script] Opening 대화 생성 중 ({len(cast.speakers)}인: {cast.format_type}, "
-        f"목표 ~{opening_target}자, thinking={bookend_thinking})..."
-    )
-    opening_prompt = (
+    # Implicit Context Caching 적중률 극대화: 대용량 원문 + 고정 메타를 바이트 동일 프리픽스로 맨 앞에 배치!
+    shared_prefix = (
+        f"{docs_context}\n\n"
+        f"=== 고정 에피소드 설정 ===\n"
         f"에피소드 제목: {episode_title}\n"
         f"부제: {note.subtitle_kr}\n"
         f"원문 개요: {note.overview_and_purpose_kr}\n\n"
-        f"=== 출연진 캐스팅 ===\n{cast_guide}\n\n"
-        f"=== 전체 챕터 구성 ===\n{chapter_toc}\n\n"
-        f"출연진({', '.join(valid_speaker_ids)})이 자연스럽게 인사를 나누며 오늘 다룰 원문의 출처와 주제를 소개하고 "
-        f"전체 논의 흐름을 예고하는 오프닝 대화를 3~4턴, 총 공백 포함 약 {opening_target - 80}~{opening_target + 120}자로 작성하세요."
-    )
-    raw_open = _call_interactions_with_retry(
-        client=client,
-        model=selected_model,
-        system_instruction=DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION,
-        prompt=opening_prompt,
-        schema=ChapterDialogueOutput.model_json_schema(),
-        max_output_tokens=4096,
-        thinking_level=bookend_thinking,
-        stage="대본 Opening",
-        usage_tracker=usage_tracker,
-    )
-    opening_turns = _normalize_speaker_ids(
-        ChapterDialogueOutput.model_validate_json(raw_open).turns, valid_speaker_ids
+        f"출연진 (반드시 {', '.join(valid_speaker_ids)}만 사용, 상황극/가상 직함 소개 금지):\n{cast_guide}\n\n"
+        f"전체 챕터 목차:\n{chapter_toc}\n\n"
+        f"원문의 최종 결론 및 제언:\n{conclusions_str}\n"
     )
 
-    # 2) 챕터별 순차 생성
-    rendered_chapters: list[tuple[str, list[DialogueTurn]]] = []
+    batches = _build_section_batches(chapter_count=chapter_count, target_minutes=clamped_minutes)
+    chapter_by_id = {f"ch_{ch.chapter_number}": ch for ch in note.chapters}
     name_map = {sp.speaker_id: sp.name_kr for sp in cast.speakers}
-    prev_tail = "\n".join(
-        f"{name_map.get(t.speaker_id, t.speaker_id)}: {t.text}"
-        for t in opening_turns[-2:]
-    )[-450:]
+    sections_map: dict[str, list[DialogueTurn]] = {}
+    prev_tail = ""
 
-    for idx, ch in enumerate(note.chapters, start=1):
-        if sleep_sec > 0:
-            print(f"      [Script] RPM/TPM pacing: waiting {sleep_sec:.0f}s before Chapter {idx}...")
-            time.sleep(sleep_sec)
+    for batch_idx, sec_ids in enumerate(batches, start=1):
+        if batch_idx > 1:
+            wait_sec = (
+                inter_call_sleep
+                if inter_call_sleep is not None
+                else (22.0 if pool.is_free_tier_for(selected_model) else 1.5)
+            )
+            if wait_sec > 0:
+                print(
+                    f"      [Script] Pacing ({pool.active_tier_for(selected_model)}): "
+                    f"waiting {wait_sec:.0f}s before Part {batch_idx}/{len(batches)}..."
+                )
+                time.sleep(wait_sec)
 
-        min_c = int(per_chapter_target * 0.85)
-        max_c = int(per_chapter_target * 1.15)
-        target_turns_min = max(6, min_c // 260)
-        target_turns_max = max(target_turns_min + 3, max_c // 180)
+        spec_lines: list[str] = []
+        part_target_chars = 0
+        for sid in sec_ids:
+            if sid == "opening":
+                part_target_chars += opening_target
+                spec_lines.append(
+                    f"• section_id='opening' (오프닝): 목표 약 {opening_target - 80}~{opening_target + 100}자, 2~3턴. "
+                    "불필요한 인사말·상황극 없이 오늘 다룰 원문의 출처, 핵심 주제, 전체 구성만 담백하고 간결하게 소개."
+                )
+            elif sid == "closing":
+                part_target_chars += closing_target
+                spec_lines.append(
+                    f"• section_id='closing' (클로징): 목표 약 {closing_target - 80}~{closing_target + 100}자, 2~3턴. "
+                    "원문의 최종 결론과 핵심 제언을 차분하게 정리하고 간결하게 마무리."
+                )
+            else:
+                ch = chapter_by_id[sid]
+                min_c = int(per_chapter_target * 0.85)
+                max_c = int(per_chapter_target * 1.15)
+                t_min = max(4, min_c // 320)
+                t_max = max(t_min + 3, max_c // 200)
+                part_target_chars += per_chapter_target
+                pts = " / ".join(ch.key_points)
+                spec_lines.append(
+                    f"• section_id='{sid}' (Chapter {ch.chapter_number}. {ch.title_kr}): "
+                    f"목표 약 {min_c}~{max_c}자, {t_min}~{t_max}턴.\n"
+                    f"  - 핵심 흐름: {ch.focus_kr}\n"
+                    f"  - 반드시 포함할 원문 근거·수치: {pts}"
+                )
+
+        tail_block = (
+            f"\n직전 파트의 마지막 대화(자연스럽게 이어가고 반복 금지):\n{prev_tail}\n"
+            if prev_tail
+            else ""
+        )
+        part_prompt = (
+            f"{shared_prefix}\n"
+            f"=== 지금 작성할 파트 ({batch_idx}/{len(batches)}) ===\n"
+            f"아래 {len(sec_ids)}개 섹션을 순서대로 빠짐없이 작성해 JSON(`sections`)으로 반환하세요 "
+            f"(파트 합계 약 {int(part_target_chars * 0.85):,}~{int(part_target_chars * 1.15):,}자).\n"
+            + "\n".join(spec_lines)
+            + tail_block
+            + "\n다시 강조: 어색한 상황극·가상 직함 소개·과장된 리액션·불필요한 영어 병기·원문에 없는 AI 추측을 모두 배제하고, "
+            "담백한 진행 질문과 충실한 원문 해설로 대화 턴을 작성하세요."
+        )
+
         print(
-            f"      [Script] Chapter {idx}/{chapter_count} '{ch.title_kr}' 대화 생성 중 "
-            f"(목표 {min_c}~{max_c}자, {target_turns_min}~{target_turns_max}턴, thinking={chapter_thinking})..."
+            f"      [Script] Part {batch_idx}/{len(batches)} ({', '.join(sec_ids)}) 생성 중 "
+            f"(목표 ~{part_target_chars:,}자, thinking={chapter_thinking}, "
+            f"tier={pool.active_tier_for(selected_model)})..."
         )
-        points_str = "\n".join(f"- {p}" for p in ch.key_points)
-        chapter_prompt = (
-            f"에피소드: {episode_title}\n\n"
-            f"=== 출연진 캐스팅 (반드시 {', '.join(valid_speaker_ids)}만 사용) ===\n{cast_guide}\n\n"
-            f"전체 챕터 목차:\n{chapter_toc}\n\n"
-            f"=== 지금 작성할 챕터 ({idx}/{chapter_count}) ===\n"
-            f"소제목: {ch.title_kr}\n"
-            f"전달할 흐름: {ch.focus_kr}\n"
-            f"반드시 포함할 원문 근거·수치:\n{points_str}\n\n"
-            f"직전 섹션의 마지막 대화(자연스럽게 이어갈 것, 반복 금지):\n{prev_tail}\n\n"
-            f"목표 분량: 총 공백 포함 **약 {min_c}~{max_c}자**, 대화 턴 **약 {target_turns_min}~{target_turns_max}턴**.\n"
-            "출연진이 각자의 역할에 맞게 질문·해설·균형 잡힌 보완을 주고받으며, "
-            "불필요한 영어 병기나 임의 추측 없이 아래 원문 텍스트의 내용을 충실하게 풀어내는 대화 대본을 JSON으로 작성해 주세요.\n\n"
-            + docs_context
-        )
-        raw_ch = _call_interactions_with_retry(
-            client=client,
+        raw_part = _call_json_interaction(
+            pool=pool,
             model=selected_model,
             system_instruction=DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION,
-            prompt=chapter_prompt,
-            schema=ChapterDialogueOutput.model_json_schema(),
-            max_output_tokens=12288,
+            prompt=part_prompt,
+            schema=PartDialogueOutput.model_json_schema(),
+            max_output_tokens=20480,
             thinking_level=chapter_thinking,
-            stage=f"대본 Chapter {idx}",
+            stage=f"대본 Part {batch_idx}/{len(batches)}",
             usage_tracker=usage_tracker,
         )
-        ch_turns = _normalize_speaker_ids(
-            ChapterDialogueOutput.model_validate_json(raw_ch).turns, valid_speaker_ids
-        )
-        rendered_chapters.append((ch.title_kr, ch_turns))
-        prev_tail = "\n".join(
-            f"{name_map.get(t.speaker_id, t.speaker_id)}: {t.text}"
-            for t in ch_turns[-2:]
-        )[-450:]
+        parsed = PartDialogueOutput.model_validate_json(raw_part)
 
-    # 3) 클로징 대화 생성
-    if sleep_sec > 0:
-        time.sleep(min(sleep_sec, 10.0))
-    print(f"      [Script] Closing 대화 생성 중 (목표 ~{closing_target}자, thinking={bookend_thinking})...")
-    conclusions_str = "\n".join(f"- {c}" for c in note.author_conclusions_kr)
-    closing_prompt = (
-        f"에피소드: {episode_title}\n"
-        f"=== 출연진 캐스팅 ===\n{cast_guide}\n\n"
-        f"원문의 최종 결론 및 제언:\n{conclusions_str}\n"
-        f"직전 챕터 마지막 대화:\n{prev_tail}\n\n"
-        f"출연진이 원문의 핵심 결론을 자연스럽게 정리하고 청취자에게 인사하며 마무리하는 클로징 대화를 "
-        f"2~4턴, 총 공백 포함 약 {closing_target - 80}~{closing_target + 120}자로 작성해 주세요."
-    )
-    raw_close = _call_interactions_with_retry(
-        client=client,
-        model=selected_model,
-        system_instruction=DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION,
-        prompt=closing_prompt,
-        schema=ChapterDialogueOutput.model_json_schema(),
-        max_output_tokens=4096,
-        thinking_level=bookend_thinking,
-        stage="대본 Closing",
-        usage_tracker=usage_tracker,
-    )
-    closing_turns = _normalize_speaker_ids(
-        ChapterDialogueOutput.model_validate_json(raw_close).turns, valid_speaker_ids
-    )
+        # section_id 매칭 (모델이 식별자를 약간 다르게 썼을 경우 순서 기반 폴백)
+        by_id = {s.section_id.strip().lower(): s.turns for s in parsed.sections}
+        for pos, expected_id in enumerate(sec_ids):
+            raw_turns = by_id.get(expected_id.lower())
+            if raw_turns is None and pos < len(parsed.sections):
+                raw_turns = parsed.sections[pos].turns
+            if raw_turns:
+                sections_map[expected_id] = _normalize_speaker_ids(raw_turns, valid_speaker_ids)
+
+        last_sec_turns = sections_map.get(sec_ids[-1], [])
+        if last_sec_turns:
+            prev_tail = "\n".join(
+                f"{name_map.get(t.speaker_id, t.speaker_id)}: {t.text}"
+                for t in last_sec_turns[-2:]
+            )[-450:]
+
+    opening_turns = sections_map.get("opening", [])
+    closing_turns = sections_map.get("closing", [])
+    rendered_chapters: list[tuple[str, list[DialogueTurn]]] = [
+        (ch.title_kr, sections_map.get(f"ch_{ch.chapter_number}", []))
+        for ch in note.chapters
+        if sections_map.get(f"ch_{ch.chapter_number}")
+    ]
+
+    if not rendered_chapters:
+        raise RuntimeError("Stage 2 대본 생성 결과에 유효한 챕터가 없습니다.")
 
     return DeepDiveScript(
         episode_title=episode_title,
