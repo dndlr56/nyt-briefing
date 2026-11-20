@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 import io
 import os
 from pathlib import Path
@@ -20,6 +21,7 @@ import requests
 from script_writer import RoundupAudioScript, get_script_segments
 
 
+KST = timezone(timedelta(hours=9))
 CLOUD_TTS_ENDPOINT = "https://texttospeech.googleapis.com/v1/text:synthesize"
 CLOUD_TTS_MAX_UTF8_BYTES = 4200  # Google Cloud TTS 5,000바이트 제한에 여유 버퍼 확보
 
@@ -27,7 +29,21 @@ DEFAULT_TTS_PROVIDER = "gemini_tts"
 DEFAULT_EDGE_TTS_VOICE = "ko-KR-HyunsuMultilingualNeural"
 DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Kore"
 DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
-DEFAULT_GEMINI_TTS_VOICE = "Kore"
+DEFAULT_GEMINI_TTS_VOICE = "auto_rotate"
+# 매일 다른 여성 목소리로 비교 테스트하기 위한 공식 Gemini TTS 여성 보이스 로테이션 (11/20=Kore 기준)
+GEMINI_TTS_ROTATION_VOICES: tuple[str, ...] = (
+    "Kore",          # Firm (단정·또렷)
+    "Aoede",         # Breezy (산뜻·자연스러움)
+    "Erinome",       # Clear (맑고 명료)
+    "Despina",       # Smooth (부드럽고 매끄러움)
+    "Sulafat",       # Warm (따뜻한 톤)
+    "Vindemiatrix",  # Gentle (차분·온화)
+    "Zephyr",        # Bright (밝고 경쾌)
+    "Leda",          # Youthful (젊고 산뜻)
+    "Callirrhoe",    # Easy-going (편안한 대화체)
+    "Gacrux",        # Mature (차분·성숙)
+)
+VOICE_ROTATION_ANCHOR_DATE = date(2026, 11, 20)
 # 공식 Gemini 3.8 TTS 가이드: 길고 복잡한 페르소나 지시문 대신 짧은 스타일(또는 공백)을 써야 음색 드리프트가 줄어듭니다.
 DEFAULT_ANCHOR_STYLE = "calm, clear news narration"
 GEMINI_TTS_MAX_PARTS = 7  # 무료 티어 일 10회(RPD) 한도 내 여유 확보 + 파트당 ~2분 이내로 음색 드리프트 최소화
@@ -140,6 +156,13 @@ def _split_text_by_utf8_bytes(
     return chunks
 
 
+def _pick_daily_gemini_voice(today: date | None = None) -> str:
+    """날짜(KST)에 따라 매일 다른 Gemini TTS 여성 목소리를 순서대로 선택합니다."""
+    current = today or datetime.now(KST).date()
+    day_offset = (current - VOICE_ROTATION_ANCHOR_DATE).days
+    return GEMINI_TTS_ROTATION_VOICES[day_offset % len(GEMINI_TTS_ROTATION_VOICES)]
+
+
 def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
     """사용자가 드롭다운에서 다른 프로바이더용 보이스를 골라도 안전하게 보정합니다."""
     if provider == "edge_tts":
@@ -150,6 +173,8 @@ def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
 
     if provider == "google_cloud_tts":
         raw = (voice or os.getenv("GOOGLE_CLOUD_TTS_VOICE") or DEFAULT_CLOUD_TTS_VOICE).strip()
+        if raw.lower() == "auto_rotate":
+            return f"ko-KR-Chirp3-HD-{_pick_daily_gemini_voice()}"
         if raw.startswith("ko-KR-Chirp3-HD-") or raw.startswith("ko-KR-Neural2-") or raw.startswith("ko-KR-Wavenet-"):
             return raw
         if raw.endswith("Neural"):
@@ -158,10 +183,12 @@ def _normalize_voice_for_provider(voice: str | None, provider: str) -> str:
         return f"ko-KR-Chirp3-HD-{raw}"
 
     raw = (voice or os.getenv("GEMINI_TTS_VOICE") or DEFAULT_GEMINI_TTS_VOICE).strip()
+    if raw.lower() == "auto_rotate":
+        return _pick_daily_gemini_voice()
     if raw.startswith("ko-KR-Chirp3-HD-"):
         return raw.removeprefix("ko-KR-Chirp3-HD-")
     if raw.startswith("ko-KR-"):
-        return DEFAULT_GEMINI_TTS_VOICE
+        return _pick_daily_gemini_voice()
     return raw
 
 
