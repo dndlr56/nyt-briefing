@@ -57,8 +57,9 @@ def curate_candidates(
     for idx, c in enumerate(pool, start=1):
         pdf_tag = " [PDF직접확보]" if c.pdf_url else ""
         pmc_tag = " [PMC전문OA]" if c.pmc_id else ""
+        cite_tag = f" [피인용 {c.cited_by_count:,}회]" if c.cited_by_count > 0 else ""
         lines.append(
-            f"[{idx}] ({c.source_name} | {c.source_kind}{pdf_tag}{pmc_tag} | {c.published})\n"
+            f"[{idx}] ({c.source_name} | {c.source_kind}{cite_tag}{pdf_tag}{pmc_tag} | {c.published})\n"
             f"    제목: {c.title}\n"
             f"    힌트: {c.sub_topic_hint}\n"
             f"    요약: {c.abstract[:380]}"
@@ -67,13 +68,20 @@ def curate_candidates(
     prompt = (
         f"오늘의 테마: {theme.emoji} {theme.label_kr} ({theme.theme_id})\n"
         f"테마 큐레이션 가이드:\n{theme.focus_prompt}\n\n"
+        "최신성 자체보다 **학계에서 검증·주목받은 고퀄리티 원전(높은 피인용 수, 대표 리뷰/서베이, 랜드마크 판례·에세이)**을 "
+        "우선적으로 고르세요.\n\n"
         f"아래 {len(pool)}편의 후보 중 가장 지적 가치가 높고 전문(Full-text) 분석 가치가 뛰어난 "
         "1편(single_deep_dive) 또는 2~3편(multi_synthesis)을 골라 JSON으로 응답해 주세요.\n\n"
         + "\n\n".join(lines)
     )
 
     selected_model = model or os.getenv("DEEP_CURATOR_MODEL", DEFAULT_CURATOR_MODEL)
-    thinking_level = os.getenv("DEEP_CURATOR_THINKING", DEFAULT_CURATOR_THINKING)
+    raw_thinking = os.getenv("DEEP_CURATOR_THINKING", DEFAULT_CURATOR_THINKING).strip().lower()
+    if raw_thinking == "minimal" and (
+        selected_model.startswith("gemini-4") or selected_model.startswith("gemini-3.8")
+    ):
+        raw_thinking = "low"
+    thinking_level = raw_thinking
     client = genai.Client()
 
     last_exc: Exception | None = None

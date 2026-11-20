@@ -240,6 +240,59 @@ class DeepDivePipelineTests(unittest.TestCase):
         fallback = _filter_by_lookback([old], lookback_days=14, now_utc=now)
         self.assertEqual([c.title for c in fallback], ["Old Paper"])
 
+    def test_thinking_level_sanitization(self) -> None:
+        from deep_dive.writer import sanitize_thinking_level
+
+        # gemini-4-hydrogen은 minimal 미지원 -> low로 자동 보정
+        self.assertEqual(sanitize_thinking_level("gemini-4-hydrogen", "minimal"), "low")
+        self.assertEqual(sanitize_thinking_level("gemini-4-hydrogen", "high"), "high")
+        self.assertEqual(sanitize_thinking_level("gemini-4-hydrogen", "xhigh"), "xhigh")
+        # flash-lite는 minimal 허용, xhigh는 high로 보정
+        self.assertEqual(sanitize_thinking_level("gemini-3.5-flash-lite", "minimal"), "minimal")
+        self.assertEqual(sanitize_thinking_level("gemini-3.5-flash-lite", "xhigh"), "high")
+
+    def test_openalex_candidate_parsing(self) -> None:
+        from deep_dive.sources import fetch_openalex_candidates
+        from deep_dive.themes import OpenAlexQuerySpec
+
+        payload = {
+            "results": [
+                {
+                    "display_name": "Metacognition and Retrieval Practice",
+                    "publication_date": "2024-05-10",
+                    "cited_by_count": 312,
+                    "ids": {"pmcid": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1234567/"},
+                    "primary_location": {
+                        "landing_page_url": "https://example.org/meta",
+                        "source": {"display_name": "Trends in Cognitive Sciences"},
+                    },
+                    "best_oa_location": {
+                        "pdf_url": "https://example.org/meta.pdf",
+                        "landing_page_url": "https://example.org/meta",
+                    },
+                    "authorships": [{"author": {"display_name": "Jane Doe"}}],
+                    "abstract_inverted_index": {"Retrieval": [0], "strengthens": [1], "memory.": [2]},
+                }
+            ]
+        }
+
+        class _FakeJsonResp:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return payload
+
+        spec = OpenAlexQuerySpec(name="Test OA", search="metacognition", lookback_years=3, min_citations=50)
+        with patch("deep_dive.sources.requests.get", return_value=_FakeJsonResp()):
+            items = fetch_openalex_candidates(spec, theme_id="science_mind")
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].cited_by_count, 312)
+        self.assertEqual(items[0].pmc_id, "PMC1234567")
+        self.assertEqual(items[0].pdf_url, "https://example.org/meta.pdf")
+        self.assertEqual(items[0].abstract, "Retrieval strengthens memory.")
+
 
 if __name__ == "__main__":
     unittest.main()

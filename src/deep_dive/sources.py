@@ -16,7 +16,13 @@ from pypdf import PdfReader
 import requests
 
 from deep_dive.models import FetchedDocument, SourceCandidate
-from deep_dive.themes import ArxivQuerySpec, PmcQuerySpec, RssFeedSpec, ThemeSlot
+from deep_dive.themes import (
+    ArxivQuerySpec,
+    OpenAlexQuerySpec,
+    PmcQuerySpec,
+    RssFeedSpec,
+    ThemeSlot,
+)
 
 
 USER_AGENT = (
@@ -29,6 +35,7 @@ HTTP_HEADERS = {
 }
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
+OPENALEX_API_URL = "https://api.openalex.org/works"
 NCBI_ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 NCBI_ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 NCBI_EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -62,6 +69,20 @@ def _strip_html(raw_html: str) -> str:
 
 def _local_tag(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
+
+
+def _reconstruct_openalex_abstract(inverted_index: dict | None) -> str:
+    """OpenAlex abstract_inverted_index를 읽기 가능한 원문 초록 문자열로 복원합니다."""
+    if not isinstance(inverted_index, dict) or not inverted_index:
+        return ""
+    positioned: list[tuple[int, str]] = []
+    for word, positions in inverted_index.items():
+        if isinstance(positions, list):
+            for pos in positions:
+                if isinstance(pos, int):
+                    positioned.append((pos, str(word)))
+    positioned.sort(key=lambda pair: pair[0])
+    return _clean_text(" ".join(w for _, w in positioned))
 
 
 def _parse_published_datetime(raw: str) -> datetime | None:
@@ -116,13 +137,112 @@ def _filter_by_lookback(
     return recent or candidates[:3]
 
 
+def fetch_openalex_candidates(
+    spec: OpenAlexQuerySpec,
+    theme_id: str,
+    now_utc: datetime | None = None,
+) -> list[SourceCandidate]:
+    """OpenAlex API에서 피인용 수(cited_by_count)가 높은 오픈액세스(OA) 학술 문헌을 수집합니다."""
+    ref = now_utc or datetime.now(timezone.utc)
+    from_date = (ref - timedelta(days=365 * max(1, spec.lookback_years))).strftime("%Y-%m-%d")
+
+    filters = [
+        "is_oa:true",
+        "language:en",
+        f"from_publication_date:{from_date}",
+    ]
+    if spec.min_citations > 0:
+        filters.append(f"cited_by_count:>{spec.min_citations}")
+    if spec.work_type:
+        filters.append(f"type:{spec.work_type}")
+
+    params = {
+        "search": spec.search,
+        "filter": ",".join(filters),
+        "sort": "cited_by_count:desc",
+        "per-page": spec.max_results,
+    }
+    resp = requests.get(
+        OPENALEX_API_URL,
+        params=params,
+        headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+        timeout=25,
+    )
+    resp.raise_for_status()
+    results = resp.json().get("results") or []
+
+    candidates: list[SourceCandidate] = []
+    for work in results:
+        if not isinstance(work, dict):
+            continue
+        title = _clean_text(work.get("display_name") or work.get("title") or "")
+        if not title:
+            continue
+
+        best_oa = work.get("best_oa_location") or {}
+        primary = work.get("primary_location") or {}
+        pdf_url = (best_oa.get("pdf_url") or primary.get("pdf_url") or "").strip()
+        landing_url = (
+            best_oa.get("landing_page_url")
+            or primary.get("landing_page_url")
+            or work.get("doi")
+            or work.get("id")
+            or ""
+        ).strip()
+        if not landing_url:
+            continue
+
+        source_obj = primary.get("source") or best_oa.get("source") or {}
+        journal = _clean_text(source_obj.get("display_name") or spec.name)
+        pub_date = _clean_text(work.get("publication_date") or str(work.get("publication_year") or ""))
+        cited = int(work.get("cited_by_count") or 0)
+
+        authorships = work.get("authorships") or []
+        authors = ", ".join(
+            _clean_text((a.get("author") or {}).get("display_name", ""))
+            for a in authorships[:5]
+            if isinstance(a, dict) and (a.get("author") or {}).get("display_name")
+        )
+        abstract = _reconstruct_openalex_abstract(work.get("abstract_inverted_index"))
+        if not abstract:
+            abstract = f"[OpenAlex High-Citation OA] Journal: {journal}. Cited by {cited} works."
+
+        # PMC ID가 있으면 직접 전문 XML 확보에도 활용
+        pmc_id = ""
+        ids_obj = work.get("ids") or {}
+        raw_pmcid = str(ids_obj.get("pmcid") or "")
+        if "PMC" in raw_pmcid.upper():
+            pmc_match = re.search(r"PMC\d+", raw_pmcid, re.IGNORECASE)
+            if pmc_match:
+                pmc_id = pmc_match.group(0).upper()
+
+        candidates.append(
+            SourceCandidate(
+                title=title,
+                url=landing_url,
+                source_name=f"{journal} (OpenAlex OA)",
+                theme_id=theme_id,
+                published=pub_date[:10],
+                authors=authors,
+                abstract=abstract[:1500],
+                pdf_url=pdf_url,
+                pmc_id=pmc_id,
+                source_kind="review" if spec.work_type == "review" else "paper",
+                sub_topic_hint=spec.sub_topic_hint,
+                authority_tier=1,
+                cited_by_count=cited,
+            )
+        )
+    return candidates
+
+
 def fetch_arxiv_candidates(spec: ArxivQuerySpec, theme_id: str) -> list[SourceCandidate]:
     """arXiv Atom API에서 최근 lookback_days 이내 권위 있는 논문 후보를 수집합니다."""
     params = {
         "search_query": spec.query,
         "start": 0,
-        "max_results": max(spec.max_results, 15),
-        "sortBy": "submittedDate",
+        "max_results": max(spec.max_results * 2, 20),
+        "sortBy": spec.sort_by,
         "sortOrder": "descending",
     }
     resp = requests.get(ARXIV_API_URL, params=params, headers=HTTP_HEADERS, timeout=25)
@@ -175,7 +295,7 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
         "db": "pmc",
         "term": spec.query,
         "retmax": spec.max_results,
-        "sort": "pub date",
+        "sort": spec.sort_by,
         "datetype": "pdat",
         "reldate": spec.lookback_days,
         "retmode": "json",
@@ -185,9 +305,8 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
     )
     search_resp.raise_for_status()
     id_list = search_resp.json().get("esearchresult", {}).get("idlist", [])
-    if not id_list and spec.lookback_days < 180:
-        # 최근 90일 내 결과 없을 시 180일로 자동 1회 확장
-        search_params["reldate"] = 180
+    if not id_list and spec.lookback_days < 1825:
+        search_params["reldate"] = 1825  # 최대 5년까지 자동 확장
         time.sleep(0.4)
         retry_resp = requests.get(
             NCBI_ESEARCH_URL, params=search_params, headers=HTTP_HEADERS, timeout=25
@@ -320,7 +439,7 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
 
 
 def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
-    """주어진 테마 슬롯의 모든 소스(arXiv, PMC OA, RSS)에서 후보를 병합 수집합니다."""
+    """주어진 테마 슬롯의 모든 소스(OpenAlex 고인용, PMC OA, arXiv, RSS)에서 후보를 병합 수집합니다."""
     all_candidates: list[SourceCandidate] = []
     seen_urls: set[str] = set()
 
@@ -331,14 +450,14 @@ def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
                 seen_urls.add(norm_url)
                 all_candidates.append(item)
 
-    for aq in theme.arxiv_queries:
+    for oq in theme.openalex_queries:
         try:
-            items = fetch_arxiv_candidates(aq, theme.theme_id)
-            print(f"   • [arXiv] {aq.name}: {len(items)}건 수집")
+            items = fetch_openalex_candidates(oq, theme.theme_id)
+            print(f"   • [OpenAlex 고인용 OA] {oq.name}: {len(items)}건 수집")
             _extend(items)
-            time.sleep(0.5)
+            time.sleep(0.3)
         except Exception as exc:
-            print(f"   • [WARN] arXiv 수집 실패 ({aq.name}): {exc}")
+            print(f"   • [WARN] OpenAlex 수집 실패 ({oq.name}): {exc}")
 
     for pq in theme.pmc_queries:
         try:
@@ -348,6 +467,15 @@ def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
             time.sleep(0.5)
         except Exception as exc:
             print(f"   • [WARN] PMC OA 수집 실패 ({pq.name}): {exc}")
+
+    for aq in theme.arxiv_queries:
+        try:
+            items = fetch_arxiv_candidates(aq, theme.theme_id)
+            print(f"   • [arXiv] {aq.name}: {len(items)}건 수집")
+            _extend(items)
+            time.sleep(0.5)
+        except Exception as exc:
+            print(f"   • [WARN] arXiv 수집 실패 ({aq.name}): {exc}")
 
     for rf in theme.rss_feeds:
         try:

@@ -24,6 +24,7 @@ class SourceCandidate:
     source_kind: str = "article"  # paper | report | essay | case_law | review
     sub_topic_hint: str = ""
     authority_tier: int = 1  # 1 = top-tier flagship, 2 = authoritative specialist
+    cited_by_count: int = 0  # 학계 주목도(피인용 수, OpenAlex 등 제공 시)
 
 
 @dataclass

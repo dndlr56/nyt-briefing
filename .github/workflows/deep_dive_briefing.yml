@@ -40,7 +40,7 @@ on:
           - free
           - paid
       note_model:
-        description: 'Stage 1 구조화 독해 노트 모델 (기본: gemini-4-hydrogen, thinking=medium)'
+        description: 'Stage 1 구조화 독해 노트 모델 (기본: gemini-4-hydrogen, thinking=high)'
         required: true
         default: 'gemini-4-hydrogen'
         type: choice
@@ -48,7 +48,7 @@ on:
           - gemini-4-hydrogen
           - gemini-3.5-flash-lite
       script_model:
-        description: 'Stage 2 휴버만식 롱폼 오디오 대본 모델 (기본: gemini-4-hydrogen, chapters=low / bookends=minimal)'
+        description: 'Stage 2 휴버만식 롱폼 오디오 대본 모델 (기본: gemini-4-hydrogen, thinking=low)'
         required: true
         default: 'gemini-4-hydrogen'
         type: choice

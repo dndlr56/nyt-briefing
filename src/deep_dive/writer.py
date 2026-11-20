@@ -24,10 +24,27 @@ from usage_tracker import RunUsageTracker
 KST = timezone(timedelta(hours=9))
 DEFAULT_NOTE_MODEL = "gemini-4-hydrogen"
 DEFAULT_SCRIPT_MODEL = "gemini-4-hydrogen"
-DEFAULT_NOTE_THINKING = "medium"       # 원문 전체 방법론·논증·한계·챕터 설계: 깊은 구조 추론
-DEFAULT_CHAPTER_THINKING = "low"       # 설계도 기반 롱폼 구어체 전개: 출력 밀도·토큰 효율 균형
-DEFAULT_BOOKEND_THINKING = "minimal"   # 오프닝/클로징: 이미 완성된 노트 요약 기반 경량 추론
+# gemini-4-hydrogen 공식 지원 추론 레벨: low | medium | high (기본) | xhigh  (minimal 미지원 -> 400 에러)
+DEFAULT_NOTE_THINKING = "high"       # Stage 1: 원문 방법론·논증·한계·비교표·챕터 설계 핵심 추론 (1회 호출)
+DEFAULT_CHAPTER_THINKING = "low"     # Stage 2: 챕터 설계도 기반 롱폼 구어체 전개 (추론 토큰 폭증 방지)
+DEFAULT_BOOKEND_THINKING = "low"     # Stage 2: 오프닝/클로징 (Hydrogen 최저 레벨 = low)
 DEFAULT_CHARS_PER_MINUTE = 420  # 한국어 낭독 속도 기준 약 410~430자/분
+
+
+def sanitize_thinking_level(model: str, level: str) -> str:
+    """모델별 공식 지원 thinking_level로 안전 보정합니다 (Gemini 4 계열의 minimal 400 에러 방지)."""
+    cleaned = (level or "low").strip().lower()
+    is_g4 = model.startswith("gemini-4")
+    is_g38 = model.startswith("gemini-3.8") or model.startswith("gemini-3.7")
+    if cleaned == "minimal" and (is_g4 or is_g38):
+        return "low"
+    if cleaned == "xhigh" and not (
+        model.startswith("gemini-4-hydrogen") or model.startswith("gemini-4-neon")
+    ):
+        return "high"
+    if cleaned not in ("minimal", "low", "medium", "high", "xhigh"):
+        return "low"
+    return cleaned
 
 
 STUDY_NOTE_SYSTEM_INSTRUCTION = """당신은 서울대 철학·심리학 전공자(로스쿨 입학 예정, 주식 초보 투자자)를 위해 탑티어 학술 논문·장문 에세이·정책 보고서·판례를 완벽히 해부하는 수석 리서치 펠로우입니다.
@@ -91,6 +108,7 @@ def _call_interactions_with_retry(
     stage: str,
     usage_tracker: RunUsageTracker | None = None,
 ) -> str:
+    safe_thinking = sanitize_thinking_level(model, thinking_level)
     last_exc: Exception | None = None
     for attempt in range(1, 4):
         try:
@@ -101,7 +119,7 @@ def _call_interactions_with_retry(
                 response_mime_type="application/json",
                 response_format=schema,
                 generation_config={
-                    "thinking_level": thinking_level,
+                    "thinking_level": safe_thinking,
                     "max_output_tokens": max_output_tokens,
                 },
                 store=False,
@@ -135,7 +153,9 @@ def generate_study_note(
 ) -> DeepDiveStudyNote:
     """Stage 1: 원문 전문을 분석해 웹 리더·Google Doc용 구조화 독해 노트와 챕터 설계도를 생성합니다."""
     selected_model = model or os.getenv("DEEP_NOTE_MODEL", DEFAULT_NOTE_MODEL)
-    note_thinking = os.getenv("DEEP_NOTE_THINKING", DEFAULT_NOTE_THINKING)
+    note_thinking = sanitize_thinking_level(
+        selected_model, os.getenv("DEEP_NOTE_THINKING", DEFAULT_NOTE_THINKING)
+    )
     client = genai.Client()
 
     today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일")
@@ -160,7 +180,7 @@ def generate_study_note(
         system_instruction=STUDY_NOTE_SYSTEM_INSTRUCTION,
         prompt=prompt,
         schema=DeepDiveStudyNote.model_json_schema(),
-        max_output_tokens=20480,
+        max_output_tokens=32768,
         thinking_level=note_thinking,
         stage="구조화 독해 노트",
         usage_tracker=usage_tracker,
@@ -183,8 +203,12 @@ def generate_longform_script(
     20~60분 분량의 휴버만식 심층 오디오 대본을 조립합니다.
     """
     selected_model = model or os.getenv("DEEP_SCRIPT_MODEL", DEFAULT_SCRIPT_MODEL)
-    chapter_thinking = os.getenv("DEEP_CHAPTER_THINKING", DEFAULT_CHAPTER_THINKING)
-    bookend_thinking = os.getenv("DEEP_BOOKEND_THINKING", DEFAULT_BOOKEND_THINKING)
+    chapter_thinking = sanitize_thinking_level(
+        selected_model, os.getenv("DEEP_CHAPTER_THINKING", DEFAULT_CHAPTER_THINKING)
+    )
+    bookend_thinking = sanitize_thinking_level(
+        selected_model, os.getenv("DEEP_BOOKEND_THINKING", DEFAULT_BOOKEND_THINKING)
+    )
     api_tier = (os.getenv("GEMINI_API_TIER") or "free").strip().lower()
     sleep_sec = (
         inter_call_sleep
