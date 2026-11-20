@@ -67,13 +67,13 @@ on:
           - google_cloud_tts
           - edge_tts
       tts_model:
-        description: 'gemini_tts 모델 선택 (기본: gemini-3.8-flash-lite-tts)'
+        description: 'gemini_tts 모델 선택 (기본: gemini-3.8-flash-tts)'
         required: true
-        default: 'gemini-3.8-flash-lite-tts'
+        default: 'gemini-3.8-flash-tts'
         type: choice
         options:
-          - gemini-3.8-flash-lite-tts
           - gemini-3.8-flash-tts
+          - gemini-3.8-flash-lite-tts
       source_url:
         description: '(선택) 자동 수집 대신 직접 해부할 특정 논문/기사/PDF URL'
         required: false
@@ -162,7 +162,7 @@ jobs:
           NOTE_MODEL="gemini-4-hydrogen"
           SCRIPT_MODEL="gemini-4-hydrogen"
           TTS_PROVIDER="gemini_tts"
-          TTS_MODEL="gemini-3.8-flash-lite-tts"
+          TTS_MODEL="gemini-3.8-flash-tts"
           SOURCE_URL=""
           SEARCH_TITLE=""
           SKIP_AUDIO="false"

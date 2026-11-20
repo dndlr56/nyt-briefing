@@ -772,7 +772,7 @@ def generate_audio_briefing(
     )
 
 
-DEFAULT_DEEP_GEMINI_TTS_MODEL = "gemini-3.8-flash-lite-tts"
+DEFAULT_DEEP_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
 
 DEFAULT_GEMINI_DIALOGUE_VOICES: dict[str, str] = {
     "S1": "Kore",    # 여성: 단정·또렷 (사회자)

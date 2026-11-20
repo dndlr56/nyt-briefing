@@ -50,7 +50,7 @@ from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
-DEFAULT_DEEP_TTS_PROVIDER = "gemini_tts"  # 기본: gemini-3.8-flash-lite-tts (2인 네이티브 대화 + 무료->유료 자동 전환)
+DEFAULT_DEEP_TTS_PROVIDER = "gemini_tts"  # 기본: gemini-3.8-flash-tts (2인 네이티브 대화 + 무료->유료 자동 전환)
 
 
 def _parse_args() -> argparse.Namespace:
