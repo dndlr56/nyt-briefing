@@ -37,7 +37,7 @@
 | Stage 1: 원문 충실 요약·분류·캐스팅 | `gemini-4-hydrogen` | `high` | 원문 충실 번역·요약 노트, 5대 탭 분류, 2~3인 대화 캐스팅 및 챕터 설계 (1회 집중 투입) |
 | Stage 2: 챕터 대화 대본 | `gemini-4-hydrogen` | `low` | 문헌 성격에 맞는 2~3인 대화(`사회자+패널`, `패널2`, `사회자+패널2`, `패널3`) 전개 |
 | Stage 2: 오프닝 / 클로징 | `gemini-4-hydrogen` | `low` | Hydrogen 최저 추론 레벨로 간결하고 자연스럽게 도입·마무리 대화 작성 |
-| Stage 2: 다중 화자 TTS | `google_cloud_tts` (기본) / `edge_tts` | — | Chirp3-HD 3화자(`Kore`/`Charon`/`Aoede`, 월 100만자 무료) 합성 + 장애 시 Edge TTS 3화자(`SunHi`/`Hyunsu`/`InJoon`) 자동 폴백 |
+| Stage 2: 다중 화자 TTS | `google_cloud_tts` (기본) / `edge_tts` | — | Chirp3-HD 3화자(`Kore`/`Charon`/`Puck`, 월 100만자 무료) 합성 + 장애 시 Edge TTS 3화자(`SunHi`/`Hyunsu`/`InJoon`) 자동 폴백 |
 
 GitHub Actions에서 **`Actions → Deep Dive Knowledge Briefing → Run workflow`**로 수동 실행하면 텔레그램 알림과 `output/deep_dive/run_summary_*.json`에 단계별 실제 토큰·비용이 기록됩니다.
 - 특정 논문이나 PDF 링크를 직접 요약하려면 `source_url` 또는 `search_title` 입력칸을 사용하면 됩니다.

@@ -489,6 +489,42 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertTrue(_meets_min_length(korean_article, min_chars=2400))
         self.assertFalse(_meets_min_length("짧은 한국어 단신입니다.", min_chars=2400))
 
+    def test_dialogue_wav_concat_distinct_paths(self) -> None:
+        from audio_generator import _concat_dialogue_parts_to_mp3, _write_silence_wav
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            sample_wav = tmp_dir / "sample.wav"
+            _write_silence_wav(sample_wav, 0.1)
+            wav_bytes = sample_wav.read_bytes()
+            out_mp3 = tmp_dir / "out.mp3"
+
+            invoked_cmds: list[list[str]] = []
+
+            class _OkProc:
+                returncode = 0
+                stderr = ""
+
+            def _fake_run(cmd: list[str], **kwargs: object) -> _OkProc:
+                invoked_cmds.append(list(cmd))
+                out_path = Path(cmd[-1])
+                out_path.write_bytes(b"FAKE_OUT")
+                return _OkProc()
+
+            with patch("audio_generator.subprocess.run", side_effect=_fake_run):
+                _concat_dialogue_parts_to_mp3(
+                    turn_audios=[(wav_bytes, False), (wav_bytes, True)],
+                    output_mp3=out_mp3,
+                    input_suffix=".wav",
+                )
+
+            # 앞선 2회 정규화 호출에서 입력 경로(-i)와 출력 경로(마지막 인자)가 달라야 함
+            self.assertEqual(len(invoked_cmds), 3)
+            for norm_cmd in invoked_cmds[:2]:
+                in_path = norm_cmd[norm_cmd.index("-i") + 1]
+                out_path = norm_cmd[-1]
+                self.assertNotEqual(in_path, out_path)
+
 
 if __name__ == "__main__":
     unittest.main()

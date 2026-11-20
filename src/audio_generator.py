@@ -769,8 +769,8 @@ DEFAULT_EDGE_DIALOGUE_VOICES: dict[str, str] = {
 
 DEFAULT_CLOUD_DIALOGUE_VOICES: dict[str, str] = {
     "S1": "ko-KR-Chirp3-HD-Kore",    # 여성: 단정·또렷
-    "S2": "ko-KR-Chirp3-HD-Charon",  # 남성: 차분·지적
-    "S3": "ko-KR-Chirp3-HD-Aoede",   # 여성: 산뜻·자연스러움
+    "S2": "ko-KR-Chirp3-HD-Charon",  # 남성 1: 차분·지적
+    "S3": "ko-KR-Chirp3-HD-Puck",    # 남성 2: 경쾌·선명
 }
 
 
@@ -805,13 +805,15 @@ def _concat_dialogue_parts_to_mp3(
 
         concat_lines: list[str] = []
         for idx, (audio_bytes, is_section_end) in enumerate(turn_audios):
-            raw_path = tmp_dir / f"turn_{idx:04d}{input_suffix}"
-            wav_path = tmp_dir / f"turn_{idx:04d}.wav"
+            raw_path = tmp_dir / f"raw_{idx:04d}{input_suffix}"
+            wav_path = tmp_dir / f"norm_{idx:04d}.wav"
             raw_path.write_bytes(audio_bytes)
 
             norm_cmd = [
                 "ffmpeg",
                 "-y",
+                "-loglevel",
+                "error",
                 "-i",
                 str(raw_path),
                 "-ar",
@@ -944,7 +946,7 @@ def generate_dialogue_audio(
     """
     2~3인 대화형 대본을 화자별 서로 다른 한국어 목소리로 합성해 하나의 MP3로 결합합니다.
     - edge_tts: ko-KR-SunHiNeural (S1) / ko-KR-HyunsuMultilingualNeural (S2) / ko-KR-InJoonNeural (S3)
-    - google_cloud_tts: ko-KR-Chirp3-HD-Kore (S1) / Charon (S2) / Aoede (S3)
+    - google_cloud_tts: ko-KR-Chirp3-HD-Kore (S1) / Charon (S2) / Puck (S3)
     """
     provider = (tts_provider or "edge_tts").strip().lower()
     if provider == "gemini_tts":
