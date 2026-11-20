@@ -72,6 +72,10 @@ on:
         description: '(선택) 자동 수집 대신 직접 해부할 특정 논문/기사/PDF URL'
         required: false
         default: ''
+      search_title:
+        description: '(선택) OpenAlex/Europe PMC/S2에서 특정 논문 제목으로 먼저 검색 (미확보 시 일반 테마로 폴백)'
+        required: false
+        default: ''
       skip_audio:
         description: '오디오 생성 생략 (웹 노트 + Drive 아카이빙만 실행)'
         required: false
@@ -153,11 +157,14 @@ jobs:
           SCRIPT_MODEL="gemini-4-hydrogen"
           TTS_PROVIDER="edge_tts"
           SOURCE_URL=""
+          SEARCH_TITLE=""
           SKIP_AUDIO="false"
 
           if [ "${{ github.event_name }}" = "push" ]; then
+            THEME="weekend_special"
+            SEARCH_TITLE="Dementia prevention, intervention, and care: 2024 report of the Lancet standing Commission"
             SKIP_AUDIO="true"
-            echo "[INFO] Feature branch push test: running summary-only mode (--skip-audio)."
+            echo "[INFO] Feature branch push test: Saturday weekend_special + Lancet 2024 DB search (--skip-audio)."
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             THEME="${{ inputs.theme }}"
             TARGET_MINUTES="${{ inputs.target_minutes }}"
@@ -166,6 +173,7 @@ jobs:
             SCRIPT_MODEL="${{ inputs.script_model }}"
             TTS_PROVIDER="${{ inputs.tts_provider }}"
             SOURCE_URL="${{ inputs.source_url }}"
+            SEARCH_TITLE="${{ inputs.search_title }}"
             SKIP_AUDIO="${{ inputs.skip_audio }}"
           fi
 
@@ -182,6 +190,9 @@ jobs:
           EXTRA_ARGS=()
           if [ -n "$SOURCE_URL" ]; then
             EXTRA_ARGS+=(--source-url "$SOURCE_URL")
+          fi
+          if [ -n "$SEARCH_TITLE" ]; then
+            EXTRA_ARGS+=(--search-title "$SEARCH_TITLE")
           fi
           if [ "$SKIP_AUDIO" = "true" ]; then
             EXTRA_ARGS+=(--skip-audio)

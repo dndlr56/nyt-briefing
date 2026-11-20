@@ -29,6 +29,7 @@ from deep_dive.sources import (
     collect_candidates_for_theme,
     fetch_full_document,
     load_manual_source,
+    search_document_by_title,
 )
 from deep_dive.themes import THEME_SLOTS, resolve_theme_slot
 from deep_dive.web_publisher import (
@@ -71,6 +72,11 @@ def _parse_args() -> argparse.Namespace:
         "--source-url",
         default=None,
         help="자동 수집 대신 직접 분석할 특정 논문/기사/PDF URL",
+    )
+    parser.add_argument(
+        "--search-title",
+        default=None,
+        help="OpenAlex·Europe PMC·Semantic Scholar에서 특정 논문/보고서 제목으로 먼저 검색 (미확보 시 일반 테마 선별로 폴백)",
     )
     parser.add_argument(
         "--pdf-path",
@@ -198,7 +204,23 @@ def main() -> int:
             f"   -> 로드 완료: '{doc.candidate.title}' "
             f"({doc.text_source}, {doc.char_count:,}자, PDF={'있음' if doc.pdf_bytes else '없음'})"
         )
-    else:
+    elif args.search_title:
+        print("\n[1/6] 지정 제목으로 개방형 학술 DB 탐색 중...")
+        found_doc = search_document_by_title(args.search_title, theme_id=theme.theme_id)
+        if found_doc is not None:
+            selected_docs = [found_doc]
+            decision = CurationDecision(
+                mode="single_deep_dive",
+                unifying_angle_kr=f"지정 핵심 문헌 '{found_doc.candidate.title}'의 주요 근거·방법론·정책적·실생활 시사점 완전 해부",
+                sub_subject_kr=theme.label_kr,
+                picks=[CuratedPick(candidate_index=1, why_selected_kr="사용자 지정 제목 DB 검색 확보")],
+            )
+            print(
+                f"   -> DB 확보 성공: '{found_doc.candidate.title}' "
+                f"({found_doc.text_source}, {found_doc.char_count:,}자, PDF={'있음' if found_doc.pdf_bytes else '없음'})"
+            )
+
+    if not selected_docs:
         print("\n[1/6] 1차 소스 후보 수집 중...")
         candidates = collect_candidates_for_theme(theme)
         print(f"   -> 총 {len(candidates)}건 수집 완료 (기다룬 URL {len(covered_urls)}건 제외 예정)")

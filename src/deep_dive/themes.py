@@ -62,7 +62,21 @@ class OpenAlexQuerySpec:
     min_citations: int = 20
     work_type: str = ""  # 예: "review" 또는 빈 문자열
     prefer_top_10_percent: bool = True
+    language: str = "en"  # "en" | "ko" | ""(언어 무관)
     max_results: int = 8
+
+
+@dataclass(frozen=True)
+class HtmlListSpec:
+    """RSS가 없거나 제한적인 국내 법조계·대법원 게시판에서 최신 글 목록을 수집합니다."""
+
+    name: str
+    url: str
+    link_pattern: str  # 정규식 (기사/판례 상세 URL 매칭)
+    source_kind: str = "legal_column"  # case_law | legal_column | article
+    sub_topic_hint: str = ""
+    authority_tier: int = 1
+    max_items: int = 10
 
 
 @dataclass(frozen=True)
@@ -91,6 +105,7 @@ class ThemeSlot:
     pmc_queries: tuple[PmcQuerySpec, ...] = field(default_factory=tuple)
     arxiv_queries: tuple[ArxivQuerySpec, ...] = field(default_factory=tuple)
     rss_feeds: tuple[RssFeedSpec, ...] = field(default_factory=tuple)
+    html_lists: tuple[HtmlListSpec, ...] = field(default_factory=tuple)
 
 
 THEME_SLOTS: dict[str, ThemeSlot] = {
@@ -430,107 +445,94 @@ THEME_SLOTS: dict[str, ThemeSlot] = {
     ),
     "law_cases": ThemeSlot(
         theme_id="law_cases",
-        label_kr="법학·판례·법조 칼럼",
+        label_kr="대한민국 법학·판례·법조 칼럼",
         emoji="⚖️",
         weekdays=(4,),  # 금요일
         focus_prompt=(
-            "로스쿨 입학 예정자를 위한 '법적 사고력(Legal Reasoning) 입문형' 트랙입니다. "
-            "학술 논문뿐만 아니라 **법학적 시사점이 풍부한 법조계 심층 뉴스·사설·칼럼·판례 평석**도 적극 환영합니다. "
-            "① 사회·헌법적 파장이 큰 랜드마크 판례(미국 연방대법원 SCOTUS·주요 헌법 판결) 분석, "
-            "② AI·빅테크·반독점·저작권/IP 규제 및 법조계 현안 사설·칼럼, "
-            "③ 헌법·기본권·표현의 자유·사법심사·법과 경제학(Law & Economics)의 원리가 선명하게 드러나는 글을 최우선 선별하세요."
+            "대한민국 법학전문대학원(로스쿨) 입학 예정자를 위한 **100% 대한민국 법 중심** 트랙입니다. "
+            "미국·유럽 등 해외 단독 판례나 해외 사법 뉴스는 배제하고, 반드시 **대한민국 헌법·민법·형법·행정법·상법·노동법·지식재산권법**과 "
+            "직결되는 글을 고르세요. 학술 논문뿐만 아니라 **법리적 시사점이 큰 대법원 전원합의체/중요 판결, 헌법재판소 결정, "
+            "법률신문·법조신문·법률저널의 심층 판례 해설·사설·법조 칼럼**을 최우선으로 선별하세요. "
+            "(단순 인사 발령, 행사 안내, 수험 학원 홍보성 기사는 제외하세요.)"
         ),
         openalex_queries=(
             OpenAlexQuerySpec(
-                name="OpenAlex AI Law, Copyright & Antitrust OA",
-                search="artificial intelligence copyright antitrust regulation legal liability generative AI law",
-                sub_topic_hint="AI 규제·저작권·반독점 법학 (FWCI/상위권)",
-                lookback_years=3,
-                min_citations=20,
-                max_results=6,
+                name="OpenAlex 한국 헌법·공법·헌재 판례평석 OA",
+                search="헌법재판소 대법원 위헌 기본권 행정법 판례 평석",
+                sub_topic_hint="대한민국 헌법·행정법·공법 판례평석",
+                lookback_years=5,
+                min_citations=2,
+                prefer_top_10_percent=False,
+                language="ko",
+                max_results=8,
             ),
             OpenAlexQuerySpec(
-                name="OpenAlex Constitutional Law & Law and Economics OA",
-                search="constitutional interpretation judicial review law and economics legal reasoning supreme court",
-                sub_topic_hint="헌법·사법심사·법과 경제학 (FWCI/상위권)",
+                name="OpenAlex 한국 민법·형법·상법·AI법 학술논문 OA",
+                search="민법 형법 상법 대법원 전원합의체 손해배상 인공지능 저작권",
+                sub_topic_hint="대한민국 민·형·상법·신기술 법리",
                 lookback_years=5,
-                min_citations=25,
-                max_results=6,
+                min_citations=2,
+                prefer_top_10_percent=False,
+                language="ko",
+                max_results=8,
+            ),
+        ),
+        html_lists=(
+            HtmlListSpec(
+                name="법률신문 (판결·법원·헌재)",
+                url="https://www.lawtimes.co.kr/news/articleList.html?sc_section_code=S1N1",
+                link_pattern=r"articleView\.html\?idxno=\d+",
+                source_kind="case_law",
+                sub_topic_hint="대한민국 대법원·하급심 주요 판결 및 법조 쟁점",
+                authority_tier=1,
+                max_items=10,
+            ),
+            HtmlListSpec(
+                name="법률신문 (오피니언·칼럼·판례해설)",
+                url="https://www.lawtimes.co.kr/news/articleList.html?sc_section_code=S1N3",
+                link_pattern=r"articleView\.html\?idxno=\d+",
+                source_kind="legal_column",
+                sub_topic_hint="대한민국 법학자·법조인 사설·칼럼·판례해설",
+                authority_tier=1,
+                max_items=10,
+            ),
+            HtmlListSpec(
+                name="법조신문 (대한변호사협회)",
+                url="https://news.koreanbar.or.kr/news/articleList.html",
+                link_pattern=r"articleView\.html\?idxno=\d+",
+                source_kind="legal_column",
+                sub_topic_hint="대한변협 법조 현안·입법·판례 분석",
+                authority_tier=1,
+                max_items=10,
+            ),
+            HtmlListSpec(
+                name="대한민국 대법원 판례속보",
+                url="https://www.scourt.go.kr/portal/news/NewsListAction.work?gubun=4&type=5",
+                link_pattern=r"NewsViewAction\.work\?.*seqnum=\d+",
+                source_kind="case_law",
+                sub_topic_hint="대법원 중요 판결·전원합의체 요지 공식 속보",
+                authority_tier=1,
+                max_items=8,
             ),
         ),
         rss_feeds=(
             RssFeedSpec(
-                name="SCOTUSblog",
-                url="https://www.scotusblog.com/feed/",
-                source_kind="case_law",
-                sub_topic_hint="미국 연방대법원 판례 해설·법조 심층 분석",
-                authority_tier=1,
-                max_items=8,
-                lookback_days=180,
-            ),
-            RssFeedSpec(
-                name="Lawfare (Tech, Constitutional & National Security Law)",
-                url="https://www.lawfaremedia.org/rss.xml",
+                name="법률저널 (로스쿨·법조)",
+                url="https://www.lec.co.kr/rss/S1N2.xml",
                 source_kind="legal_column",
-                sub_topic_hint="헌법·AI 규제·플랫폼·국가안보법 칼럼",
-                authority_tier=1,
-                max_items=8,
-                lookback_days=180,
-            ),
-            RssFeedSpec(
-                name="Just Security",
-                url="https://www.justsecurity.org/feed/",
-                source_kind="legal_column",
-                sub_topic_hint="헌법·권력분립·국제법·테크 규제 법학 칼럼",
-                authority_tier=1,
-                max_items=8,
-                lookback_days=180,
-            ),
-            RssFeedSpec(
-                name="The Volokh Conspiracy",
-                url="https://reason.com/volokh/feed/",
-                source_kind="legal_column",
-                sub_topic_hint="법학 교수진의 헌법·표현의 자유·사법심사 평석",
-                authority_tier=1,
-                max_items=8,
-                lookback_days=180,
-            ),
-            RssFeedSpec(
-                name="JURIST Legal Commentary",
-                url="https://www.jurist.org/commentary/feed/",
-                source_kind="legal_column",
-                sub_topic_hint="글로벌 법조계 심층 사설·칼럼",
+                sub_topic_hint="로스쿨·법조계 심층 기사 및 동향",
                 authority_tier=2,
-                max_items=6,
+                max_items=8,
                 lookback_days=180,
             ),
             RssFeedSpec(
-                name="Harvard Law Review",
-                url="https://harvardlawreview.org/feed/",
-                source_kind="paper",
-                sub_topic_hint="헌법·공법·기업법·법이론 논문",
-                authority_tier=1,
-                max_items=6,
-                lookback_days=365,
-            ),
-            RssFeedSpec(
-                name="Verfassungsblog (Constitutional Law)",
-                url="https://verfassungsblog.de/feed/",
+                name="법률저널 (연재·법학 칼럼)",
+                url="https://www.lec.co.kr/rss/S1N5.xml",
                 source_kind="legal_column",
-                sub_topic_hint="비교헌법·기본권·유럽/글로벌 공법 칼럼",
+                sub_topic_hint="법학 연재 칼럼 및 판례 평석",
                 authority_tier=2,
-                max_items=6,
+                max_items=8,
                 lookback_days=180,
-            ),
-        ),
-        arxiv_queries=(
-            ArxivQuerySpec(
-                name="arXiv cs.CY (AI Law, Copyright & Regulation)",
-                query='cat:cs.CY AND (ti:law OR ti:legal OR ti:regulation OR ti:copyright OR ti:antitrust OR ti:liability OR ti:constitutional)',
-                sub_topic_hint="AI 규제·저작권·법적 책임",
-                max_results=5,
-                lookback_days=365,
-                sort_by="relevance",
             ),
         ),
     ),

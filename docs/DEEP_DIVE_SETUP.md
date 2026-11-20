@@ -19,7 +19,7 @@
 | 화 | `science_mind` | 종합과학·뇌인지 | OpenAlex FWCI 리뷰(**4년**), Europe PMC 고인용 OA(**4년**), Semantic Scholar 인지심리(**4년**), Quanta·Nature·Science Advances |
 | 수 | `health_medicine` | 의학·건강·장수 | Europe PMC 고인용 리뷰·메타분석(**4년**), OpenAlex FWCI 리뷰(**4년**), Nature Medicine·eLife |
 | 목 | `econ_geopolitics` | 경제·금융·지정학 | OpenAlex 행동재무·거시·지정학(**3~4년**), Semantic Scholar 경제(**4년**), NBER·BIS·IMF·Brookings·RAND·CSIS, arXiv(`q-fin`/`econ`) |
-| 금 | `law_cases` | 법학·판례·법조 칼럼 | SCOTUSblog·Lawfare·Just Security·Volokh Conspiracy·JURIST·Verfassungsblog(법조 칼럼·판례 평석), Harvard Law Review, OpenAlex 법학(**3~5년**) |
+| 금 | `law_cases` | 대한민국 법학·판례·법조 칼럼 | 대한민국 대법원 판례속보, 법률신문(판결·오피니언), 대한변협 법조신문, 법률저널(로스쿨·연재), OpenAlex 한국 법학 OA 논문(최근 5년) |
 | 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**5년**), Semantic Scholar 명작(**5년**), Aeon·Quanta·Foreign Affairs·Just Security·Brookings |
 
 > **선택 API 키 (미등록해도 정상 동작)**: `SEMANTIC_SCHOLAR_API_KEY`(무료 1 RPS 전용 한도) 및 `CORE_API_KEY`([core.ac.uk](https://core.ac.uk/services/api) 무료 키 — 출판사 PDF가 막힐 때 대학 리포지토리 Green OA 전문 자동 회수)를 GitHub Secrets에 추가하면 탐색·전문 회수 안정성이 더욱 높아집니다.

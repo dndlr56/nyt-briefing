@@ -20,6 +20,7 @@ from deep_dive.models import FetchedDocument, SourceCandidate
 from deep_dive.themes import (
     ArxivQuerySpec,
     EuropePmcQuerySpec,
+    HtmlListSpec,
     OpenAlexQuerySpec,
     PmcQuerySpec,
     RssFeedSpec,
@@ -47,12 +48,13 @@ NCBI_ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 NCBI_ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 NCBI_EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
-MIN_FULLTEXT_CHARS = 2400  # 유료 페이월/짧은 초록 스텁 배제 기준
+MIN_FULLTEXT_CHARS = 2400  # 영문 기준 페이월/짧은 스텁 배제 기준 (한국어 문헌은 약 1,000자 기준 자동 적용)
 MAX_LLM_DOCUMENT_CHARS = 75_000  # 단일 문서 LLM 입력 상한 (~20K~25K 토큰)
 MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB 안전 상한
 
 _WS_RE = re.compile(r"\s+")
 _ISO_DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_HANGUL_RE = re.compile(r"[가-힣]")
 _PAYWALL_MARKERS = (
     "subscribe to continue reading",
     "buy this article",
@@ -61,6 +63,19 @@ _PAYWALL_MARKERS = (
     "get full access to this article",
     "purchase instant access",
 )
+
+
+def _meets_min_length(text: str, min_chars: int = MIN_FULLTEXT_CHARS) -> bool:
+    """한국어(정보 밀도 ~2.4x) 문헌은 영문 대비 완화된 최소 글자 수를 적용합니다."""
+    if not text:
+        return False
+    if len(text) >= min_chars:
+        return True
+    sample = text[:1500]
+    hangul_ratio = len(_HANGUL_RE.findall(sample)) / max(1, len(sample))
+    if hangul_ratio >= 0.2:
+        return len(text) >= max(900, int(min_chars * 0.42))
+    return False
 
 
 def _clean_text(text: str) -> str:
@@ -180,9 +195,10 @@ def fetch_openalex_candidates(
             "is_oa:true",
             "is_retracted:false",
             "is_paratext:false",
-            "language:en",
             f"from_publication_date:{from_date}",
         ]
+        if spec.language:
+            filters.append(f"language:{spec.language}")
         if spec.min_citations > 0:
             filters.append(f"cited_by_count:>{spec.min_citations}")
         if spec.work_type:
@@ -669,8 +685,47 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
     return _filter_by_lookback(candidates, spec.lookback_days)[: spec.max_items]
 
 
+def fetch_html_list_candidates(spec: HtmlListSpec, theme_id: str) -> list[SourceCandidate]:
+    """RSS가 없는 국내 법조계·대법원 게시판 HTML 목록에서 최신 글·판례 후보를 수집합니다."""
+    resp = requests.get(spec.url, headers=HTTP_HEADERS, timeout=25)
+    resp.raise_for_status()
+    if resp.encoding is None or resp.encoding.lower() == "iso-8859-1":
+        resp.encoding = resp.apparent_encoding or "utf-8"
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    pattern = re.compile(spec.link_pattern)
+    candidates: list[SourceCandidate] = []
+    seen_urls: set[str] = set()
+
+    for a in soup.find_all("a", href=True):
+        href = str(a["href"]).strip()
+        if not pattern.search(href):
+            continue
+        title = _clean_text(a.get_text(" "))
+        if len(title) < 8:
+            continue
+        full_url = urljoin(spec.url, href)
+        if full_url in seen_urls:
+            continue
+        seen_urls.add(full_url)
+        candidates.append(
+            SourceCandidate(
+                title=title,
+                url=full_url,
+                source_name=spec.name,
+                theme_id=theme_id,
+                source_kind=spec.source_kind,
+                sub_topic_hint=spec.sub_topic_hint,
+                authority_tier=spec.authority_tier,
+            )
+        )
+        if len(candidates) >= spec.max_items:
+            break
+    return candidates
+
+
 def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
-    """주어진 테마 슬롯의 모든 소스(OpenAlex, Europe PMC, Semantic Scholar, PMC, arXiv, RSS)에서 후보를 병합 수집합니다."""
+    """주어진 테마 슬롯의 모든 소스(OpenAlex, Europe PMC, Semantic Scholar, PMC, arXiv, RSS, HTML목록)에서 후보를 병합 수집합니다."""
     all_candidates: list[SourceCandidate] = []
     seen_keys: set[str] = set()
 
@@ -731,6 +786,15 @@ def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
         except Exception as exc:
             print(f"   • [WARN] arXiv 수집 실패 ({aq.name}): {exc}")
 
+    for hl in theme.html_lists:
+        try:
+            items = fetch_html_list_candidates(hl, theme.theme_id)
+            print(f"   • [HTML목록] {hl.name}: {len(items)}건 수집")
+            _extend(items)
+            time.sleep(0.3)
+        except Exception as exc:
+            print(f"   • [WARN] HTML목록 수집 실패 ({hl.name}): {exc}")
+
     for rf in theme.rss_feeds:
         try:
             items = fetch_rss_candidates(rf, theme.theme_id)
@@ -742,7 +806,7 @@ def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
     return all_candidates
 
 
-def extract_text_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 45) -> str:
+def extract_text_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 65) -> str:
     """PDF 바이트에서 본문 텍스트를 추출합니다."""
     reader = PdfReader(io.BytesIO(pdf_bytes))
     pages_text: list[str] = []
@@ -877,6 +941,8 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
     content_type = (resp.headers.get("Content-Type") or "").lower()
     if "application/pdf" in content_type or resp.content.startswith(b"%PDF"):
         return "", url
+    if resp.encoding is None or resp.encoding.lower() == "iso-8859-1":
+        resp.encoding = resp.apparent_encoding or "utf-8"
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -905,7 +971,7 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
     blocks: list[str] = []
     for elem in container.find_all(["h1", "h2", "h3", "p", "blockquote", "li"]):
         txt = _clean_text(elem.get_text(" "))
-        if len(txt) < 25 and elem.name not in ("h1", "h2", "h3"):
+        if len(txt) < 20 and elem.name not in ("h1", "h2", "h3"):
             continue
         if elem.name in ("h1", "h2", "h3"):
             blocks.append(f"\n## {txt}")
@@ -918,7 +984,7 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
 
 def _looks_paywalled(text: str) -> bool:
     lowered = text.lower()
-    if len(text) < MIN_FULLTEXT_CHARS:
+    if not _meets_min_length(text, MIN_FULLTEXT_CHARS):
         return True
     hit_count = sum(1 for marker in _PAYWALL_MARKERS if marker in lowered)
     return hit_count >= 1 and len(text) < 4500
@@ -949,7 +1015,7 @@ def fetch_full_document(
     if candidate.pmc_id:
         try:
             xml_text = _fetch_pmc_fulltext_xml(candidate.pmc_id)
-            if len(xml_text) >= min_chars:
+            if _meets_min_length(xml_text, min_chars):
                 full_text = xml_text
                 text_source = "pmc_xml"
         except Exception as exc:
@@ -963,7 +1029,7 @@ def fetch_full_document(
                 pdf_bytes = downloaded
                 if not full_text:
                     pdf_text = extract_text_from_pdf_bytes(downloaded)
-                    if len(pdf_text) >= min_chars:
+                    if _meets_min_length(pdf_text, min_chars):
                         full_text = pdf_text
                         text_source = "pdf"
         except Exception as exc:
@@ -985,7 +1051,7 @@ def fetch_full_document(
                 except Exception:
                     pass
 
-            if html_text and not _looks_paywalled(html_text) and len(html_text) >= min_chars:
+            if html_text and not _looks_paywalled(html_text) and _meets_min_length(html_text, min_chars):
                 full_text = html_text
                 text_source = text_source or "html"
         except Exception as exc:
@@ -995,7 +1061,7 @@ def fetch_full_document(
     if not full_text and os.getenv("CORE_API_KEY"):
         try:
             core_text, core_pdf = _fetch_core_fulltext_fallback(candidate)
-            if len(core_text) >= min_chars:
+            if _meets_min_length(core_text, min_chars):
                 full_text = core_text
                 text_source = "core_oa"
                 if core_pdf and pdf_bytes is None:
@@ -1003,7 +1069,7 @@ def fetch_full_document(
         except Exception as exc:
             print(f"      [WARN] CORE API 백업 전문 추출 실패: {exc}")
 
-    if not full_text or len(full_text) < min_chars:
+    if not full_text or not _meets_min_length(full_text, min_chars):
         return None
 
     truncated = False
@@ -1026,6 +1092,142 @@ def fetch_full_document(
         char_count=len(full_text),
         truncated_for_llm=truncated,
     )
+
+
+def search_document_by_title(
+    title_query: str,
+    theme_id: str = "weekend_special",
+) -> FetchedDocument | None:
+    """
+    특정 논문·보고서 제목으로 OpenAlex(모든 OA 리포지토리 위치 포함) → Europe PMC → Semantic Scholar를
+    차례로 검색해 전문(Full-text) 및 PDF 확보를 시도합니다. 실패 시 None을 반환합니다.
+    """
+    query_clean = _clean_text(title_query)
+    if not query_clean:
+        return None
+    print(f"   • [DB 제목 검색] '{query_clean}' 탐색 중...")
+
+    # 1) OpenAlex 제목 검색 (best_oa_location뿐 아니라 모든 locations[]의 대학 리포지토리 PDF까지 시도)
+    try:
+        resp = requests.get(
+            OPENALEX_API_URL,
+            params={"search": query_clean, "per-page": 5},
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=25,
+        )
+        resp.raise_for_status()
+        works = resp.json().get("results") or []
+        for work in works:
+            if not isinstance(work, dict) or work.get("is_retracted"):
+                continue
+            w_title = _clean_text(work.get("display_name") or work.get("title") or "")
+            if not w_title:
+                continue
+
+            primary = work.get("primary_location") or {}
+            source_obj = primary.get("source") or {}
+            journal = _clean_text(source_obj.get("display_name") or "OpenAlex")
+            pub_date = _clean_text(work.get("publication_date") or str(work.get("publication_year") or ""))
+            cited = int(work.get("cited_by_count") or 0)
+            raw_fwci = work.get("fwci")
+            fwci_val = round(float(raw_fwci), 2) if isinstance(raw_fwci, (int, float)) else None
+            pct_label = _format_openalex_percentile(work.get("citation_normalized_percentile"))
+            doi = _normalize_doi(str(work.get("doi") or ""))
+            authorships = work.get("authorships") or []
+            authors = ", ".join(
+                _clean_text((a.get("author") or {}).get("display_name", ""))
+                for a in authorships[:5]
+                if isinstance(a, dict) and (a.get("author") or {}).get("display_name")
+            )
+            pmc_id = ""
+            raw_pmcid = str((work.get("ids") or {}).get("pmcid") or "")
+            if "PMC" in raw_pmcid.upper():
+                m = re.search(r"PMC\d+", raw_pmcid, re.IGNORECASE)
+                if m:
+                    pmc_id = m.group(0).upper()
+
+            # 모든 OA location에서 pdf_url / landing_page_url 수집 (대학 리포지토리 사본 포함)
+            loc_candidates: list[tuple[str, str]] = []
+            seen_loc: set[str] = set()
+            all_locs = [work.get("best_oa_location"), *(work.get("locations") or [])]
+            for loc in all_locs:
+                if not isinstance(loc, dict):
+                    continue
+                p_url = str(loc.get("pdf_url") or "").strip()
+                l_url = str(loc.get("landing_page_url") or "").strip()
+                key = f"{p_url}|{l_url}"
+                if key in seen_loc or (not p_url and not l_url):
+                    continue
+                seen_loc.add(key)
+                # PDF 링크가 있는 OA 리포지토리를 앞쪽에 배치
+                if p_url:
+                    loc_candidates.insert(0, (p_url, l_url))
+                elif loc.get("is_oa"):
+                    loc_candidates.append((p_url, l_url))
+
+            print(
+                f"     - OpenAlex 매칭: '{w_title[:75]}' ({journal}, 피인용 {cited:,}회, "
+                f"OA 후보 위치 {len(loc_candidates)}곳)"
+            )
+            for p_url, l_url in loc_candidates[:6]:
+                cand = SourceCandidate(
+                    title=w_title,
+                    url=l_url or p_url or (f"https://doi.org/{doi}" if doi else ""),
+                    source_name=f"{journal} (OpenAlex OA)",
+                    theme_id=theme_id,
+                    published=pub_date[:10],
+                    authors=authors,
+                    abstract=_reconstruct_openalex_abstract(work.get("abstract_inverted_index"))[:1500],
+                    pdf_url=p_url,
+                    pmc_id=pmc_id,
+                    source_kind="review",
+                    doi=doi,
+                    cited_by_count=cited,
+                    fwci=fwci_val,
+                    top_percentile_label=pct_label,
+                )
+                doc = fetch_full_document(cand)
+                if doc is not None:
+                    print(f"     ✓ OpenAlex 리포지토리 전문 확보 성공 ({doc.text_source}, {doc.char_count:,}자)")
+                    return doc
+    except Exception as exc:
+        print(f"     [WARN] OpenAlex 제목 검색 실패: {exc}")
+
+    # 2) Europe PMC 제목 검색
+    try:
+        epmc_spec = EuropePmcQuerySpec(
+            name="Europe PMC Title Search",
+            query=f'TITLE:"{query_clean}" AND OPEN_ACCESS:y',
+            lookback_years=10,
+            max_results=3,
+        )
+        for cand in fetch_europe_pmc_candidates(epmc_spec, theme_id=theme_id):
+            doc = fetch_full_document(cand)
+            if doc is not None:
+                print(f"     ✓ Europe PMC 전문 확보 성공 ({doc.text_source}, {doc.char_count:,}자)")
+                return doc
+    except Exception as exc:
+        print(f"     [WARN] Europe PMC 제목 검색 실패: {exc}")
+
+    # 3) Semantic Scholar 제목 검색
+    try:
+        s2_spec = SemanticScholarQuerySpec(
+            name="Semantic Scholar Title Search",
+            query=query_clean,
+            lookback_years=10,
+            min_citations=0,
+            max_results=3,
+        )
+        for cand in fetch_semantic_scholar_candidates(s2_spec, theme_id=theme_id):
+            doc = fetch_full_document(cand)
+            if doc is not None:
+                print(f"     ✓ Semantic Scholar 전문 확보 성공 ({doc.text_source}, {doc.char_count:,}자)")
+                return doc
+    except Exception as exc:
+        print(f"     [WARN] Semantic Scholar 제목 검색 실패: {exc}")
+
+    print(f"   • [INFO] '{query_clean}'의 공개 전문을 DB에서 확보하지 못해 일반 테마 큐레이션으로 전환합니다.")
+    return None
 
 
 def load_manual_source(

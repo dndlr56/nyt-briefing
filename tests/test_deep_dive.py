@@ -395,6 +395,18 @@ class DeepDivePipelineTests(unittest.TestCase):
             recovered_text, _ = _fetch_core_fulltext_fallback(cand)
         self.assertGreater(len(recovered_text), 2400)
 
+    def test_korean_law_theme_and_hangul_threshold(self) -> None:
+        from deep_dive.sources import _meets_min_length
+
+        law_slot = resolve_theme_slot("law_cases")
+        self.assertIn("대한민국", law_slot.label_kr)
+        self.assertTrue(all(oq.language == "ko" for oq in law_slot.openalex_queries))
+        self.assertGreaterEqual(len(law_slot.html_lists), 3)
+
+        korean_article = "대한민국 대법원 전원합의체 판결의 법리적 의의와 헌법적 쟁점을 상세히 검토한다. " * 30
+        self.assertTrue(_meets_min_length(korean_article, min_chars=2400))
+        self.assertFalse(_meets_min_length("짧은 한국어 단신입니다.", min_chars=2400))
+
 
 if __name__ == "__main__":
     unittest.main()
