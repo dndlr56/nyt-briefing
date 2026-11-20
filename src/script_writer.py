@@ -132,35 +132,41 @@ def write_roundup_script(
 
     last_exc: Exception | None = None
     for attempt in range(1, 4):
-        interaction = client.interactions.create(
-            model=selected_model,
-            system_instruction=SCRIPT_SYSTEM_INSTRUCTION,
-            input=prompt,
-            response_mime_type="application/json",
-            response_format=RoundupAudioScript.model_json_schema(),
-            generation_config={
-                "thinking_level": "low",
-                "max_output_tokens": 24576,
-            },
-            store=False,
-        )
-        if usage_tracker is not None:
-            usage_tracker.add_interaction(interaction, stage="요약+오디오 대본", model=selected_model)
+        try:
+            interaction = client.interactions.create(
+                model=selected_model,
+                system_instruction=SCRIPT_SYSTEM_INSTRUCTION,
+                input=prompt,
+                response_mime_type="application/json",
+                response_format=RoundupAudioScript.model_json_schema(),
+                generation_config={
+                    "thinking_level": "low",
+                    "max_output_tokens": 24576,
+                },
+                store=False,
+            )
+            if usage_tracker is not None:
+                usage_tracker.add_interaction(interaction, stage="요약+오디오 대본", model=selected_model)
 
-        raw_json = interaction.output_text
-        if not raw_json:
-            last_exc = RuntimeError("방송 대본 생성 중 Gemini API로부터 빈 응답을 받았습니다.")
-        else:
-            try:
+            raw_json = interaction.output_text
+            if not raw_json:
+                last_exc = RuntimeError("방송 대본 생성 중 Gemini API로부터 빈 응답을 받았습니다.")
+            else:
                 return RoundupAudioScript.model_validate_json(raw_json)
-            except ValidationError as exc:
-                last_exc = exc
+        except (ValidationError, Exception) as exc:
+            last_exc = exc
 
         if attempt < 3:
-            print(f"      [WARN] Script JSON parse failed (attempt {attempt}/3): {last_exc}. Retrying...")
-            time.sleep(2 * attempt)
+            msg = str(last_exc).lower()
+            is_rate = "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
+            wait_sec = 20 * attempt if is_rate else 3 * attempt
+            print(
+                f"      [WARN] Script generation failed (attempt {attempt}/3): {last_exc}. "
+                f"Retrying in {wait_sec}s..."
+            )
+            time.sleep(wait_sec)
 
-    raise RuntimeError(f"방송 대본 JSON 파싱 3회 실패: {last_exc}")
+    raise RuntimeError(f"방송 대본 생성 3회 실패: {last_exc}")
 
 
 def build_daily_briefing_from_script(

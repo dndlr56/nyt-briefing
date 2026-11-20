@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import html
+import os
 from typing import Any
 
 
@@ -104,17 +105,32 @@ class RunUsageTracker:
     calls: list[GeminiCallUsage] = field(default_factory=list)
     tts_provider: str | None = None
     tts_voice: str | None = None
+    tts_model: str | None = None
     tts_chars: int = 0
+    api_tier: str = field(
+        default_factory=lambda: (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
+    )
 
     def add_interaction(self, interaction: Any, stage: str, model: str) -> GeminiCallUsage:
         record = extract_interaction_usage(interaction, stage=stage, model=model)
         self.calls.append(record)
         return record
 
-    def set_tts(self, provider: str, voice: str, chars: int) -> None:
+    def set_tts(
+        self,
+        provider: str,
+        voice: str,
+        chars: int,
+        model: str | None = None,
+    ) -> None:
         self.tts_provider = provider
         self.tts_voice = voice
+        self.tts_model = model
         self.tts_chars = max(0, int(chars))
+
+    @property
+    def is_free_tier(self) -> bool:
+        return self.api_tier == "free"
 
     @property
     def total_input_tokens(self) -> int:
@@ -152,17 +168,21 @@ class RunUsageTracker:
             return "무료"
         if self.tts_provider == "google_cloud_tts":
             return "월 100만자 무료 티어 내 $0"
+        if self.tts_provider == "gemini_tts" and self.is_free_tier:
+            return "무료 티어 $0"
         return "유료 과금"
 
     def format_console_summary(self) -> str:
         usd = self.estimate_usd()
         krw = round(usd * KRW_PER_USD)
         models = ", ".join(self.models_used) or "unknown"
+        tier_note = "FREE TIER $0 (paid equiv. " if self.is_free_tier else "est. "
+        tier_suffix = ")" if self.is_free_tier else ""
         lines = [
-            f"      [Usage] Gemini ({models}): "
+            f"      [Usage] Gemini ({models}, tier={self.api_tier}): "
             f"input={self.total_input_tokens:,} (cached={self.total_cached_tokens:,}), "
             f"output={self.total_billable_output_tokens:,} (thought={self.total_thought_tokens:,}), "
-            f"total={self.total_tokens:,} tokens | est. ${usd:.4f} (~{krw:,} KRW)"
+            f"total={self.total_tokens:,} tokens | {tier_note}${usd:.4f} (~{krw:,} KRW){tier_suffix}"
         ]
         for c in self.calls:
             lines.append(
@@ -171,8 +191,9 @@ class RunUsageTracker:
                 f"est. ${c.estimate_usd():.4f}"
             )
         if self.tts_provider:
+            model_info = f" / {self.tts_model}" if self.tts_model else ""
             lines.append(
-                f"      [Usage] TTS: {self.tts_provider} ({self.tts_voice}), "
+                f"      [Usage] TTS: {self.tts_provider}{model_info} ({self.tts_voice}), "
                 f"{self.tts_chars:,} chars ({self._tts_cost_label()})"
             )
         return "\n".join(lines)
@@ -204,15 +225,25 @@ class RunUsageTracker:
                 f"출력 {self.total_billable_output_tokens:,}{out_extra} = "
                 f"총 {self.total_tokens:,} 토큰"
             )
-            items.append(
-                f"• 예상 API 비용: 약 ${usd:.4f} (약 {krw:,}원 · 유료 단가/환율 {KRW_PER_USD:,}원 기준)"
-            )
+            if self.is_free_tier:
+                items.append(
+                    f"• 예상 API 비용: 무료 티어 $0 (유료 환산 약 ${usd:.4f} · 약 {krw:,}원)"
+                )
+            else:
+                items.append(
+                    f"• 예상 API 비용: 약 ${usd:.4f} (약 {krw:,}원 · 유료 단가/환율 {KRW_PER_USD:,}원 기준)"
+                )
 
         if self.tts_provider:
             prov = html.escape(self.tts_provider)
             voice = html.escape(self.tts_voice or "")
+            model_part = (
+                f" / <code>{html.escape(self.tts_model)}</code>"
+                if self.tts_model and self.tts_provider == "gemini_tts"
+                else ""
+            )
             items.append(
-                f"• 음성 합성(TTS): {prov} (<code>{voice}</code>) · "
+                f"• 음성 합성(TTS): {prov}{model_part} (<code>{voice}</code>) · "
                 f"{self.tts_chars:,}자 ({self._tts_cost_label()})"
             )
 

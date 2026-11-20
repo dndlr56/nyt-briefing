@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import wave
 
 from google import genai
@@ -22,14 +23,15 @@ from script_writer import RoundupAudioScript, get_script_segments
 CLOUD_TTS_ENDPOINT = "https://texttospeech.googleapis.com/v1/text:synthesize"
 CLOUD_TTS_MAX_UTF8_BYTES = 4200  # Google Cloud TTS 5,000바이트 제한에 여유 버퍼 확보
 
-DEFAULT_TTS_PROVIDER = "google_cloud_tts"
+DEFAULT_TTS_PROVIDER = "gemini_tts"
 DEFAULT_EDGE_TTS_VOICE = "ko-KR-HyunsuMultilingualNeural"
-DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Charon"
+DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Kore"
 DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_GEMINI_TTS_VOICE = "Kore"
-DEFAULT_ANCHOR_STYLE = (
-    "calm, warm, articulate Korean radio news anchor, steady relaxed pace"
-)
+# 공식 Gemini 3.8 TTS 가이드: 길고 복잡한 페르소나 지시문 대신 짧은 스타일(또는 공백)을 써야 음색 드리프트가 줄어듭니다.
+DEFAULT_ANCHOR_STYLE = "calm, clear news narration"
+GEMINI_TTS_MAX_PARTS = 7  # 무료 티어 일 10회(RPD) 한도 내 여유 확보 + 파트당 ~2분 이내로 음색 드리프트 최소화
+GEMINI_TTS_MIN_INTERVAL_SECONDS = 22.0  # 무료 티어 분당 3회(RPM) 제한 준수 (요청 시작 간격 >= 22초)
 SEGMENT_PAUSE_SECONDS = 0.6
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -359,49 +361,109 @@ def _synthesize_cloud_tts_chunk(
     return base64.b64decode(audio_b64)
 
 
+def _group_segments_balanced(
+    segments: list[tuple[str, str]],
+    max_parts: int = GEMINI_TTS_MAX_PARTS,
+) -> list[str]:
+    """세그먼트 순서를 유지하면서 최대 max_parts개의 균형 잡힌 파트(~2분 내외)로 묶습니다."""
+    texts = [text.strip() for _, text in segments if text and text.strip()]
+    if not texts:
+        return []
+    n = len(texts)
+    k = min(n, max(1, max_parts))
+    if k == n:
+        return texts
+
+    # 누적 길이로 DP: 연속 분할 시 가장 긴 파트의 글자 수를 최소화
+    prefix = [0] * (n + 1)
+    for i, t in enumerate(texts):
+        prefix[i + 1] = prefix[i] + len(t)
+
+    inf = 10**9
+    dp = [[inf] * (n + 1) for _ in range(k + 1)]
+    split = [[0] * (n + 1) for _ in range(k + 1)]
+    dp[0][0] = 0
+
+    for p in range(1, k + 1):
+        for i in range(p, n - (k - p) + 1):
+            for j in range(p - 1, i):
+                cost = max(dp[p - 1][j], prefix[i] - prefix[j])
+                if cost < dp[p][i]:
+                    dp[p][i] = cost
+                    split[p][i] = j
+
+    bounds: list[tuple[int, int]] = []
+    cur = n
+    for p in range(k, 0, -1):
+        prev = split[p][cur]
+        bounds.append((prev, cur))
+        cur = prev
+    bounds.reverse()
+
+    return ["\n\n".join(texts[s:e]) for s, e in bounds]
+
+
 def _synthesize_gemini_tts_part(
     client: genai.Client,
     text: str,
     model: str,
     voice: str,
     style: str,
+    max_retries: int = 3,
 ) -> bytes:
-    """선택 옵션: Gemini TTS로 단일 파트를 WAV 음성 합성합니다."""
-    interaction = client.interactions.create(
-        model=model,
-        input=[
+    """Gemini TTS로 단일 파트를 WAV 음성 합성합니다 (429 재시도 포함)."""
+    part_payload: dict[str, object] = {
+        "type": "text",
+        "text": text.strip(),
+    }
+    if style and style.strip():
+        part_payload["annotations"] = [
             {
-                "type": "text",
-                "text": text.strip(),
-                "annotations": [
-                    {
-                        "type": "speech_metadata",
-                        "style": style,
-                    }
-                ],
+                "type": "speech_metadata",
+                "style": style.strip(),
             }
-        ],
-        response_format={"type": "audio"},
-        generation_config={
-            "speech_config": [
-                {"voice": voice},
-            ]
-        },
-        store=False,
-    )
+        ]
 
-    output_audio = getattr(interaction, "output_audio", None)
-    raw_data = getattr(output_audio, "data", None) if output_audio is not None else None
-    if not raw_data:
-        raise RuntimeError(
-            "Gemini TTS API 응답에서 오디오 데이터를 찾지 못했습니다."
-        )
+    last_exc: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            interaction = client.interactions.create(
+                model=model,
+                input=[part_payload],
+                response_format={"type": "audio"},
+                generation_config={
+                    "speech_config": [
+                        {"voice": voice},
+                    ]
+                },
+                store=False,
+            )
 
-    if isinstance(raw_data, bytes):
-        return raw_data
-    if isinstance(raw_data, str):
-        return base64.b64decode(raw_data)
-    raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
+            output_audio = getattr(interaction, "output_audio", None)
+            raw_data = getattr(output_audio, "data", None) if output_audio is not None else None
+            if not raw_data:
+                raise RuntimeError(
+                    "Gemini TTS API 응답에서 오디오 데이터를 찾지 못했습니다."
+                )
+
+            if isinstance(raw_data, bytes):
+                return raw_data
+            if isinstance(raw_data, str):
+                return base64.b64decode(raw_data)
+            raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
+        except Exception as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                msg = str(exc).lower()
+                is_rate = "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
+                wait_sec = 25 * attempt if is_rate else 5 * attempt
+                print(
+                    f"      [WARN] Gemini TTS attempt {attempt}/{max_retries} failed "
+                    f"({type(exc).__name__}: {exc}). Retrying in {wait_sec}s..."
+                )
+                time.sleep(wait_sec)
+
+    raise RuntimeError(f"Gemini TTS 합성 {max_retries}회 실패: {last_exc}")
 
 
 def _concat_audio_parts_to_mp3(
@@ -516,6 +578,7 @@ def generate_audio_briefing(
     audio_parts: list[bytes] = []
     input_suffix = ".wav"
     total_duration = 0.0
+    selected_model = ""
 
     if provider == "edge_tts":
         try:
@@ -535,6 +598,57 @@ def generate_audio_briefing(
                 provider = "google_cloud_tts"
                 selected_voice = fallback_voice
                 audio_parts = []
+                input_suffix = ".wav"
+            else:
+                raise
+
+    if provider == "gemini_tts":
+        try:
+            selected_model = tts_model or os.getenv("GEMINI_TTS_MODEL", DEFAULT_GEMINI_TTS_MODEL)
+            selected_style = style if style is not None else os.getenv("GEMINI_TTS_STYLE", DEFAULT_ANCHOR_STYLE)
+            client = genai.Client(http_options={"api_version": "v1beta"})
+
+            grouped_parts = _group_segments_balanced(segments, max_parts=GEMINI_TTS_MAX_PARTS)
+            api_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
+            min_interval = GEMINI_TTS_MIN_INTERVAL_SECONDS if api_tier == "free" else 0.0
+
+            last_call_start = 0.0
+            for idx, part_text in enumerate(grouped_parts, start=1):
+                if idx > 1 and min_interval > 0:
+                    elapsed = time.monotonic() - last_call_start
+                    if elapsed < min_interval:
+                        sleep_sec = min_interval - elapsed
+                        print(
+                            f"      [Gemini TTS] Free-tier RPM pacing: waiting {sleep_sec:.1f}s..."
+                        )
+                        time.sleep(sleep_sec)
+
+                last_call_start = time.monotonic()
+                print(
+                    f"      [Gemini TTS] Part {idx}/{len(grouped_parts)} "
+                    f"({len(part_text)} chars, model={selected_model}, voice={selected_voice})..."
+                )
+                wav_bytes = _synthesize_gemini_tts_part(
+                    client=client,
+                    text=part_text,
+                    model=selected_model,
+                    voice=selected_voice,
+                    style=selected_style,
+                )
+                part_dur = _get_wav_duration_seconds(wav_bytes)
+                audio_parts.append(wav_bytes)
+                total_duration += part_dur
+        except Exception as gemini_exc:
+            if os.getenv("GOOGLE_CLOUD_TTS_CREDENTIALS_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                fallback_voice = _normalize_voice_for_provider(selected_voice, "google_cloud_tts")
+                print(
+                    f"      [WARN] Gemini TTS failed ({gemini_exc}). "
+                    f"Falling back to Google Cloud TTS ({fallback_voice})..."
+                )
+                provider = "google_cloud_tts"
+                selected_voice = fallback_voice
+                audio_parts = []
+                total_duration = 0.0
                 input_suffix = ".wav"
             else:
                 raise
@@ -559,31 +673,6 @@ def generate_audio_briefing(
                 part_dur = _get_wav_duration_seconds(wav_bytes)
                 audio_parts.append(wav_bytes)
                 total_duration += part_dur
-    elif provider == "gemini_tts":
-        selected_model = tts_model or os.getenv("GEMINI_TTS_MODEL", DEFAULT_GEMINI_TTS_MODEL)
-        selected_style = style or os.getenv("GEMINI_TTS_STYLE", DEFAULT_ANCHOR_STYLE)
-        client = genai.Client(http_options={"api_version": "v1beta"})
-
-        # Gemini TTS는 파트당 3~4분 내외로 안정적으로 생성되도록 3개 세그먼트씩 묶어 분할
-        chunk_size = 3
-        grouped_parts = [
-            "\n\n".join(text for _, text in segments[i : i + chunk_size])
-            for i in range(0, len(segments), chunk_size)
-        ]
-        grouped_parts = [p for p in grouped_parts if p.strip()]
-
-        for idx, part_text in enumerate(grouped_parts, start=1):
-            print(f"      [Gemini TTS] Part {idx}/{len(grouped_parts)} ({len(part_text)} chars)...")
-            wav_bytes = _synthesize_gemini_tts_part(
-                client=client,
-                text=part_text,
-                model=selected_model,
-                voice=selected_voice,
-                style=selected_style,
-            )
-            part_dur = _get_wav_duration_seconds(wav_bytes)
-            audio_parts.append(wav_bytes)
-            total_duration += part_dur
 
     _concat_audio_parts_to_mp3(
         audio_parts=audio_parts,

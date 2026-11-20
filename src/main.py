@@ -120,13 +120,13 @@ def main() -> int:
         type=str,
         choices=("edge_tts", "google_cloud_tts", "gemini_tts"),
         default=None,
-        help="사용할 TTS 엔진 (기본값: google_cloud_tts)",
+        help="사용할 TTS 엔진 (기본값: gemini_tts)",
     )
     parser.add_argument(
         "--voice",
         type=str,
         default=None,
-        help="앵커 목소리 이름 (기본값: ko-KR-Chirp3-HD-Charon)",
+        help="앵커 목소리 이름 (기본값: Kore)",
     )
     parser.add_argument(
         "--tts-model",
@@ -227,6 +227,7 @@ def main() -> int:
             provider=generated_audio.provider,
             voice=generated_audio.voice,
             chars=total_chars,
+            model=generated_audio.model,
         )
         print(usage_tracker.format_console_summary())
 

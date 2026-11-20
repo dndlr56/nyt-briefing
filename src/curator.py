@@ -97,8 +97,13 @@ SUMMARY_SYSTEM_INSTRUCTION = """당신은 한국인 독자를 위한 글로벌 �
 """
 
 
-DEFAULT_SELECTION_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_SUMMARY_MODEL = "gemini-3.8-flash"
+DEFAULT_SELECTION_MODEL = "gemini-4-hydrogen"
+DEFAULT_SUMMARY_MODEL = "gemini-4-hydrogen"
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
 
 
 def select_articles(
@@ -141,37 +146,41 @@ def select_articles(
     last_exc: Exception | None = None
     result: SelectionResult | None = None
     for attempt in range(1, 4):
-        interaction = client.interactions.create(
-            model=selected_model,
-            system_instruction=SELECTION_SYSTEM_INSTRUCTION,
-            input=prompt,
-            response_mime_type="application/json",
-            response_format=SelectionResult.model_json_schema(),
-            generation_config={
-                "thinking_level": "low",
-                "max_output_tokens": 8192,
-            },
-            store=False,
-        )
-        if usage_tracker is not None:
-            usage_tracker.add_interaction(interaction, stage="기사 선별", model=selected_model)
+        try:
+            interaction = client.interactions.create(
+                model=selected_model,
+                system_instruction=SELECTION_SYSTEM_INSTRUCTION,
+                input=prompt,
+                response_mime_type="application/json",
+                response_format=SelectionResult.model_json_schema(),
+                generation_config={
+                    "thinking_level": "low",
+                    "max_output_tokens": 8192,
+                },
+                store=False,
+            )
+            if usage_tracker is not None:
+                usage_tracker.add_interaction(interaction, stage="기사 선별", model=selected_model)
 
-        raw_json = interaction.output_text
-        if not raw_json:
-            last_exc = RuntimeError("1단계 기사 선별 중 Gemini API로부터 빈 응답을 받았습니다.")
-        else:
-            try:
+            raw_json = interaction.output_text
+            if not raw_json:
+                last_exc = RuntimeError("1단계 기사 선별 중 Gemini API로부터 빈 응답을 받았습니다.")
+            else:
                 result = SelectionResult.model_validate_json(raw_json)
                 break
-            except ValidationError as exc:
-                last_exc = exc
+        except (ValidationError, Exception) as exc:
+            last_exc = exc
 
         if attempt < 3:
-            print(f"      [WARN] Stage 1 JSON parse failed (attempt {attempt}/3): {last_exc}. Retrying...")
-            time.sleep(2 * attempt)
+            wait_sec = 20 * attempt if _is_rate_limit_error(last_exc) else 3 * attempt
+            print(
+                f"      [WARN] Stage 1 failed (attempt {attempt}/3): {last_exc}. "
+                f"Retrying in {wait_sec}s..."
+            )
+            time.sleep(wait_sec)
 
     if result is None:
-        raise RuntimeError(f"1단계 기사 선별 JSON 파싱 3회 실패: {last_exc}")
+        raise RuntimeError(f"1단계 기사 선별 3회 실패: {last_exc}")
 
     selected_pairs: list[tuple[ArticleCandidate, str]] = []
     seen: set[str] = set()
@@ -223,32 +232,36 @@ def summarize_full_articles(
 
     last_exc: Exception | None = None
     for attempt in range(1, 4):
-        interaction = client.interactions.create(
-            model=selected_model,
-            system_instruction=SUMMARY_SYSTEM_INSTRUCTION,
-            input=prompt,
-            response_mime_type="application/json",
-            response_format=DailyBriefing.model_json_schema(),
-            generation_config={
-                "thinking_level": "low",
-                "max_output_tokens": 16384,
-            },
-            store=False,
-        )
-        if usage_tracker is not None:
-            usage_tracker.add_interaction(interaction, stage="텍스트 요약", model=selected_model)
+        try:
+            interaction = client.interactions.create(
+                model=selected_model,
+                system_instruction=SUMMARY_SYSTEM_INSTRUCTION,
+                input=prompt,
+                response_mime_type="application/json",
+                response_format=DailyBriefing.model_json_schema(),
+                generation_config={
+                    "thinking_level": "low",
+                    "max_output_tokens": 16384,
+                },
+                store=False,
+            )
+            if usage_tracker is not None:
+                usage_tracker.add_interaction(interaction, stage="텍스트 요약", model=selected_model)
 
-        raw_json = interaction.output_text
-        if not raw_json:
-            last_exc = RuntimeError("2단계 기사 요약 중 Gemini API로부터 빈 응답을 받았습니다.")
-        else:
-            try:
+            raw_json = interaction.output_text
+            if not raw_json:
+                last_exc = RuntimeError("2단계 기사 요약 중 Gemini API로부터 빈 응답을 받았습니다.")
+            else:
                 return DailyBriefing.model_validate_json(raw_json)
-            except ValidationError as exc:
-                last_exc = exc
+        except (ValidationError, Exception) as exc:
+            last_exc = exc
 
         if attempt < 3:
-            print(f"      [WARN] Stage 2 summary JSON parse failed (attempt {attempt}/3): {last_exc}. Retrying...")
-            time.sleep(2 * attempt)
+            wait_sec = 20 * attempt if _is_rate_limit_error(last_exc) else 3 * attempt
+            print(
+                f"      [WARN] Stage 2 summary failed (attempt {attempt}/3): {last_exc}. "
+                f"Retrying in {wait_sec}s..."
+            )
+            time.sleep(wait_sec)
 
-    raise RuntimeError(f"2단계 기사 요약 JSON 파싱 3회 실패: {last_exc}")
+    raise RuntimeError(f"2단계 기사 요약 3회 실패: {last_exc}")
