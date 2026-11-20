@@ -1,6 +1,10 @@
 name: Deep Dive Knowledge Briefing
 
 on:
+  push:
+    # feat/deep-dive-briefing 테스트 전용: 푸시 시 오디오 생략(skip_audio=true)으로 요약·웹 리더·토큰만 실측
+    branches:
+      - feat/deep-dive-briefing
   schedule:
     # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오전 7시 30분 = UTC 22시 30분
     # (매일 07:00 KST 뉴스 브리핑과 30분 간격 + concurrency 그룹으로 gh-pages 충돌 방지)
@@ -151,7 +155,10 @@ jobs:
           SOURCE_URL=""
           SKIP_AUDIO="false"
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "push" ]; then
+            SKIP_AUDIO="true"
+            echo "[INFO] Feature branch push test: running summary-only mode (--skip-audio)."
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             THEME="${{ inputs.theme }}"
             TARGET_MINUTES="${{ inputs.target_minutes }}"
             API_TIER="${{ inputs.api_tier }}"
