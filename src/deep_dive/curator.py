@@ -93,7 +93,7 @@ def curate_candidates(
     ):
         raw_thinking = "low"
     thinking_level = raw_thinking
-    client = genai.Client()
+    client = genai.Client(http_options={"api_version": "v1beta"})
 
     last_exc: Exception | None = None
     for attempt in range(1, 4):

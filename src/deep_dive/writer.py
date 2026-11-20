@@ -156,7 +156,7 @@ def generate_study_note(
     note_thinking = sanitize_thinking_level(
         selected_model, os.getenv("DEEP_NOTE_THINKING", DEFAULT_NOTE_THINKING)
     )
-    client = genai.Client()
+    client = genai.Client(http_options={"api_version": "v1beta"})
 
     today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일")
     mode_label = (
@@ -223,7 +223,7 @@ def generate_longform_script(
     chapter_count = max(1, len(note.chapters))
     per_chapter_target = max(1200, (total_target_chars - opening_target - closing_target) // chapter_count)
 
-    client = genai.Client()
+    client = genai.Client(http_options={"api_version": "v1beta"})
     docs_context = _build_documents_context(docs)
     today_title_date = datetime.now(KST).strftime("%Y.%m.%d")
     episode_title = f"[{theme.label_kr}] {note.episode_title_kr} | {today_title_date}"
