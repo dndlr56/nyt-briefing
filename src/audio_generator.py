@@ -595,21 +595,23 @@ def _concat_audio_parts_to_mp3(
             path.unlink(missing_ok=True)
 
 
-def generate_audio_briefing(
-    script: RoundupAudioScript,
+def generate_audio_from_segments(
+    segments: list[tuple[str, str]],
     output_mp3: Path,
     tts_provider: str | None = None,
     voice: str | None = None,
     tts_model: str | None = None,
     style: str | None = None,
+    max_gemini_parts: int | None = None,
+    pause_seconds: float = SEGMENT_PAUSE_SECONDS,
 ) -> GeneratedAudio:
-    """라운드업 대본을 단일 앵커 목소리로 합성해 하나의 MP3 파일로 결합합니다."""
+    """임의의 (라벨, 발화 텍스트) 세그먼트 리스트를 단일 MP3 파일로 합성합니다."""
     provider = (tts_provider or os.getenv("TTS_PROVIDER") or DEFAULT_TTS_PROVIDER).strip().lower()
     if provider not in ("edge_tts", "google_cloud_tts", "gemini_tts"):
         raise ValueError(f"지원하지 않는 TTS 프로바이더입니다: {provider}")
 
-    segments = get_script_segments(script)
-    if not segments:
+    cleaned_segments = [(label, text.strip()) for label, text in segments if text and text.strip()]
+    if not cleaned_segments:
         raise ValueError("음성으로 합성할 대본이 비어 있습니다.")
 
     selected_voice = _normalize_voice_for_provider(voice, provider)
@@ -623,7 +625,7 @@ def generate_audio_briefing(
             selected_model = "microsoft-edge-tts"
             input_suffix = ".mp3"
             audio_parts = _synthesize_edge_tts_all_segments(
-                segments=segments,
+                segments=cleaned_segments,
                 voice_name=selected_voice,
             )
         except Exception as edge_exc:
@@ -646,7 +648,8 @@ def generate_audio_briefing(
             selected_style = style if style is not None else os.getenv("GEMINI_TTS_STYLE", DEFAULT_ANCHOR_STYLE)
             client = genai.Client(http_options={"api_version": "v1beta"})
 
-            grouped_parts = _group_segments_balanced(segments, max_parts=GEMINI_TTS_MAX_PARTS)
+            part_limit = max_gemini_parts if max_gemini_parts is not None else GEMINI_TTS_MAX_PARTS
+            grouped_parts = _group_segments_balanced(cleaned_segments, max_parts=part_limit)
 
             last_call_start = 0.0
             for idx, part_text in enumerate(grouped_parts, start=1):
@@ -689,18 +692,30 @@ def generate_audio_briefing(
                 total_duration = 0.0
                 input_suffix = ".wav"
             else:
-                raise
+                print(
+                    f"      [WARN] Gemini TTS failed ({gemini_exc}). "
+                    f"Falling back to Edge TTS ({DEFAULT_EDGE_TTS_VOICE})..."
+                )
+                provider = "edge_tts"
+                selected_voice = DEFAULT_EDGE_TTS_VOICE
+                selected_model = "microsoft-edge-tts"
+                input_suffix = ".mp3"
+                total_duration = 0.0
+                audio_parts = _synthesize_edge_tts_all_segments(
+                    segments=cleaned_segments,
+                    voice_name=selected_voice,
+                )
 
     if provider == "google_cloud_tts":
         auth_headers = _get_cloud_tts_auth_headers()
         selected_model = "google-cloud-tts"
 
-        for idx, (label, text) in enumerate(segments, start=1):
+        for idx, (label, text) in enumerate(cleaned_segments, start=1):
             chunks = _split_text_by_utf8_bytes(text)
             for chunk_idx, chunk in enumerate(chunks, start=1):
                 suffix = f" (part {chunk_idx}/{len(chunks)})" if len(chunks) > 1 else ""
                 print(
-                    f"      [Cloud TTS] {idx}/{len(segments)} {label}{suffix} "
+                    f"      [Cloud TTS] {idx}/{len(cleaned_segments)} {label}{suffix} "
                     f"({len(chunk)} chars, {len(chunk.encode('utf-8'))} bytes)..."
                 )
                 wav_bytes = _synthesize_cloud_tts_chunk(
@@ -716,6 +731,7 @@ def generate_audio_briefing(
         audio_parts=audio_parts,
         output_mp3=output_mp3,
         input_suffix=input_suffix,
+        pause_seconds=pause_seconds,
     )
 
     probed_duration = _get_media_duration_seconds(output_mp3)
@@ -723,7 +739,7 @@ def generate_audio_briefing(
         final_duration = probed_duration
     else:
         if len(audio_parts) > 1:
-            total_duration += SEGMENT_PAUSE_SECONDS * (len(audio_parts) - 1)
+            total_duration += pause_seconds * (len(audio_parts) - 1)
         final_duration = total_duration
 
     return GeneratedAudio(
@@ -734,3 +750,497 @@ def generate_audio_briefing(
         model=selected_model,
         provider=provider,
     )
+
+
+def generate_audio_briefing(
+    script: RoundupAudioScript,
+    output_mp3: Path,
+    tts_provider: str | None = None,
+    voice: str | None = None,
+    tts_model: str | None = None,
+    style: str | None = None,
+) -> GeneratedAudio:
+    """라운드업 대본을 단일 앵커 목소리로 합성해 하나의 MP3 파일로 결합합니다."""
+    segments = get_script_segments(script)
+    return generate_audio_from_segments(
+        segments=segments,
+        output_mp3=output_mp3,
+        tts_provider=tts_provider,
+        voice=voice,
+        tts_model=tts_model,
+        style=style,
+    )
+
+
+DEFAULT_DEEP_GEMINI_TTS_MODEL = "gemini-3.8-flash-lite-tts"
+
+DEFAULT_GEMINI_DIALOGUE_VOICES: dict[str, str] = {
+    "S1": "Kore",    # 여성: 단정·또렷 (사회자)
+    "S2": "Charon",  # 남성 1: 차분·지적 (패널)
+    "S3": "Puck",    # 남성 2: 경쾌·선명 (보조 패널)
+}
+
+DEFAULT_EDGE_DIALOGUE_VOICES: dict[str, str] = {
+    "S1": "ko-KR-SunHiNeural",              # 여성: 또렷·자연스러운 진행자/패널 1
+    "S2": "ko-KR-HyunsuMultilingualNeural", # 남성: 차분·지적인 해설 패널
+    "S3": "ko-KR-InJoonNeural",             # 남성: 친근·선명한 보조 패널
+}
+
+DEFAULT_CLOUD_DIALOGUE_VOICES: dict[str, str] = {
+    "S1": "ko-KR-Chirp3-HD-Kore",    # 여성: 단정·또렷
+    "S2": "ko-KR-Chirp3-HD-Charon",  # 남성 1: 차분·지적
+    "S3": "ko-KR-Chirp3-HD-Puck",    # 남성 2: 경쾌·선명
+}
+
+
+def _write_silence_wav(path: Path, duration_seconds: float, sample_rate: int = 24000) -> None:
+    """지정 길이의 24kHz 모노 무음 WAV 파일을 생성합니다."""
+    num_frames = max(1, int(sample_rate * duration_seconds))
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * num_frames)
+
+
+def _concat_dialogue_parts_to_mp3(
+    turn_audios: list[tuple[bytes, bool]],
+    output_mp3: Path,
+    input_suffix: str,
+    turn_pause_seconds: float = 0.28,
+    section_pause_seconds: float = 0.85,
+) -> None:
+    """수십~수백 개의 대화 턴/파트 오디오를 24kHz 모노 WAV로 정규화한 뒤 ffmpeg concat demuxer로 MP3 결합합니다."""
+    if not turn_audios:
+        raise ValueError("결합할 대화 오디오 파트가 없습니다.")
+
+    output_mp3.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="deepdive_dialogue_") as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        turn_sil = tmp_dir / "sil_turn.wav"
+        sec_sil = tmp_dir / "sil_sec.wav"
+        _write_silence_wav(turn_sil, turn_pause_seconds)
+        _write_silence_wav(sec_sil, section_pause_seconds)
+
+        concat_lines: list[str] = []
+        for idx, (audio_bytes, is_section_end) in enumerate(turn_audios):
+            raw_path = tmp_dir / f"raw_{idx:04d}{input_suffix}"
+            wav_path = tmp_dir / f"norm_{idx:04d}.wav"
+            raw_path.write_bytes(audio_bytes)
+
+            norm_cmd = [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                str(raw_path),
+                "-ar",
+                "24000",
+                "-ac",
+                "1",
+                "-c:a",
+                "pcm_s16le",
+                str(wav_path),
+            ]
+            res = subprocess.run(norm_cmd, capture_output=True, text=True, check=False)
+            if res.returncode != 0:
+                raise RuntimeError(f"ffmpeg 턴 WAV 정규화 실패 (turn {idx}): {res.stderr.strip()}")
+            raw_path.unlink(missing_ok=True)
+
+            concat_lines.append(f"file '{wav_path.as_posix()}'")
+            if idx < len(turn_audios) - 1:
+                sil_file = sec_sil if is_section_end else turn_sil
+                concat_lines.append(f"file '{sil_file.as_posix()}'")
+
+        list_file = tmp_dir / "concat_list.txt"
+        list_file.write_text("\n".join(concat_lines) + "\n", encoding="utf-8")
+
+        final_cmd = [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_file),
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "96k",
+            "-ar",
+            "24000",
+            "-ac",
+            "1",
+            str(output_mp3),
+        ]
+        final_res = subprocess.run(final_cmd, capture_output=True, text=True, check=False)
+        if final_res.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg 대화 MP3 결합 실패 (exit {final_res.returncode}): {final_res.stderr.strip()}"
+            )
+
+
+def _group_dialogue_turns_for_gemini(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    max_chars_per_part: int = 2100,
+    prefer_break_min_chars: int = 1100,
+) -> list[tuple[list[tuple[str, str]], bool]]:
+    """
+    2인 대화 턴을 Gemini 3.8 TTS 호출용 파트(~1,500~2,100자, 약 3.5~5분)로 묶습니다.
+    - 20~25분 대본 기준 약 4~5회 호출 -> 무료 티어 10 RPD 한도 내 안정적 처리 + 장문 음색 드리프트 방지
+    - 챕터 경계(is_section_end)를 우선 존중해 자연스럽게 분할
+    반환: [([(speaker_id, text), ...], ends_on_section_boundary), ...]
+    """
+    parts: list[tuple[list[tuple[str, str]], bool]] = []
+    current_turns: list[tuple[str, str]] = []
+    current_chars = 0
+
+    for _, speaker_id, text, is_sec_end in dialogue_items:
+        cleaned = _sanitize_plain_text(text)
+        if not cleaned:
+            continue
+        t_len = len(cleaned)
+        if current_turns and (current_chars + t_len > max_chars_per_part):
+            parts.append((current_turns, False))
+            current_turns = []
+            current_chars = 0
+
+        current_turns.append((speaker_id, cleaned))
+        current_chars += t_len
+
+        if is_sec_end and current_chars >= prefer_break_min_chars:
+            parts.append((current_turns, True))
+            current_turns = []
+            current_chars = 0
+
+    if current_turns:
+        parts.append((current_turns, True))
+
+    return parts
+
+
+def _synthesize_gemini_dialogue_parts(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    voice_map: dict[str, str],
+    tts_model: str = DEFAULT_DEEP_GEMINI_TTS_MODEL,
+    style: str = "calm, clear Korean conversation",
+    gemini_pool: object | None = None,
+    usage_tracker: object | None = None,
+) -> tuple[list[tuple[bytes, bool]], str]:
+    """
+    Gemini 3.8 Flash / Flash-Lite TTS의 네이티브 2인 멀티스피커 API로 대화 파트를 합성합니다.
+    무료 티어 한도 도달 시 gemini_pool을 통해 실행 중간에 유료 프로젝트로 자동 전환합니다.
+    """
+    from deep_dive.gemini_pool import GeminiClientPool
+
+    pool = gemini_pool if isinstance(gemini_pool, GeminiClientPool) else GeminiClientPool()
+    grouped = _group_dialogue_turns_for_gemini(dialogue_items)
+    results: list[tuple[bytes, bool]] = []
+    last_call_start = 0.0
+    tiers_seen: set[str] = set()
+
+    for idx, (chunk_turns, ends_section) in enumerate(grouped, start=1):
+        # 무료 티어(3 RPM)일 때만 22초 간격 유지; 유료 티어로 전환되면 즉시 0.5초 간격으로 가속
+        if idx > 1:
+            min_gap = GEMINI_TTS_MIN_INTERVAL_SECONDS if pool.is_free_tier_for(tts_model) else 0.5
+            elapsed = time.monotonic() - last_call_start
+            if elapsed < min_gap:
+                sleep_sec = min_gap - elapsed
+                if sleep_sec >= 2.0:
+                    print(
+                        f"      [Gemini Dialogue TTS] Free-tier RPM pacing: waiting {sleep_sec:.1f}s..."
+                    )
+                time.sleep(sleep_sec)
+
+        chunk_speakers = sorted({sp for sp, _ in chunk_turns})
+        chunk_chars = sum(len(t) for _, t in chunk_turns)
+        active_tier = pool.active_tier_for(tts_model)
+        print(
+            f"      [Gemini Dialogue TTS] Part {idx}/{len(grouped)} "
+            f"({len(chunk_turns)} turns, {chunk_chars} chars, speakers={chunk_speakers}, "
+            f"model={tts_model}, tier={active_tier})..."
+        )
+
+        if len(chunk_speakers) >= 2:
+            speech_config = [
+                {
+                    "speaker": sp,
+                    "voice": voice_map.get(sp, DEFAULT_GEMINI_DIALOGUE_VOICES.get(sp, "Kore")),
+                }
+                for sp in chunk_speakers
+            ]
+            input_parts = []
+            for sp, txt in chunk_turns:
+                meta: dict[str, object] = {"type": "speech_metadata", "speaker": sp}
+                if style and style.strip():
+                    meta["style"] = style.strip()
+                input_parts.append(
+                    {
+                        "type": "text",
+                        "text": txt,
+                        "annotations": [meta],
+                    }
+                )
+        else:
+            only_sp = chunk_speakers[0]
+            only_voice = voice_map.get(only_sp, DEFAULT_GEMINI_DIALOGUE_VOICES.get(only_sp, "Kore"))
+            speech_config = [{"voice": only_voice}]
+            merged_text = "\n\n".join(txt for _, txt in chunk_turns)
+            part_obj: dict[str, object] = {"type": "text", "text": merged_text}
+            if style and style.strip():
+                part_obj["annotations"] = [{"type": "speech_metadata", "style": style.strip()}]
+            input_parts = [part_obj]
+
+        last_call_start = time.monotonic()
+        interaction, actual_tier = pool.create_interaction(
+            model=tts_model,
+            stage=f"TTS Part {idx}/{len(grouped)}",
+            usage_tracker=usage_tracker,  # type: ignore[arg-type]
+            input=input_parts,
+            response_format={"type": "audio"},
+            generation_config={"speech_config": speech_config},
+            store=False,
+        )
+        tiers_seen.add(actual_tier)
+
+        output_audio = getattr(interaction, "output_audio", None)
+        raw_data = getattr(output_audio, "data", None) if output_audio is not None else None
+        if not raw_data:
+            raise RuntimeError(f"Gemini Dialogue TTS Part {idx}: 오디오 응답이 비어 있습니다.")
+
+        if isinstance(raw_data, bytes):
+            wav_bytes = raw_data
+        elif isinstance(raw_data, str):
+            wav_bytes = base64.b64decode(raw_data)
+        else:
+            raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
+
+        results.append((wav_bytes, ends_section))
+
+    final_tier = "paid" if "paid" in tiers_seen else "free"
+    return results, final_tier
+
+
+def _synthesize_edge_dialogue_turns(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    voice_map: dict[str, str],
+    rate: str = "+0%",
+) -> list[tuple[bytes, bool]]:
+    """Edge TTS로 다중 화자 대화 턴을 순차 합성합니다."""
+    async def _run_all() -> list[tuple[bytes, bool]]:
+        results: list[tuple[bytes, bool]] = []
+        total = len(dialogue_items)
+        for idx, (sec_label, speaker_id, text, is_sec_end) in enumerate(dialogue_items, start=1):
+            voice_name = voice_map.get(speaker_id, DEFAULT_EDGE_DIALOGUE_VOICES["S1"])
+            chunks = _split_text_by_utf8_bytes(text, max_bytes=EDGE_TTS_MAX_UTF8_BYTES)
+            turn_bytes: list[bytes] = []
+            print(
+                f"      [Edge Dialogue TTS] Turn {idx}/{total} ({speaker_id}:{voice_name}, "
+                f"{sec_label}, {len(text)} chars)..."
+            )
+            for chunk in chunks:
+                mp3_bytes = await _synthesize_edge_tts_chunk_async(
+                    text=chunk,
+                    voice_name=voice_name,
+                    rate=rate,
+                )
+                turn_bytes.append(mp3_bytes)
+                await asyncio.sleep(0.45)
+            results.append((b"".join(turn_bytes), is_sec_end))
+        return results
+
+    return asyncio.run(_run_all())
+
+
+def _synthesize_cloud_dialogue_turns(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    voice_map: dict[str, str],
+    max_workers: int = 4,
+) -> list[tuple[bytes, bool]]:
+    """Google Cloud TTS(Chirp3-HD 다중 화자)로 대화 턴을 병렬 합성하고 원래 순서를 보존합니다."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    auth_headers = _get_cloud_tts_auth_headers()
+    total = len(dialogue_items)
+    print(
+        f"      [Cloud Dialogue TTS] {total}개 턴 병렬 합성 시작 (workers={min(max_workers, max(1, total))})..."
+    )
+
+    def _synth_one(item_with_idx: tuple[int, tuple[str, str, str, bool]]) -> list[tuple[bytes, bool]]:
+        idx, (sec_label, speaker_id, text, is_sec_end) = item_with_idx
+        voice_name = voice_map.get(speaker_id, DEFAULT_CLOUD_DIALOGUE_VOICES["S1"])
+        chunks = _split_text_by_utf8_bytes(text)
+        out: list[tuple[bytes, bool]] = []
+        for c_idx, chunk in enumerate(chunks):
+            wav_bytes: bytes | None = None
+            last_err: Exception | None = None
+            for attempt in range(1, 4):
+                try:
+                    wav_bytes = _synthesize_cloud_tts_chunk(
+                        text=chunk,
+                        voice_name=voice_name,
+                        auth_headers=auth_headers,
+                    )
+                    break
+                except Exception as exc:
+                    last_err = exc
+                    err_str = str(exc)
+                    if "(401)" in err_str or "(403)" in err_str or "(400)" in err_str:
+                        raise
+                    if attempt < 3:
+                        time.sleep(1.5 * attempt)
+            if wav_bytes is None:
+                raise RuntimeError(f"Cloud Dialogue TTS 턴 {idx} ({sec_label}) 실패: {last_err}")
+            is_last_chunk = c_idx == len(chunks) - 1
+            out.append((wav_bytes, is_sec_end if is_last_chunk else False))
+        return out
+
+    indexed = list(enumerate(dialogue_items, start=1))
+    results: list[tuple[bytes, bool]] = []
+    with ThreadPoolExecutor(max_workers=min(max_workers, max(1, total))) as executor:
+        for turn_chunks in executor.map(_synth_one, indexed):
+            results.extend(turn_chunks)
+    print(f"      [Cloud Dialogue TTS] {total}개 턴 병렬 합성 완료.")
+    return results
+
+
+def generate_dialogue_audio(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    output_mp3: Path,
+    tts_provider: str | None = None,
+    tts_model: str | None = None,
+    speaker_voice_map: dict[str, str] | None = None,
+    turn_pause_seconds: float = 0.28,
+    section_pause_seconds: float = 0.85,
+    gemini_pool: object | None = None,
+    usage_tracker: object | None = None,
+) -> GeneratedAudio:
+    """
+    2~3인 대화형 대본을 화자별 서로 다른 한국어 목소리로 합성해 하나의 MP3로 결합합니다.
+    - gemini_tts (2인 기본 추천): gemini-3.8-flash-lite-tts 네이티브 2인 대화 + 무료->유료 자동 전환
+      (예외적으로 3인 화자가 선택된 경우 자동으로 Google Cloud Chirp3-HD 3화자 병렬 합성으로 우회)
+    - google_cloud_tts: ko-KR-Chirp3-HD-Kore (S1) / Charon (S2) / Puck (S3) 4스레드 병렬 합성
+    - edge_tts: ko-KR-SunHiNeural (S1) / ko-KR-HyunsuMultilingualNeural (S2) / ko-KR-InJoonNeural (S3)
+    """
+    provider = (tts_provider or "gemini_tts").strip().lower()
+    if provider not in ("gemini_tts", "google_cloud_tts", "edge_tts"):
+        raise ValueError(f"대화형 TTS가 지원하지 않는 프로바이더입니다: {provider}")
+
+    cleaned = [
+        (sec, sp, txt.strip(), is_end)
+        for sec, sp, txt, is_end in dialogue_items
+        if txt and txt.strip()
+    ]
+    if not cleaned:
+        raise ValueError("합성할 대화 턴이 비어 있습니다.")
+
+    speaker_ids_used = sorted({sp for _, sp, _, _ in cleaned})
+    has_cloud_creds = bool(
+        os.getenv("GOOGLE_CLOUD_TTS_CREDENTIALS_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    )
+    turn_audios: list[tuple[bytes, bool]] = []
+    input_suffix = ".wav"
+    selected_model = tts_model or DEFAULT_DEEP_GEMINI_TTS_MODEL
+    used_voices: dict[str, str] = {}
+
+    if provider == "gemini_tts":
+        if len(speaker_ids_used) > 2:
+            if has_cloud_creds:
+                print(
+                    "      [INFO] 3인 대화 구성은 Gemini TTS(단일 요청 최대 2화자) 대신 "
+                    "Google Cloud Chirp3-HD 3화자 병렬 엔진으로 합성합니다."
+                )
+                provider = "google_cloud_tts"
+            else:
+                print(
+                    "      [INFO] 3인 대화 구성은 Edge TTS 3화자 엔진으로 합성합니다."
+                )
+                provider = "edge_tts"
+        else:
+            voice_map = {**DEFAULT_GEMINI_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+            used_voices = voice_map
+            try:
+                turn_audios, _ = _synthesize_gemini_dialogue_parts(
+                    dialogue_items=cleaned,
+                    voice_map=voice_map,
+                    tts_model=selected_model,
+                    gemini_pool=gemini_pool,
+                    usage_tracker=usage_tracker,
+                )
+                input_suffix = ".wav"
+            except Exception as gem_exc:
+                if has_cloud_creds:
+                    print(
+                        f"      [WARN] Gemini Dialogue TTS failed ({gem_exc}). "
+                        "Falling back to Google Cloud Chirp3-HD parallel multi-speaker..."
+                    )
+                    provider = "google_cloud_tts"
+                else:
+                    print(
+                        f"      [WARN] Gemini Dialogue TTS failed ({gem_exc}). "
+                        "Falling back to Edge TTS multi-speaker..."
+                    )
+                    provider = "edge_tts"
+
+    if provider == "edge_tts":
+        voice_map = {**DEFAULT_EDGE_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+        used_voices = voice_map
+        try:
+            turn_audios = _synthesize_edge_dialogue_turns(cleaned, voice_map=voice_map)
+            input_suffix = ".mp3"
+            selected_model = "microsoft-edge-tts"
+        except Exception as edge_exc:
+            if has_cloud_creds:
+                print(
+                    f"      [WARN] Edge Dialogue TTS failed ({edge_exc}). "
+                    "Falling back to Google Cloud Chirp3-HD multi-speaker..."
+                )
+                provider = "google_cloud_tts"
+            else:
+                raise
+
+    if provider == "google_cloud_tts":
+        voice_map = {**DEFAULT_CLOUD_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+        used_voices = voice_map
+        try:
+            turn_audios = _synthesize_cloud_dialogue_turns(cleaned, voice_map=voice_map)
+            input_suffix = ".wav"
+            selected_model = "google-cloud-tts-chirp3-hd"
+        except Exception as cloud_exc:
+            print(
+                f"      [WARN] Cloud Dialogue TTS failed ({cloud_exc}). "
+                "Falling back to Edge TTS multi-speaker..."
+            )
+            provider = "edge_tts"
+            voice_map = {**DEFAULT_EDGE_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+            used_voices = voice_map
+            turn_audios = _synthesize_edge_dialogue_turns(cleaned, voice_map=voice_map)
+            input_suffix = ".mp3"
+            selected_model = "microsoft-edge-tts"
+
+    _concat_dialogue_parts_to_mp3(
+        turn_audios=turn_audios,
+        output_mp3=output_mp3,
+        input_suffix=input_suffix,
+        turn_pause_seconds=turn_pause_seconds,
+        section_pause_seconds=section_pause_seconds,
+    )
+
+    probed = _get_media_duration_seconds(output_mp3)
+    voice_summary = ", ".join(f"{sid}={used_voices.get(sid, '')}" for sid in speaker_ids_used)
+
+    return GeneratedAudio(
+        mp3_path=output_mp3,
+        duration_seconds=max(1, round(probed)) if probed > 0 else 1,
+        file_size_bytes=output_mp3.stat().st_size,
+        voice=voice_summary,
+        model=selected_model,
+        provider=provider,
+    )
+
+
+

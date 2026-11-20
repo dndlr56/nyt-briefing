@@ -8,7 +8,7 @@ import os
 from typing import Any
 
 
-# 모델별 100만 토큰당 유료 단가 (USD): (입력, 캐시 입력, 출력/추론)
+# 모델별 100만 토큰당 유료 단가 (USD): (입력, 캐시 입력, 출력/추론 또는 오디오 출력)
 MODEL_PRICING_PER_1M: dict[str, tuple[float, float, float]] = {
     "gemini-4-hydrogen": (1.50, 0.075, 7.50),
     "gemini-4-argon": (2.00, 0.10, 10.00),
@@ -16,6 +16,8 @@ MODEL_PRICING_PER_1M: dict[str, tuple[float, float, float]] = {
     "gemini-3.8-flash": (0.75, 0.075, 3.75),
     "gemini-3.6-flash": (0.75, 0.075, 3.75),
     "gemini-3.5-flash-lite": (0.30, 0.03, 2.50),
+    "gemini-3.8-flash-tts": (0.50, 0.125, 9.00),
+    "gemini-3.8-flash-lite-tts": (0.50, 0.125, 6.00),
 }
 DEFAULT_PRICING_PER_1M: tuple[float, float, float] = (1.50, 0.075, 7.50)
 KRW_PER_USD = 1400
@@ -44,6 +46,7 @@ class GeminiCallUsage:
     output_tokens: int = 0
     thought_tokens: int = 0
     total_tokens: int = 0
+    tier: str = ""  # "free" | "paid" (빈 문자열이면 RunUsageTracker.api_tier 사용)
 
     @property
     def non_cached_input_tokens(self) -> int:
@@ -80,6 +83,7 @@ def extract_interaction_usage(
     interaction: Any,
     stage: str,
     model: str,
+    tier: str = "",
 ) -> GeminiCallUsage:
     """Gemini Interactions API 응답에서 usage 토큰 통계를 안전하게 추출합니다."""
     usage = getattr(interaction, "usage", None)
@@ -97,6 +101,7 @@ def extract_interaction_usage(
             usage, "total_thought_tokens", "thought_tokens", "thoughts_token_count"
         ),
         total_tokens=_read_int(usage, "total_tokens", "total_token_count"),
+        tier=tier,
     )
 
 
@@ -138,6 +143,7 @@ class RunUsageTracker:
     tts_voice: str | None = None
     tts_model: str | None = None
     tts_chars: int = 0
+    tts_tier: str = ""
     api_tier: str = field(
         default_factory=lambda: (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
     )
@@ -150,9 +156,18 @@ class RunUsageTracker:
         if os.getenv("GEMINI_FALLBACK_USED") == "1":
             self.fallback_to_paid = True
 
-    def add_interaction(self, interaction: Any, stage: str, model: str) -> GeminiCallUsage:
+    def add_interaction(
+        self,
+        interaction: Any,
+        stage: str,
+        model: str,
+        tier: str | None = None,
+    ) -> GeminiCallUsage:
         self.refresh_tier_from_env()
-        record = extract_interaction_usage(interaction, stage=stage, model=model)
+        resolved_tier = (tier or self.api_tier or "paid").strip().lower()
+        record = extract_interaction_usage(
+            interaction, stage=stage, model=model, tier=resolved_tier
+        )
         self.calls.append(record)
         return record
 
@@ -162,17 +177,37 @@ class RunUsageTracker:
         voice: str,
         chars: int,
         model: str | None = None,
+        tier: str | None = None,
     ) -> None:
         self.refresh_tier_from_env()
         self.tts_provider = provider
         self.tts_voice = voice
         self.tts_model = model
         self.tts_chars = max(0, int(chars))
+        if tier:
+            self.tts_tier = tier.strip().lower()
+
+    def _effective_call_tier(self, call: GeminiCallUsage) -> str:
+        return (call.tier or self.api_tier or "paid").strip().lower()
+
+    @property
+    def free_call_count(self) -> int:
+        return sum(1 for c in self.calls if self._effective_call_tier(c) == "free")
+
+    @property
+    def paid_call_count(self) -> int:
+        return sum(1 for c in self.calls if self._effective_call_tier(c) != "free")
 
     @property
     def is_free_tier(self) -> bool:
         self.refresh_tier_from_env()
+        if self.calls:
+            return self.paid_call_count == 0
         return self.api_tier == "free"
+
+    @property
+    def is_mixed_tier(self) -> bool:
+        return self.free_call_count > 0 and self.paid_call_count > 0
 
     @property
     def total_input_tokens(self) -> int:
@@ -203,43 +238,81 @@ class RunUsageTracker:
         return seen
 
     def estimate_usd(self) -> float:
+        """전체 호출의 유료 환산 총액 (USD)."""
         return sum(c.estimate_usd() for c in self.calls)
+
+    def actual_paid_usd(self) -> float:
+        """실제 유료 티어에서 실행된 호출만의 예상 청구액 (USD)."""
+        return sum(
+            c.estimate_usd()
+            for c in self.calls
+            if self._effective_call_tier(c) != "free"
+        )
 
     def _tts_cost_label(self) -> str:
         if self.tts_provider == "edge_tts":
             return "무료"
         if self.tts_provider == "google_cloud_tts":
             return "월 100만자 무료 티어 내 $0"
-        if self.tts_provider == "gemini_tts" and self.is_free_tier:
-            return "무료 티어 $0"
-        if self.tts_provider == "gemini_tts" and self.fallback_to_paid:
-            return "무료 한도 초과 → 유료 티어 자동 전환"
+        if self.tts_provider == "gemini_tts":
+            tts_calls = [c for c in self.calls if "tts" in c.model.lower()]
+            if tts_calls:
+                paid_tts = sum(
+                    c.estimate_usd()
+                    for c in tts_calls
+                    if self._effective_call_tier(c) != "free"
+                )
+                equiv_tts = sum(c.estimate_usd() for c in tts_calls)
+                if paid_tts == 0:
+                    return f"무료 티어 $0 (유료 환산 ${equiv_tts:.4f})"
+                if any(self._effective_call_tier(c) == "free" for c in tts_calls):
+                    return f"무료+유료 전환 (실청구 ${paid_tts:.4f} / 전체 환산 ${equiv_tts:.4f})"
+                return f"유료 약 ${paid_tts:.4f}"
+            if self.fallback_to_paid:
+                return "무료 한도 초과 → 유료 티어 자동 전환"
+            eff_tier = self.tts_tier or self.api_tier
+            return "무료 티어 $0" if eff_tier == "free" else "유료 과금"
         return "유료 과금"
 
     def format_console_summary(self) -> str:
         self.refresh_tier_from_env()
-        usd = self.estimate_usd()
-        krw = round(usd * KRW_PER_USD)
+        total_equiv_usd = self.estimate_usd()
+        total_equiv_krw = round(total_equiv_usd * KRW_PER_USD)
+        paid_usd = self.actual_paid_usd()
+        paid_krw = round(paid_usd * KRW_PER_USD)
         models = ", ".join(self.models_used) or "unknown"
-        if self.is_free_tier:
+
+        if self.is_mixed_tier:
+            tier_label = "free->paid"
+            cost_summary = (
+                f"PAID ${paid_usd:.4f} (~{paid_krw:,} KRW) "
+                f"[free {self.free_call_count} + paid {self.paid_call_count} calls, "
+                f"full equiv. ${total_equiv_usd:.4f}]"
+            )
+        elif self.is_free_tier:
             tier_label = "free"
-            cost_str = f"FREE TIER $0 (paid equiv. ${usd:.4f} (~{krw:,} KRW))"
+            cost_summary = (
+                f"FREE TIER $0 (paid equiv. ${total_equiv_usd:.4f} (~{total_equiv_krw:,} KRW))"
+            )
         elif self.fallback_to_paid:
             tier_label = "free->paid"
-            cost_str = f"PAID FALLBACK est. ${usd:.4f} (~{krw:,} KRW)"
+            cost_summary = f"PAID FALLBACK est. ${paid_usd:.4f} (~{paid_krw:,} KRW)"
         else:
             tier_label = self.api_tier
-            cost_str = f"est. ${usd:.4f} (~{krw:,} KRW)"
+            cost_summary = f"est. ${paid_usd:.4f} (~{paid_krw:,} KRW)"
 
         lines = [
             f"      [Usage] Gemini ({models}, tier={tier_label}): "
             f"input={self.total_input_tokens:,} (cached={self.total_cached_tokens:,}), "
             f"output={self.total_billable_output_tokens:,} (thought={self.total_thought_tokens:,}), "
-            f"total={self.total_tokens:,} tokens | {cost_str}"
+            f"total={self.total_tokens:,} tokens | {cost_summary}"
         ]
         for c in self.calls:
+            c_tier = self._effective_call_tier(c)
+            tag = "[FREE]" if c_tier == "free" else "[PAID]"
             lines.append(
-                f"              - {c.stage}: in={c.input_tokens:,}, "
+                f"              - {tag} {c.stage} ({c.model}): in={c.input_tokens:,} "
+                f"(cached={c.cached_input_tokens:,}), "
                 f"out={c.billable_output_tokens:,} (thought={c.thought_tokens:,}), "
                 f"est. ${c.estimate_usd():.4f}"
             )
@@ -257,8 +330,10 @@ class RunUsageTracker:
         if not self.calls and not self.tts_provider:
             return ""
 
-        usd = self.estimate_usd()
-        krw = round(usd * KRW_PER_USD)
+        total_equiv_usd = self.estimate_usd()
+        total_equiv_krw = round(total_equiv_usd * KRW_PER_USD)
+        paid_usd = self.actual_paid_usd()
+        paid_krw = round(paid_usd * KRW_PER_USD)
         models_str = html.escape(", ".join(self.models_used) or "Gemini")
 
         items: list[str] = []
@@ -279,17 +354,22 @@ class RunUsageTracker:
                 f"출력 {self.total_billable_output_tokens:,}{out_extra} = "
                 f"총 {self.total_tokens:,} 토큰"
             )
-            if self.is_free_tier:
+            if self.is_mixed_tier:
                 items.append(
-                    f"• 예상 API 비용: 무료 티어 $0 (유료 환산 약 ${usd:.4f} · 약 {krw:,}원)"
+                    f"• 예상 API 비용: 무료 {self.free_call_count}회($0) + 유료 전환 {self.paid_call_count}회 "
+                    f"실청구 약 ${paid_usd:.4f} (약 {paid_krw:,}원 · 전체 유료 환산 ${total_equiv_usd:.4f})"
+                )
+            elif self.is_free_tier:
+                items.append(
+                    f"• 예상 API 비용: 무료 티어 $0 (유료 환산 약 ${total_equiv_usd:.4f} · 약 {total_equiv_krw:,}원)"
                 )
             elif self.fallback_to_paid:
                 items.append(
-                    f"• 예상 API 비용: 무료 한도 초과로 유료 전환 · 약 ${usd:.4f} (약 {krw:,}원 기준)"
+                    f"• 예상 API 비용: 무료 한도 초과로 유료 전환 · 약 ${paid_usd:.4f} (약 {paid_krw:,}원 기준)"
                 )
             else:
                 items.append(
-                    f"• 예상 API 비용: 약 ${usd:.4f} (약 {krw:,}원 · 유료 단가/환율 {KRW_PER_USD:,}원 기준)"
+                    f"• 예상 API 비용: 약 ${paid_usd:.4f} (약 {paid_krw:,}원 · 유료 단가/환율 {KRW_PER_USD:,}원 기준)"
                 )
 
         if self.tts_provider:
@@ -302,7 +382,7 @@ class RunUsageTracker:
             )
             items.append(
                 f"• 음성 합성(TTS): {prov}{model_part} (<code>{voice}</code>) · "
-                f"{self.tts_chars:,}자 ({self._tts_cost_label()})"
+                f"{self.tts_chars:,}자 ({html.escape(self._tts_cost_label())})"
             )
 
         body = "<br/>".join(items)
