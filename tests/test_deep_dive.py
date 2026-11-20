@@ -17,15 +17,15 @@ if str(SRC_DIR) not in sys.path:
 from deep_dive.drive_archiver import is_drive_configured
 from deep_dive.models import (
     ChapterBlueprint,
-    ComparisonRow,
     CurationDecision,
     CuratedPick,
     DeepDiveScript,
     DeepDiveStudyNote,
     FetchedDocument,
     KeyQuote,
-    KeyTerm,
     SourceCandidate,
+    SummarySection,
+    SummaryTableRow,
 )
 from deep_dive.notifier import build_deep_dive_telegram_message
 from deep_dive.sources import _looks_paywalled, fetch_rss_candidates
@@ -38,57 +38,58 @@ KST = timezone(timedelta(hours=9))
 
 def _sample_note() -> DeepDiveStudyNote:
     return DeepDiveStudyNote(
-        episode_title_kr="메타인지와 인출 연습이 장기 기억을 재편하는 신경 메커니즘",
-        subtitle_kr="단순 반복 읽기가 실패하는 이유와 고효율 학습의 인지신경과학적 근거",
+        episode_title_kr="메타인지와 인출 연습이 장기 기억을 강화하는 메커니즘",
+        subtitle_kr="반복 읽기보다 능동적 인출이 지연 기억 유지에 효과적인 이유를 정리한 리뷰",
         tldr_bullets=[
-            "인출 연습(Retrieval Practice)은 재독 대비 1주 후 기억 유지율을 유의미하게 높인다.",
-            "메타인지적 착각(Illusion of Competence)은 친숙함을 이해로 오인하게 만든다.",
-            "간격 효과(Spacing Effect)와 결합할 때 해마-신피질 공고화가 극대화된다.",
+            "인출 연습은 단순 재독 대비 1주 후 기억 유지율을 유의미하게 높인다.",
+            "텍스트의 친숙함을 이해로 오인하는 착각이 비효율적 학습 전략 선택으로 이어진다.",
+            "간격 복습과 결합할 때 장기 기억 공고화 효과가 가장 크게 나타났다.",
         ],
-        executive_thesis_kr="저자들은 수동적 재독보다 능동적 인출이 기억 공고화에 결정적임을 보인다.",
-        background_context_kr="전통적 학습법은 반복 읽기와 형광펜 표시에 의존해 왔다.",
-        methodology_and_argument_kr="다기관 무작위 대조 실험과 fMRI 메타분석을 결합해 인출 시 전전두엽-해마 연결성을 측정했다.",
-        core_findings_kr=[
-            "능동 인출 집단은 7일 지연 검사에서 재독 집단보다 높은 회상률을 기록했다.",
-            "오답 직후의 즉각적 피드백이 오류 고착을 방지하고 기억 흔적을 강화한다.",
-            "학습자가 스스로 느끼는 주관적 유창성과 실제 장기 기억 성과는 역상관을 보일 수 있다.",
+        overview_and_purpose_kr="이 리뷰는 수동적 반복 읽기와 능동적 인출 연습의 장기 기억 효과를 비교한 실험 연구들을 종합한다.",
+        methodology_and_evidence_kr="다기관 무작위 대조 실험과 뇌영상 메타분석 결과를 종합해 지연 회상률과 전전두엽-해마 연결성을 비교했다.",
+        body_sections=[
+            SummarySection(
+                heading_kr="단순 반복 읽기의 한계와 유창성 착각",
+                content_kr="학습자는 본문을 여러 번 읽을 때 느껴지는 친숙함을 실제 이해로 오인하는 경향이 있다. 그러나 일주일 뒤 지연 시험에서는 단순 재독 집단의 회상률이 급격히 하락했다.",
+            ),
+            SummarySection(
+                heading_kr="능동적 인출이 기억 흔적을 재구성하는 과정",
+                content_kr="기억에서 정보를 스스로 꺼내는 과정 자체가 단서와 목표 정보 사이의 연결 경로를 강화한다. 특히 오답 직후 즉각적인 피드백이 제공될 때 오류 고착이 방지된다.",
+            ),
+            SummarySection(
+                heading_kr="간격 복습과 난이도 조절의 상호작용",
+                content_kr="인출 연습을 시간 간격을 두고 분산 배치할수록 단기 성취는 낮아 보여도 장기 유지율은 일관되게 상승했다.",
+            ),
         ],
-        comparison_table=[
-            ComparisonRow(dimension="핵심 메커니즘", detail_kr="단순 재노출 vs 능동 인출 경로 강화"),
-            ComparisonRow(dimension="주관적 체감", detail_kr="재독은 쉽고 편함 vs 인출은 인지적 부하가 큼"),
-            ComparisonRow(dimension="장기 유지율", detail_kr="지연 테스트에서 인출 연습이 압도적 우위"),
+        summary_table=[
+            SummaryTableRow(item="핵심 메커니즘", detail_kr="단순 재노출 대비 능동 인출 경로 강화"),
+            SummaryTableRow(item="학습 당시 체감", detail_kr="재독은 수월하지만 인출은 인지적 부하가 큼"),
+            SummaryTableRow(item="지연 회상 성과", detail_kr="7일 이상 지연 검사에서 인출 연습이 일관된 우위"),
         ],
-        limitations_and_critique_kr=[
-            "실험실 단어/지문 과제 중심이어서 복합적 법학 사례 적용에는 추가 검증이 필요하다.",
-            "극심한 시간 압박 상황에서의 인출 실패가 학습 동기를 저하시킬 수 있다.",
+        author_stated_limitations_kr=[
+            "저자들은 분석 대상 실험 상당수가 단어·단문 과제여서 복합적 실전 문제 해결에 대한 장기 추적 연구가 더 필요하다고 밝혔다.",
         ],
-        practical_takeaways_kr=[
-            "로스쿨 판례 학습 시 요약본 재독 대신 쟁점·판시 구조를 백지에 인출하는 훈련이 효과적이다.",
-            "투자 복기 시 매수 당시의 가설을 기록하고 사후에 능동 회상·검증하면 확증편향을 줄일 수 있다.",
-        ],
-        key_terms=[
-            KeyTerm(term_kr="인출 연습", term_en="Retrieval Practice", explanation_kr="기억에서 정보를 능동적으로 꺼내는 과정 자체가 기억을 강화하는 원리."),
-            KeyTerm(term_kr="유능감 착각", term_en="Illusion of Competence", explanation_kr="텍스트가 눈에 익은 상태를 완전히 이해했다고 착각하는 메타인지 오류."),
-            KeyTerm(term_kr="바람직한 어려움", term_en="Desirable Difficulty", explanation_kr="학습 당시에는 어렵지만 장기 기억을 강화하는 적절한 인지적 저항."),
-            KeyTerm(term_kr="기억 공고화", term_en="Memory Consolidation", explanation_kr="단기 기억 흔적이 장기 기억 네트워크로 안정화되는 신경 과정."),
+        author_conclusions_kr=[
+            "교육 현장에서는 단순 복습보다 저부담 형성 평가와 즉각 피드백을 결합하는 설계가 권장된다.",
+            "학습자는 즉각적인 유창성보다 지연 인출 성공 여부를 기준으로 이해도를 점검해야 한다.",
         ],
         key_quotes=[
             KeyQuote(
-                quote_en="Testing is not merely a neutral assessment of learning; it is a powerful engine of learning itself.",
-                translation_kr="시험(인출)은 학습 결과를 단순히 측정하는 중립적 도구가 아니라, 학습 자체를 일으키는 강력한 엔진이다.",
+                quote_original="Testing is not merely a neutral assessment of learning; it is a powerful engine of learning itself.",
+                translation_kr="시험은 학습 결과를 단순히 측정하는 중립적 도구가 아니라, 학습 자체를 일으키는 강력한 엔진이다.",
                 source_label="Sample Cognitive Science Review (2026)",
             ),
             KeyQuote(
-                quote_en="Fluency during study often misleads learners into overestimating long-term retention.",
+                quote_original="Fluency during study often misleads learners into overestimating long-term retention.",
                 translation_kr="공부할 때의 매끄러운 유창감은 학습자가 장기 기억 유지력을 과대평가하게 만든다.",
                 source_label="Sample Cognitive Science Review (2026)",
             ),
         ],
         chapters=[
-            ChapterBlueprint(chapter_number=1, title_kr="왜 열심히 읽어도 기억이 안 날까", focus_kr="유능감 착각과 수동 학습의 함정", key_points=["친숙함과 이해의 차이", "형광펜 공부법의 한계"]),
-            ChapterBlueprint(chapter_number=2, title_kr="인출 연습의 뇌과학적 메커니즘", focus_kr="해마와 전전두엽의 재활성화", key_points=["바람직한 어려움", "신경 경로 강화"]),
-            ChapterBlueprint(chapter_number=3, title_kr="실험 근거와 반론 검토", focus_kr="메타분석 결과와 적용 한계", key_points=["지연 회상 효과", "복합 추론 과제 한계"]),
-            ChapterBlueprint(chapter_number=4, title_kr="공부와 투자에 바로 쓰는 전략", focus_kr="백지 인출과 간격 복습 설계", key_points=["판례 구조 인출", "투자 가설 복기"]),
+            ChapterBlueprint(chapter_number=1, title_kr="왜 열심히 읽어도 기억이 안 날까", focus_kr="유창성 착각과 수동 학습의 한계", key_points=["친숙함과 이해의 차이", "지연 시험 결과"]),
+            ChapterBlueprint(chapter_number=2, title_kr="인출 연습의 신경 메커니즘", focus_kr="해마와 전전두엽의 재활성화", key_points=["인출 경로 강화", "피드백 효과"]),
+            ChapterBlueprint(chapter_number=3, title_kr="실험 근거와 저자가 밝힌 한계", focus_kr="메타분석 결과와 연구 한계", key_points=["지연 회상 효과", "복합 과제 검증 필요"]),
+            ChapterBlueprint(chapter_number=4, title_kr="원문의 결론과 교육적 제언", focus_kr="저자들이 제시한 실천 원칙", key_points=["형성 평가 활용", "간격 복습 결합"]),
         ],
     )
 

@@ -1,4 +1,4 @@
-"""2단계 API 생성기: (1) 구조화 비판적 독해 노트 생성 → (2) 챕터 분할 휴버만식 롱폼 오디오 대본 생성."""
+"""2단계 API 생성기: (1) 원문 충실 번역·구조화 요약 노트 생성 → (2) 챕터 분할 롱폼 오디오 대본 생성."""
 
 from __future__ import annotations
 
@@ -7,10 +7,8 @@ import os
 import time
 
 from google import genai
-from pydantic import ValidationError
 
 from deep_dive.models import (
-    ChapterBlueprint,
     ChapterNarrationOutput,
     CurationDecision,
     DeepDiveScript,
@@ -25,8 +23,8 @@ KST = timezone(timedelta(hours=9))
 DEFAULT_NOTE_MODEL = "gemini-4-hydrogen"
 DEFAULT_SCRIPT_MODEL = "gemini-4-hydrogen"
 # gemini-4-hydrogen 공식 지원 추론 레벨: low | medium | high (기본) | xhigh  (minimal 미지원 -> 400 에러)
-DEFAULT_NOTE_THINKING = "high"       # Stage 1: 원문 방법론·논증·한계·비교표·챕터 설계 핵심 추론 (1회 호출)
-DEFAULT_CHAPTER_THINKING = "low"     # Stage 2: 챕터 설계도 기반 롱폼 구어체 전개 (추론 토큰 폭증 방지)
+DEFAULT_NOTE_THINKING = "high"       # Stage 1: 원문 장문 정독·정확한 번역·구조화 요약 (1회 호출)
+DEFAULT_CHAPTER_THINKING = "low"     # Stage 2: 챕터 설계도 기반 자연스러운 구어체 전달
 DEFAULT_BOOKEND_THINKING = "low"     # Stage 2: 오프닝/클로징 (Hydrogen 최저 레벨 = low)
 DEFAULT_CHARS_PER_MINUTE = 420  # 한국어 낭독 속도 기준 약 410~430자/분
 
@@ -47,34 +45,41 @@ def sanitize_thinking_level(model: str, level: str) -> str:
     return cleaned
 
 
-STUDY_NOTE_SYSTEM_INSTRUCTION = """당신은 서울대 철학·심리학 전공자(로스쿨 입학 예정, 주식 초보 투자자)를 위해 탑티어 학술 논문·장문 에세이·정책 보고서·판례를 완벽히 해부하는 수석 리서치 펠로우입니다.
+STUDY_NOTE_SYSTEM_INSTRUCTION = """당신은 학술 논문·장문 보고서·판례·칼럼의 내용을 왜곡이나 과장 없이 **자연스러운 한국어로 충실하게 번역·요약하는 전문 학술 번역가 겸 편집자**입니다.
 
 [작성 절대 원칙]
-1. **원문 충실성 (No Hallucination)**: 제공된 원문 텍스트에 근거해 서술하세요. 원문에 없는 수치, 실험 집단 크기, 판결 인용구를 절대 지어내지 마세요.
-2. **언어 스타일**: 명료하고 품격 있는 한국어 해설을 기본으로 하되, 핵심 학술·법학·경제 용어는 정확한 영문 원어를 병기하세요 (예: 인지 부하(cognitive load), 사법심사(judicial review)).
-3. **비판적 깊이**: 단순 요약에 그치지 말고 ① 저자(또는 법원)가 반박하려는 기존 통념, ② 방법론·논증 구조(인과 추론, 식별 전략, 법리 해석), ③ 방법론적 한계 및 철학적·현실적 반론, ④ 독자의 학습·투자·건강·법적 사고에 연결되는 실질적 통찰까지 구조화하세요.
-4. **핵심 인용(`key_quotes`)**: 원문에서 실제로 등장한 인상적인 핵심 문장을 2~4개 정확히 발췌하고 한국어로 번역·해설하세요.
-5. **챕터 설계도(`chapters`)**: 뒤이어 작성할 Andrew Huberman 스타일 롱폼 팟캐스트 대본을 위해 4~6개의 논리적 챕터(① 문제의식과 훅 → ② 배경과 기존 통념 → ③ 핵심 메커니즘/방법론·논증 1 → ④ 핵심 증거/사례·판시 2 → ⑤ 한계·반론 및 비판적 검토 → ⑥ 실질적 적용과 종합)로 설계하세요.
+1. **충실한 번역 및 요약 (No Over-processing)**:
+   - 원문을 임의로 재가공하거나 억지로 교훈·적용점을 만들어내지 마세요.
+   - 독자가 원문을 직접 읽는 것처럼 **본문의 논지, 구체적 수치, 연구 설계, 근거, 저자의 결론을 빠짐없이 깔끔하게 전달**하는 것이 최우선 목표입니다.
+2. **자연스러운 한국어 문장 (불필요한 영어 병기 금지)**:
+   - 일반적인 학술 개념이나 한국어로 충분히 뜻이 통하는 표현 뒤에 괄호로 영어를 덧붙이지 마세요 (예: `인지 예비력(cognitive reserve)`, `유병률(prevalence)`, `사법심사(judicial review)` 같은 불필요한 병기 금지 → 그냥 `인지 예비력`, `유병률`, `사법심사`로 자연스럽게 서술).
+   - 한국어 글에서도 그대로 통용되는 고유명사·약어·생물학 표기(`LDL`, `GLP-1`, `APOE ε4`, `MRI`, `LLM`, 인명·기관명 등)만 예외적으로 그대로 사용하세요.
+3. **엄격한 텍스트 근거주의 (AI 자의적 판단·추론 금지)**:
+   - 원문에 없는 수치, 인용, 해석을 절대 지어내지 마세요.
+   - 한계(`author_stated_limitations_kr`)와 결론·시사점(`author_conclusions_kr`) 역시 **반드시 원문(저자·보고서·법원·반대의견 등)에 명시된 근거와 서술에 기반**해 작성하세요. AI가 자기 마음대로 비평하거나, 독자의 진로·투자 등에 억지로 연결해 추측하는 문장은 쓰지 마세요.
+4. **본문 중심 구성 (`body_sections`)**:
+   - 원문의 핵심 장·주제 흐름을 따라 3~6개의 소제목으로 나누고, 각 섹션마다 원문의 실질적 내용·근거·수치를 밀도 높게 번역·요약하세요.
+5. **핵심 원문 인용 (`key_quotes`)**:
+   - 원문에서 실제로 등장한 핵심 문장 2~3개를 정확히 발췌하고 자연스러운 한국어 번역을 함께 제시하세요.
 """
 
 
-CHAPTER_SCRIPT_SYSTEM_INSTRUCTION = """당신은 스탠포드 신경과학자 Andrew Huberman 교수의 롱폼 팟캐스트처럼, 어려운 학술 논문·판례·경제 보고서를 **귀로 듣기만 해도 머릿속에 구조가 선명히 그려지도록** 풀어 설명하는 최고의 한국어 1인 지식 팟캐스트 호스트입니다.
+CHAPTER_SCRIPT_SYSTEM_INSTRUCTION = """당신은 권위 있는 학술 논문·보고서·판례의 내용을 **귀로 듣기 편하고 자연스러운 한국어**로 충실하게 풀어 전달하는 지식 브리핑 진행자입니다.
 
 [발화 스타일 및 품질 규칙]
-1. **순수 발화용 한국어 텍스트만 작성**: 마크다운(`**`, `##`, `-`), 번호 매기기, 괄호 속 URL, 이모지, 무대 지시문(`(잠시 멈춤)`)을 절대 넣지 마세요.
-2. **휴버만식 교육적 호흡 (Intuition → Mechanism → Evidence → Caveat)**:
-   - 청취자가 직관적 질문에 몰입하게 만든 뒤, 핵심 메커니즘과 연구 설계(또는 법적 추론 단계)를 친절하고 논리적으로 차근차근 밟아 올라가세요.
-   - 영문 학술·법학 원어가 나올 때는 발화 흐름을 깨지 않게 자연스럽게 풀어주세요 (예: "학계에서는 이를 메타인지, 영어로는 metacognition이라고 부르는데요, 쉽게 말해 내 머리가 지금 제대로 이해하고 있는지 한 발 떨어져서 점검하는 능력입니다").
-3. **구체성과 엄밀성**: 추상적 미사여구로 분량을 늘리지 말고, 원문에 나온 구체적 실험 구조, 수치, 비교 사례, 반론, 철학적·현실적 함의를 깊이 있게 해설하세요.
-4. **이전 챕터와의 자연스러운 연결**: 직전 챕터의 끝부분을 받아 부드럽게 이어가되, 앞선 내용을 중복 반복하지 마세요.
-5. **목표 글자 수 준수**: 프롬프트에 제시된 목표 글자 수 범위를 충실히 채워 충분한 설명 깊이를 확보하세요.
+1. **순수 발화용 한국어 텍스트만 작성**: 마크다운(`**`, `##`, `-`), 번호 매기기, URL, 이모지, 무대 지시문(`(잠시 멈춤)`)을 넣지 마세요.
+2. **불필요한 영어 단어 병기·읽어주기 금지**: "영어로는 ~라고 하는데요" 같은 번거로운 영문 병기를 피하고, 자연스러운 우리말로 매끄럽게 설명하세요. (`LDL`, `LLM`, 고유명사 등 한국어에서도 그대로 쓰는 약어·명칭만 자연스럽게 발음)
+3. **원문 충실 전달 (AI 임의 추론 금지)**:
+   - 원문에 담긴 핵심 사실, 수치, 연구 구조, 근거, 그리고 저자(또는 법원)가 직접 밝힌 한계와 결론을 빠짐없이 논리적으로 전달하세요.
+   - 원문에 없는 AI의 개인적 논평이나 과도한 일반화·추측은 넣지 마세요.
+4. **이전 챕터와의 자연스러운 연결**: 직전 챕터 끝부분을 받아 자연스럽게 이어가되, 앞선 내용을 중복 반복하지 마세요.
+5. **목표 글자 수 준수**: 프롬프트에 제시된 목표 글자 수 범위를 충실히 채워 원문의 풍부한 디테일을 담아내세요.
 """
 
 
 def _build_documents_context(docs: list[FetchedDocument]) -> str:
     """여러 문헌의 전문을 프롬프트 투입용 블록으로 포맷합니다."""
     blocks: list[str] = []
-    # 여러 편일 때는 문서당 상한을 균등 분배해 총 입력 토큰 폭주 방지
     per_doc_limit = 65_000 if len(docs) == 1 else max(22_000, 72_000 // len(docs))
 
     for idx, doc in enumerate(docs, start=1):
@@ -151,7 +156,7 @@ def generate_study_note(
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
 ) -> DeepDiveStudyNote:
-    """Stage 1: 원문 전문을 분석해 웹 리더·Google Doc용 구조화 독해 노트와 챕터 설계도를 생성합니다."""
+    """Stage 1: 원문 전문을 자연스러운 한국어로 충실하게 번역·구조화 요약하고 챕터 설계도를 생성합니다."""
     selected_model = model or os.getenv("DEEP_NOTE_MODEL", DEFAULT_NOTE_MODEL)
     note_thinking = sanitize_thinking_level(
         selected_model, os.getenv("DEEP_NOTE_THINKING", DEFAULT_NOTE_THINKING)
@@ -160,17 +165,18 @@ def generate_study_note(
 
     today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일")
     mode_label = (
-        "단일 대형 문헌 완전 해부 (Single Deep Dive)"
+        "단일 문헌 충실 요약 (Single Deep Dive)"
         if decision.mode == "single_deep_dive"
-        else f"복수 문헌 맥락 종합 ({len(docs)}편 Multi-Synthesis)"
+        else f"복수 문헌 종합 요약 ({len(docs)}편 Multi-Synthesis)"
     )
 
     prompt = (
         f"오늘 날짜(KST): {today_kst}\n"
         f"테마: {theme.emoji} {theme.label_kr} | 세부 주제: {decision.sub_subject_kr}\n"
         f"구성 방식: {mode_label}\n"
-        f"핵심 문제의식: {decision.unifying_angle_kr}\n\n"
-        "아래 원문 텍스트를 정밀하게 독해하여 구조화된 비판적 독해 노트와 4~6개 챕터 설계도를 JSON으로 작성해 주세요.\n\n"
+        f"핵심 주제: {decision.unifying_angle_kr}\n\n"
+        "아래 원문 텍스트의 내용을 빠짐없이 충실하게 번역·요약해 JSON으로 작성해 주세요. "
+        "불필요한 영문 괄호 병기와 본문에 없는 AI 자의적 추론·비평은 넣지 마세요.\n\n"
         + _build_documents_context(docs)
     )
 
@@ -182,7 +188,7 @@ def generate_study_note(
         schema=DeepDiveStudyNote.model_json_schema(),
         max_output_tokens=32768,
         thinking_level=note_thinking,
-        stage="구조화 독해 노트",
+        stage="원문 번역·구조화 요약",
         usage_tracker=usage_tracker,
     )
     return DeepDiveStudyNote.model_validate_json(raw_json)
@@ -200,7 +206,7 @@ def generate_longform_script(
 ) -> DeepDiveScript:
     """
     Stage 2: 챕터 설계도를 바탕으로 오프닝 → 각 챕터 → 클로징을 분할 생성해
-    20~60분 분량의 휴버만식 심층 오디오 대본을 조립합니다.
+    원문 내용을 자연스러운 한국어 구어체로 충실히 전달하는 롱폼 오디오 대본을 조립합니다.
     """
     selected_model = model or os.getenv("DEEP_SCRIPT_MODEL", DEFAULT_SCRIPT_MODEL)
     chapter_thinking = sanitize_thinking_level(
@@ -218,8 +224,8 @@ def generate_longform_script(
 
     clamped_minutes = max(12, min(60, int(target_minutes)))
     total_target_chars = clamped_minutes * DEFAULT_CHARS_PER_MINUTE
-    opening_target = 550
-    closing_target = 450
+    opening_target = 500
+    closing_target = 400
     chapter_count = max(1, len(note.chapters))
     per_chapter_target = max(1200, (total_target_chars - opening_target - closing_target) // chapter_count)
 
@@ -232,20 +238,16 @@ def generate_longform_script(
         f"- Chapter {ch.chapter_number}. {ch.title_kr}: {ch.focus_kr}"
         for ch in note.chapters
     )
-    terms_hint = "\n".join(
-        f"- {t.term_kr} ({t.term_en}): {t.explanation_kr}" for t in note.key_terms
-    )
 
     # 1) 오프닝 생성
     print(f"      [Script] Opening 생성 중 (목표 ~{opening_target}자, thinking={bookend_thinking})...")
     opening_prompt = (
         f"에피소드 제목: {episode_title}\n"
         f"부제: {note.subtitle_kr}\n"
-        f"핵심 테제: {note.executive_thesis_kr}\n"
+        f"원문 개요: {note.overview_and_purpose_kr}\n"
         f"전체 챕터 구성:\n{chapter_toc}\n\n"
-        f"청취자의 호기심을 단번에 붙잡는 지적인 오프닝을 공백 포함 약 {opening_target - 80}~{opening_target + 120}자로 작성하세요. "
-        "오늘 다루는 원문의 출처·저자(또는 기관/법원)를 자연스럽게 소개하고, "
-        "이 에피소드를 끝까지 들으면 어떤 통찰을 얻게 되는지 로드맵을 예고하세요."
+        f"원문의 출처와 주제를 간결하고 정확하게 소개하고, 앞으로 어떤 순서로 내용을 살펴볼지 안내하는 "
+        f"자연스러운 한국어 오프닝을 공백 포함 약 {opening_target - 80}~{opening_target + 100}자로 작성하세요."
     )
     raw_open = _call_interactions_with_retry(
         client=client,
@@ -260,7 +262,7 @@ def generate_longform_script(
     )
     opening_text = ChapterNarrationOutput.model_validate_json(raw_open).narration.strip()
 
-    # 2) 챕터별 순차 생성 (TPM 한도 준수를 위해 호출 간 간격 확보)
+    # 2) 챕터별 순차 생성
     rendered_chapters: list[tuple[str, str]] = []
     prev_tail = opening_text[-350:]
 
@@ -281,13 +283,12 @@ def generate_longform_script(
             f"전체 챕터 목차:\n{chapter_toc}\n\n"
             f"=== 지금 작성할 챕터 ({idx}/{chapter_count}) ===\n"
             f"소제목: {ch.title_kr}\n"
-            f"집중할 논증 흐름: {ch.focus_kr}\n"
-            f"반드시 포함할 핵심 포인트:\n{points_str}\n\n"
-            f"참고 핵심 용어:\n{terms_hint}\n\n"
+            f"전달할 흐름: {ch.focus_kr}\n"
+            f"반드시 포함할 원문 근거·수치:\n{points_str}\n\n"
             f"직전 섹션의 마지막 발화(자연스럽게 이어갈 것, 반복 금지):\n\"...{prev_tail}\"\n\n"
             f"목표 분량: 공백 포함 **약 {min_c}~{max_c}자**.\n"
-            "아래 원문 근거를 충실히 활용해, 휴버만 교수처럼 원리와 증거·사례·한계를 명쾌하고 깊이 있게 풀어내는 "
-            "순수 발화 대본을 JSON으로 작성해 주세요.\n\n"
+            "아래 원문 텍스트에 충실하게 근거해, 불필요한 영어 병기나 임의 추측 없이 "
+            "원문의 논지와 근거를 자연스러운 한국어 구어체로 풀어내는 순수 발화 대본을 JSON으로 작성해 주세요.\n\n"
             + docs_context
         )
         raw_ch = _call_interactions_with_retry(
@@ -309,13 +310,13 @@ def generate_longform_script(
     if sleep_sec > 0:
         time.sleep(min(sleep_sec, 10.0))
     print(f"      [Script] Closing 생성 중 (목표 ~{closing_target}자, thinking={bookend_thinking})...")
-    takeaways_str = "\n".join(f"- {t}" for t in note.practical_takeaways_kr)
+    conclusions_str = "\n".join(f"- {c}" for c in note.author_conclusions_kr)
     closing_prompt = (
         f"에피소드: {episode_title}\n"
-        f"실질적 시사점:\n{takeaways_str}\n"
+        f"원문의 최종 결론 및 제언:\n{conclusions_str}\n"
         f"직전 챕터의 마지막 발화:\n\"...{prev_tail}\"\n\n"
-        f"전체 논의를 깔끔하게 하나로 묶어주고, 청취자가 오늘 당장 곱씹어 볼 핵심 질문 하나를 남기며 "
-        f"차분하게 마무리하는 클로징을 공백 포함 약 {closing_target - 80}~{closing_target + 120}자로 작성해 주세요."
+        f"원문이 제시한 핵심 결론을 차분하게 정리하며 마무리하는 클로징을 "
+        f"공백 포함 약 {closing_target - 80}~{closing_target + 100}자로 작성해 주세요."
     )
     raw_close = _call_interactions_with_retry(
         client=client,

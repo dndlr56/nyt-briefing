@@ -314,7 +314,7 @@ def main() -> int:
         usage_tracker=usage_tracker,
     )
     print(f"   -> 제목: {note.episode_title_kr}")
-    print(f"   -> 챕터 수: {len(note.chapters)}개 | 용어집: {len(note.key_terms)}개 | 인용: {len(note.key_quotes)}개")
+    print(f"   -> 본문 섹션: {len(note.body_sections)}개 | 챕터: {len(note.chapters)}개 | 인용: {len(note.key_quotes)}개")
 
     note_json_path = args.output_dir / f"study_note_{date_slug}_{theme.theme_id}.json"
     note_json_path.write_text(note.model_dump_json(indent=2), encoding="utf-8")

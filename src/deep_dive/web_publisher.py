@@ -84,27 +84,29 @@ def render_study_note_body_html(
     drive_doc_url: str | None = None,
     usage_footer_html: str | None = None,
 ) -> str:
-    """웹 리더·Google Doc·팟캐스트 쇼노트에서 공통 활용 가능한 구조화 HTML 본문을 생성합니다."""
+    """웹 리더·Google Doc·팟캐스트 쇼노트에서 공통 활용 가능한 원문 충실 요약 HTML 본문을 생성합니다."""
     esc = html.escape
 
     tldr_items = "".join(f"<li>{esc(b)}</li>" for b in note.tldr_bullets)
-    findings_items = "".join(f"<li>{esc(f)}</li>" for f in note.core_findings_kr)
-    limits_items = "".join(f"<li>{esc(l)}</li>" for l in note.limitations_and_critique_kr)
-    takeaways_items = "".join(f"<li>{esc(t)}</li>" for t in note.practical_takeaways_kr)
+    limits_items = "".join(f"<li>{esc(l)}</li>" for l in note.author_stated_limitations_kr)
+    conclusions_items = "".join(f"<li>{esc(c)}</li>" for c in note.author_conclusions_kr)
 
-    table_rows = "".join(
-        f"<tr><th>{esc(row.dimension)}</th><td>{esc(row.detail_kr)}</td></tr>"
-        for row in note.comparison_table
+    body_sections_html = "".join(
+        "<div class='body-sec'>"
+        f"<h3>{idx}. {esc(sec.heading_kr)}</h3>"
+        f"<p>{esc(sec.content_kr)}</p>"
+        "</div>"
+        for idx, sec in enumerate(note.body_sections, start=1)
     )
 
-    terms_items = "".join(
-        f"<li><strong>{esc(t.term_kr)}</strong> (<em>{esc(t.term_en)}</em>) — {esc(t.explanation_kr)}</li>"
-        for t in note.key_terms
+    table_rows = "".join(
+        f"<tr><th>{esc(row.item)}</th><td>{esc(row.detail_kr)}</td></tr>"
+        for row in note.summary_table
     )
 
     quotes_html = "".join(
         "<blockquote class='quote-block'>"
-        f"<p class='quote-en'>“{esc(q.quote_en)}”</p>"
+        f"<p class='quote-en'>“{esc(q.quote_original)}”</p>"
         f"<p class='quote-kr'>{esc(q.translation_kr)}</p>"
         f"<footer>— {esc(q.source_label)}</footer>"
         "</blockquote>"
@@ -137,7 +139,7 @@ def render_study_note_body_html(
         ext_links.append(f"<a href='{esc(drive_doc_url, quote=True)}'>📁 Google Drive 노트 열기</a>")
     ext_bar = f"<p class='ext-links'>{' · '.join(ext_links)}</p>" if ext_links else ""
 
-    mode_badge = "1편 완전 해부" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 브리핑"
+    mode_badge = "1편 충실 요약" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 요약"
     footer = f"\n{usage_footer_html}" if usage_footer_html else ""
 
     return f"""
@@ -150,60 +152,50 @@ def render_study_note_body_html(
 {ext_bar}
 
 <section class="tldr-box">
-  <h2>⚡ 핵심 3줄 요약 (TL;DR)</h2>
+  <h2>⚡ 핵심 요약</h2>
   <ul>{tldr_items}</ul>
 </section>
 
 <section>
-  <h2>1. 핵심 테제와 문제의식</h2>
-  <p>{esc(note.executive_thesis_kr)}</p>
+  <h2>1. 개요 및 문제의식</h2>
+  <p>{esc(note.overview_and_purpose_kr)}</p>
 </section>
 
 <section>
-  <h2>2. 학술적·시대적 배경과 기존 통념</h2>
-  <p>{esc(note.background_context_kr)}</p>
+  <h2>2. 연구 방법 및 근거 구조</h2>
+  <p>{esc(note.methodology_and_evidence_kr)}</p>
 </section>
 
 <section>
-  <h2>3. 방법론 및 논증 구조 해부</h2>
-  <p>{esc(note.methodology_and_argument_kr)}</p>
+  <h2>3. 본문 핵심 내용</h2>
+  {body_sections_html}
 </section>
 
 <section>
-  <h2>4. 핵심 발견 · 논점 정리</h2>
-  <ul>{findings_items}</ul>
-</section>
-
-<section>
-  <h2>5. 구조화 비교 · 분석표</h2>
+  <h2>4. 주요 수치·내용 요약표</h2>
   <table class="analysis-table">
-    <thead><tr><th>분석 축</th><th>핵심 내용</th></tr></thead>
+    <thead><tr><th>항목</th><th>원문 핵심 내용</th></tr></thead>
     <tbody>{table_rows}</tbody>
   </table>
 </section>
 
 <section>
-  <h2>6. 원문 핵심 인용 (Verbatim Quotes)</h2>
+  <h2>5. 원문 핵심 문장 발췌</h2>
   {quotes_html}
 </section>
 
 <section>
-  <h2>7. 한계 · 반론 및 비판적 검토</h2>
+  <h2>6. 원문이 밝힌 한계 및 주의점</h2>
   <ul>{limits_items}</ul>
 </section>
 
 <section>
-  <h2>8. 실질적 시사점 (학습 · 투자 · 건강 · 법적 사고)</h2>
-  <ul>{takeaways_items}</ul>
+  <h2>7. 원문의 결론 및 제언</h2>
+  <ul>{conclusions_items}</ul>
 </section>
 
 <section>
-  <h2>9. 핵심 영문 학술·법학 용어집</h2>
-  <ul class="glossary">{terms_items}</ul>
-</section>
-
-<section>
-  <h2>10. 오디오 챕터 구성</h2>
+  <h2>8. 오디오 챕터 구성</h2>
   <ol>{chapters_items}</ol>
 </section>
 
@@ -295,6 +287,9 @@ def _render_article_page_html(
     .tldr-box h2 {{ margin-top: 0; font-size: 1.1rem; }}
     section {{ margin: 2rem 0; }}
     h2 {{ font-size: 1.28rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; margin-bottom: 0.9rem; }}
+    .body-sec {{ margin: 1.25rem 0; }}
+    .body-sec h3 {{ font-size: 1.08rem; margin: 0 0 0.45rem; color: var(--text); }}
+    .body-sec p {{ margin: 0; white-space: pre-line; }}
     .analysis-table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem; }}
     .analysis-table th, .analysis-table td {{ border: 1px solid var(--border); padding: 0.7rem 0.85rem; text-align: left; vertical-align: top; }}
     .analysis-table th {{ background: var(--quote-bg); width: 26%; font-weight: 600; }}
