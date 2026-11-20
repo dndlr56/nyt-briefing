@@ -119,18 +119,25 @@ def _render_rss_xml(
 
     items_xml: list[str] = []
     for ep in episodes:
-        mp3_url = f"{clean_base}/episodes/{ep['mp3_filename']}"
+        mp3_filename = (ep.get("mp3_filename") or "").strip()
+        if not mp3_filename:
+            continue
+        mp3_rel = (ep.get("mp3_rel_path") or f"episodes/{mp3_filename}").lstrip("/")
+        mp3_url = f"{clean_base}/{mp3_rel}"
         title = xml_escape(ep["title"])
         guid = xml_escape(ep["guid"])
         pub_date = xml_escape(ep["pub_date_rfc2822"])
-        duration = xml_escape(_format_itunes_duration(ep["duration_seconds"]))
-        size_bytes = int(ep["file_size_bytes"])
+        duration = xml_escape(_format_itunes_duration(ep.get("duration_seconds", 1)))
+        size_bytes = int(ep.get("file_size_bytes", 0))
         summary_plain = xml_escape(ep.get("summary_plain") or ep["title"])
         desc_html = ep.get("description_html") or f"<p>{title}</p>"
+        link_url = (ep.get("link_url") or "").strip()
+        link_line = f"      <link>{xml_escape(link_url)}</link>\n" if link_url else ""
 
         items_xml.append(
             "    <item>\n"
             f"      <title>{title}</title>\n"
+            f"{link_line}"
             f"      <guid isPermaLink=\"false\">{guid}</guid>\n"
             f"      <pubDate>{pub_date}</pubDate>\n"
             f"      <description>{_cdata(desc_html)}</description>\n"
@@ -320,15 +327,78 @@ def publish_podcast_episode(
     elif target_cover.exists():
         has_cover = True
 
-    feed_xml = _render_rss_xml(
-        episodes=episodes,
+    feed_path = rebuild_unified_root_feed(
+        pages_dir=pages_dir,
         base_url=base_url,
         has_cover=has_cover,
     )
-    feed_path = pages_dir / "feed.xml"
-    feed_path.write_text(feed_xml, encoding="utf-8")
 
     index_html = _render_index_html(episodes=episodes, base_url=base_url)
     (pages_dir / "index.html").write_text(index_html, encoding="utf-8")
 
+    return feed_path
+
+
+def _load_metadata_list(metadata_path: Path) -> list[dict[str, Any]]:
+    if not metadata_path.exists():
+        return []
+    try:
+        loaded = json.loads(metadata_path.read_text(encoding="utf-8"))
+        return loaded if isinstance(loaded, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def rebuild_unified_root_feed(
+    pages_dir: Path,
+    base_url: str,
+    has_cover: bool | None = None,
+    owner_email: str | None = None,
+) -> Path:
+    """
+    루트 뉴스(episodes/metadata.json)와 Deep Dive(deep/episodes/metadata.json)를
+    단일 통합 팟캐스트 피드(feed.xml)로 병합해 최신순으로 렌더링합니다.
+    각자의 메타데이터·MP3 보관함은 독립 유지되므로 덮어쓰기나 정리가 꼬이지 않습니다.
+    """
+    clean_base = base_url.rstrip("/")
+    combined: list[dict[str, Any]] = []
+    seen_guids: set[str] = set()
+
+    # 1) 글로벌 모닝 뉴스 에피소드
+    for ep in _load_metadata_list(pages_dir / "episodes" / "metadata.json"):
+        mp3 = (ep.get("mp3_filename") or "").strip()
+        guid = (ep.get("guid") or "").strip()
+        if not mp3 or not guid or guid in seen_guids:
+            continue
+        seen_guids.add(guid)
+        item = dict(ep)
+        item["mp3_rel_path"] = f"episodes/{mp3}"
+        combined.append(item)
+
+    # 2) Deep Dive 지식 브리핑 에피소드
+    for ep in _load_metadata_list(pages_dir / "deep" / "episodes" / "metadata.json"):
+        mp3 = (ep.get("mp3_filename") or "").strip()
+        guid = (ep.get("guid") or "").strip()
+        if not mp3 or not guid or guid in seen_guids:
+            continue
+        seen_guids.add(guid)
+        item = dict(ep)
+        item["mp3_rel_path"] = f"deep/episodes/{mp3}"
+        article_fn = (ep.get("article_filename") or "").strip()
+        if article_fn:
+            item["link_url"] = f"{clean_base}/deep/posts/{article_fn}"
+        combined.append(item)
+
+    combined.sort(key=lambda ep: ep.get("published_iso", ""), reverse=True)
+
+    resolved_has_cover = has_cover if has_cover is not None else (pages_dir / "cover.jpg").exists()
+    feed_xml = _render_rss_xml(
+        episodes=combined,
+        base_url=clean_base,
+        has_cover=resolved_has_cover,
+        owner_email=owner_email,
+    )
+    feed_path = pages_dir / "feed.xml"
+    feed_path.parent.mkdir(parents=True, exist_ok=True)
+    feed_path.write_text(feed_xml, encoding="utf-8")
     return feed_path

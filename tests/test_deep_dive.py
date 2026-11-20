@@ -631,6 +631,63 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertGreaterEqual(len(grouped), 4)
         self.assertEqual(sum(len(turns) for turns, _ in grouped), 40)
 
+    def test_unified_root_feed_merges_news_and_deep_dive(self) -> None:
+        import json
+        from podcast_feed import rebuild_unified_root_feed
+
+        with tempfile.TemporaryDirectory() as tmp:
+            pages_dir = Path(tmp)
+            (pages_dir / "episodes").mkdir(parents=True)
+            (pages_dir / "deep" / "episodes").mkdir(parents=True)
+
+            news_meta = [
+                {
+                    "guid": "global-briefing-2026-11-20-070000",
+                    "title": "[모닝 브리핑] 글로벌 뉴스 | 2026.11.20",
+                    "pub_date_rfc2822": "Fri, 20 Nov 2026 07:00:00 +0900",
+                    "published_iso": "2026-11-20T07:00:00+09:00",
+                    "mp3_filename": "global_briefing_2026-11-20_070000.mp3",
+                    "file_size_bytes": 123456,
+                    "duration_seconds": 600,
+                    "summary_plain": "뉴스 요약",
+                    "description_html": "<p>뉴스</p>",
+                }
+            ]
+            deep_meta = [
+                {
+                    "guid": "deep-dive-2026-11-20-health_medicine-073000",
+                    "title": "[의학·건강·장수] 랜싯 치매 보고서 | 2026.11.20",
+                    "pub_date_rfc2822": "Fri, 20 Nov 2026 07:30:00 +0900",
+                    "published_iso": "2026-11-20T07:30:00+09:00",
+                    "article_filename": "2026-11-20_health_medicine_lancet.html",
+                    "mp3_filename": "deep_dive_2026-11-20_health_medicine_073000.mp3",
+                    "file_size_bytes": 654321,
+                    "duration_seconds": 1500,
+                    "summary_plain": "심층 요약",
+                    "description_html": "<p>딥다이브</p>",
+                }
+            ]
+            (pages_dir / "episodes" / "metadata.json").write_text(
+                json.dumps(news_meta, ensure_ascii=False), encoding="utf-8"
+            )
+            (pages_dir / "deep" / "episodes" / "metadata.json").write_text(
+                json.dumps(deep_meta, ensure_ascii=False), encoding="utf-8"
+            )
+
+            feed_path = rebuild_unified_root_feed(
+                pages_dir=pages_dir,
+                base_url="https://dndlr56.github.io/nyt-briefing",
+            )
+            xml_text = feed_path.read_text(encoding="utf-8")
+            self.assertIn("https://dndlr56.github.io/nyt-briefing/episodes/global_briefing_2026-11-20_070000.mp3", xml_text)
+            self.assertIn("https://dndlr56.github.io/nyt-briefing/deep/episodes/deep_dive_2026-11-20_health_medicine_073000.mp3", xml_text)
+            self.assertIn("https://dndlr56.github.io/nyt-briefing/deep/posts/2026-11-20_health_medicine_lancet.html", xml_text)
+            # 최신순: 07:30 Deep Dive가 07:00 뉴스보다 앞에 위치
+            self.assertLess(
+                xml_text.index("deep-dive-2026-11-20-health_medicine-073000"),
+                xml_text.index("global-briefing-2026-11-20-070000"),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

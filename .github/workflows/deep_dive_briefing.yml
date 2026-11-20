@@ -219,14 +219,17 @@ jobs:
             --output-dir output/deep_dive \
             "${EXTRA_ARGS[@]}"
 
-      - name: Publish Deep Dive Web Reader & RSS to gh-pages (preserving root news feed)
+      - name: Publish Deep Dive Web Reader & Unified RSS to gh-pages
+        env:
+          PODCAST_OWNER_EMAIL: ${{ secrets.PODCAST_OWNER_EMAIL }}
+          ROOT_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           if [ ! -f _gh_pages/deep/feed.xml ]; then
             echo "deep/feed.xml not found; skipping gh-pages publish."
             exit 0
           fi
 
-          # 최신 origin/gh-pages를 다시 받아 _gh_pages/deep 만 안전하게 병합
+          # 최신 origin/gh-pages를 다시 받아 _gh_pages/deep 병합 후 루트 통합 feed.xml 재생성
           mkdir -p _gh_pages_merge
           if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
             git fetch origin gh-pages --depth=1
@@ -234,6 +237,7 @@ jobs:
           fi
           rm -rf _gh_pages_merge/deep
           cp -r _gh_pages/deep _gh_pages_merge/deep
+          python -c "import os, sys; from pathlib import Path; sys.path.insert(0, 'src'); from podcast_feed import rebuild_unified_root_feed; p = rebuild_unified_root_feed(Path('_gh_pages_merge'), os.environ['ROOT_BASE_URL']); print('Unified RSS updated:', p)"
           touch _gh_pages_merge/.nojekyll
 
           cd _gh_pages_merge

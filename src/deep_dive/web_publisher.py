@@ -441,7 +441,8 @@ def _render_rss_xml(
 def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) -> str:
     esc = html.escape
     clean_base = base_url.rstrip("/")
-    feed_url = f"{clean_base}/feed.xml"
+    root_base = clean_base[:-5] if clean_base.endswith("/deep") else clean_base
+    unified_feed_url = f"{root_base}/feed.xml"
 
     filter_buttons = ["<button class='pill active' data-theme='all'>전체</button>"]
     for tid in CORE_THEME_IDS:
@@ -525,8 +526,8 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
   <h1>📘 {esc(DEFAULT_DEEP_PODCAST_TITLE)}</h1>
   <p class="desc">{esc(DEFAULT_DEEP_PODCAST_DESCRIPTION)}</p>
   <div class="rss-box">
-    <strong>🎧 AntennaPod 독립 구독 RSS:</strong>
-    <a href="{esc(feed_url, quote=True)}">{esc(feed_url)}</a>
+    <strong>🎧 AntennaPod 통합 구독 RSS (뉴스 + Deep Dive):</strong>
+    <a href="{esc(unified_feed_url, quote=True)}">{esc(unified_feed_url)}</a>
     &nbsp;·&nbsp;
     <a href="../index.html">🗞 글로벌 모닝 뉴스 브리핑으로 이동</a>
   </div>
@@ -703,6 +704,18 @@ def publish_deep_dive(
     feed_path = deep_dir / "feed.xml"
     feed_path.write_text(feed_xml, encoding="utf-8")
 
+    # 루트 통합 피드(feed.xml)도 함께 갱신해 뉴스 + Deep Dive를 단일 채널로 구독 가능하게 유지
+    unified_feed_url = f"{clean_base}/feed.xml"
+    if deep_dir.name == "deep":
+        from podcast_feed import rebuild_unified_root_feed
+
+        root_base = clean_base[:-5] if clean_base.endswith("/deep") else clean_base
+        rebuild_unified_root_feed(
+            pages_dir=deep_dir.parent,
+            base_url=root_base,
+        )
+        unified_feed_url = f"{root_base}/feed.xml"
+
     index_html = _render_archive_index_html(episodes=episodes, base_url=clean_base)
     (deep_dir / "index.html").write_text(index_html, encoding="utf-8")
 
@@ -710,7 +723,7 @@ def publish_deep_dive(
         feed_path=feed_path,
         article_path=article_path,
         article_url=article_url,
-        feed_url=f"{clean_base}/feed.xml",
+        feed_url=unified_feed_url,
         mp3_url=mp3_url,
         slug=slug,
     )
