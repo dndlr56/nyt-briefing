@@ -19,7 +19,7 @@ if str(SRC_DIR) not in sys.path:
 from audio_generator import (
     DEFAULT_EDGE_TTS_VOICE,
     DEFAULT_GEMINI_TTS_MODEL,
-    generate_audio_from_segments,
+    generate_dialogue_audio,
 )
 from deep_dive.curator import DEFAULT_CURATOR_MODEL, curate_candidates
 from deep_dive.drive_archiver import archive_to_google_drive, is_drive_configured
@@ -31,7 +31,7 @@ from deep_dive.sources import (
     load_manual_source,
     search_document_by_title,
 )
-from deep_dive.themes import THEME_SLOTS, resolve_theme_slot
+from deep_dive.themes import CORE_THEME_IDS, THEME_SLOTS, resolve_theme_slot
 from deep_dive.web_publisher import (
     load_covered_urls_from_pages,
     publish_deep_dive,
@@ -304,8 +304,8 @@ def main() -> int:
         print("[DRY-RUN 완료]")
         return 0
 
-    # ── Step 3: Stage 1 구조화 독해 노트 생성 ──
-    print("\n[3/6] Stage 1: 구조화 비판적 독해 노트 및 챕터 설계도 생성 중...")
+    # ── Step 3: Stage 1 구조화 요약 노트 + 5대 분야 분류 + 대화 캐스팅 설계 ──
+    print("\n[3/6] Stage 1: 원문 충실 요약 노트·아카이브 분류·대화 캐스팅 생성 중...")
     note = generate_study_note(
         docs=selected_docs,
         theme=theme,
@@ -313,23 +313,48 @@ def main() -> int:
         model=args.note_model,
         usage_tracker=usage_tracker,
     )
+
+    if (
+        theme.theme_id not in CORE_THEME_IDS
+        or args.search_title
+        or args.source_url
+        or args.pdf_path
+    ):
+        display_theme = THEME_SLOTS.get(note.primary_theme_id, THEME_SLOTS["science_mind"])
+    else:
+        display_theme = theme
+
+    if decision.sub_subject_kr == theme.label_kr and (
+        theme.theme_id not in CORE_THEME_IDS or args.search_title or args.source_url or args.pdf_path
+    ):
+        decision.sub_subject_kr = "지정 문헌 심층 요약" if (args.search_title or args.source_url or args.pdf_path) else display_theme.label_kr
+
+    cast_speakers_str = ", ".join(
+        f"{sp.speaker_id}:{sp.name_kr}({sp.role_title_kr})" for sp in note.dialogue_cast.speakers
+    )
     print(f"   -> 제목: {note.episode_title_kr}")
+    print(f"   -> 배정 아카이브 탭: {display_theme.emoji} {display_theme.label_kr} ({display_theme.theme_id})")
+    print(f"   -> 대화 캐스팅: [{note.dialogue_cast.format_type}] {cast_speakers_str}")
+    print(f"      선정 이유: {note.dialogue_cast.format_reason_kr}")
     print(f"   -> 본문 섹션: {len(note.body_sections)}개 | 챕터: {len(note.chapters)}개 | 인용: {len(note.key_quotes)}개")
 
-    note_json_path = args.output_dir / f"study_note_{date_slug}_{theme.theme_id}.json"
+    note_json_path = args.output_dir / f"study_note_{date_slug}_{display_theme.theme_id}.json"
     note_json_path.write_text(note.model_dump_json(indent=2), encoding="utf-8")
 
-    # ── Step 4: Stage 2 롱폼 오디오 대본 + TTS 합성 ──
+    # ── Step 4: Stage 2 다중 화자 대화형 오디오 대본 + TTS 합성 ──
     script = None
     generated_audio = None
     mp3_path: Path | None = None
     duration_seconds = 0
 
     if not args.skip_audio:
-        print(f"\n[4/6] Stage 2: 챕터 분할 휴버만식 오디오 대본 생성 중 (목표 ~{args.target_minutes}분)...")
+        print(
+            f"\n[4/6] Stage 2: {len(note.dialogue_cast.speakers)}인 대화형 오디오 대본 생성 중 "
+            f"(포맷={note.dialogue_cast.format_type}, 목표 ~{args.target_minutes}분)..."
+        )
         script = generate_longform_script(
             docs=selected_docs,
-            theme=theme,
+            theme=display_theme,
             decision=decision,
             note=note,
             target_minutes=args.target_minutes,
@@ -337,21 +362,18 @@ def main() -> int:
             inter_call_sleep=args.inter_call_sleep,
             usage_tracker=usage_tracker,
         )
-        script_md_path = args.output_dir / f"script_{date_slug}_{theme.theme_id}.md"
+        script_md_path = args.output_dir / f"script_{date_slug}_{display_theme.theme_id}.md"
         script_md_path.write_text(format_script_markdown(script, note), encoding="utf-8")
-        print(f"   -> 대본 완성: 총 {script.total_chars:,}자 ({script_md_path})")
+        print(
+            f"   -> 대본 완성: 총 {script.total_chars:,}자 / {script.total_turns}턴 ({script_md_path})"
+        )
 
-        mp3_path = args.output_dir / f"deep_dive_{date_slug}_{theme.theme_id}.mp3"
-        print(f"\n   -> TTS 음성 합성 시작 (provider={args.tts_provider})...")
-        generated_audio = generate_audio_from_segments(
-            segments=script.to_segments(),
+        mp3_path = args.output_dir / f"deep_dive_{date_slug}_{display_theme.theme_id}.mp3"
+        print(f"\n   -> 다중 화자 TTS 음성 합성 시작 (provider={args.tts_provider})...")
+        generated_audio = generate_dialogue_audio(
+            dialogue_items=script.to_dialogue_items(),
             output_mp3=mp3_path,
             tts_provider=args.tts_provider,
-            voice=args.voice,
-            tts_model=args.tts_model,
-            style=DEFAULT_DEEP_TTS_STYLE,
-            max_gemini_parts=10 if api_tier == "paid" else 7,
-            pause_seconds=0.8,
         )
         duration_seconds = generated_audio.duration_seconds
         usage_tracker.set_tts(
@@ -363,7 +385,8 @@ def main() -> int:
         print(
             f"   -> MP3 완성: {mp3_path} "
             f"({duration_seconds // 60}분 {duration_seconds % 60}초, "
-            f"{generated_audio.file_size_bytes / (1024 * 1024):.1f} MB)"
+            f"{generated_audio.file_size_bytes / (1024 * 1024):.1f} MB, "
+            f"엔진={generated_audio.provider}, 화자={generated_audio.voice})"
         )
     else:
         print("\n[4/6] --skip-audio 지정으로 오디오 단계 생략")
@@ -372,7 +395,7 @@ def main() -> int:
     for idx, d in enumerate(selected_docs, start=1):
         if d.pdf_bytes:
             (args.output_dir / (d.pdf_filename or f"source_{idx}.pdf")).write_bytes(d.pdf_bytes)
-    (args.output_dir / f"full_text_{date_slug}_{theme.theme_id}.txt").write_text(
+    (args.output_dir / f"full_text_{date_slug}_{display_theme.theme_id}.txt").write_text(
         "\n\n".join(f"=== {d.candidate.title} ===\n{d.full_text}" for d in selected_docs),
         encoding="utf-8",
     )
@@ -391,7 +414,7 @@ def main() -> int:
             deep_dir=args.podcast_dir,
             base_url=args.podcast_base_url,
             date_slug=date_slug,
-            theme=theme,
+            theme=display_theme,
             decision=decision,
             note=note,
             docs=selected_docs,
@@ -408,14 +431,14 @@ def main() -> int:
             doc_html = render_study_note_body_html(
                 note=note,
                 docs=selected_docs,
-                theme=theme,
+                theme=display_theme,
                 decision=decision,
                 article_url=published.article_url if published else None,
                 usage_footer_html=usage_footer_html,
             )
             drive_result = archive_to_google_drive(
                 date_slug=date_slug,
-                theme=theme,
+                theme=display_theme,
                 decision=decision,
                 note=note,
                 docs=selected_docs,
@@ -432,7 +455,7 @@ def main() -> int:
                     deep_dir=args.podcast_dir,
                     base_url=args.podcast_base_url,
                     date_slug=date_slug,
-                    theme=theme,
+                    theme=display_theme,
                     decision=decision,
                     note=note,
                     docs=selected_docs,
@@ -455,7 +478,7 @@ def main() -> int:
         if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
             tg_msg = build_deep_dive_telegram_message(
                 date_slug=date_slug,
-                theme=theme,
+                theme=display_theme,
                 decision=decision,
                 note=note,
                 docs=selected_docs,
@@ -471,9 +494,13 @@ def main() -> int:
     # 벤치마크 메타 JSON 저장
     bench_summary = {
         "date_slug": date_slug,
-        "theme": theme.theme_id,
+        "source_slot": theme.theme_id,
+        "theme": display_theme.theme_id,
         "mode": decision.mode,
         "title": note.episode_title_kr,
+        "dialogue_format": note.dialogue_cast.format_type,
+        "speaker_count": len(note.dialogue_cast.speakers),
+        "total_turns": script.total_turns if script else 0,
         "docs": [
             {
                 "title": d.candidate.title,
@@ -489,7 +516,7 @@ def main() -> int:
         "total_tokens": usage_tracker.total_tokens,
         "estimated_usd": round(usage_tracker.estimate_usd(), 4),
     }
-    (args.output_dir / f"run_summary_{date_slug}_{theme.theme_id}.json").write_text(
+    (args.output_dir / f"run_summary_{date_slug}_{display_theme.theme_id}.json").write_text(
         json.dumps(bench_summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )

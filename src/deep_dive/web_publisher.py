@@ -15,7 +15,7 @@ from typing import Any
 from xml.sax.saxutils import escape as xml_escape
 
 from deep_dive.models import CurationDecision, DeepDiveScript, DeepDiveStudyNote, FetchedDocument
-from deep_dive.themes import THEME_SLOTS, ThemeSlot
+from deep_dive.themes import CORE_THEME_IDS, THEME_SLOTS, ThemeSlot
 
 
 KST = timezone(timedelta(hours=9))
@@ -207,6 +207,13 @@ def render_study_note_body_html(
 """.strip()
 
 
+def _format_dialogue_cast_line(script: DeepDiveScript) -> str:
+    speakers_str = " · ".join(
+        f"{sp.name_kr}({sp.role_title_kr})" for sp in script.cast.speakers
+    )
+    return f"{len(script.cast.speakers)}인 대화 · {speakers_str}"
+
+
 def _render_article_page_html(
     episode_title: str,
     date_label: str,
@@ -220,22 +227,39 @@ def _render_article_page_html(
     audio_block = ""
     if mp3_rel_path:
         dur_str = _format_itunes_duration(duration_seconds)
+        cast_suffix = f" · {_format_dialogue_cast_line(script)}" if script is not None else ""
         audio_block = (
             "<div class='audio-card'>"
-            f"<div class='audio-meta'>🎧 심층 오디오 브리핑 · 재생 시간 {esc(dur_str)}</div>"
+            f"<div class='audio-meta'>🎧 심층 오디오 브리핑{esc(cast_suffix)} · 재생 시간 {esc(dur_str)}</div>"
             f"<audio controls preload='metadata' src='{esc(mp3_rel_path, quote=True)}'></audio>"
             "</div>"
         )
 
     transcript_block = ""
     if script is not None:
-        ch_html = [f"<h3>오프닝</h3><p>{esc(script.opening)}</p>"]
-        for idx, (ch_title, ch_body) in enumerate(script.chapters, start=1):
-            ch_html.append(f"<h3>Chapter {idx}. {esc(ch_title)}</h3><p>{esc(ch_body)}</p>")
-        ch_html.append(f"<h3>클로징</h3><p>{esc(script.closing)}</p>")
+        label_map = script.speaker_label_map()
+
+        def _render_turns(turns: list[Any]) -> str:
+            return "".join(
+                f"<p class='turn'><strong class='speaker'>{esc(label_map.get(t.speaker_id, t.speaker_id))}</strong> "
+                f"{esc(t.text)}</p>"
+                for t in turns
+                if getattr(t, "text", "").strip()
+            )
+
+        cast_intro = (
+            "<div class='cast-box'>"
+            f"<div><strong>진행 구성:</strong> {esc(_format_dialogue_cast_line(script))}</div>"
+            f"<div class='cast-reason'>{esc(script.cast.format_reason_kr)}</div>"
+            "</div>"
+        )
+        ch_html = [cast_intro, f"<h3>오프닝</h3>{_render_turns(script.opening_turns)}"]
+        for idx, (ch_title, ch_turns) in enumerate(script.chapters, start=1):
+            ch_html.append(f"<h3>Chapter {idx}. {esc(ch_title)}</h3>{_render_turns(ch_turns)}")
+        ch_html.append(f"<h3>클로징</h3>{_render_turns(script.closing_turns)}")
         transcript_block = (
             "<details class='transcript'>"
-            f"<summary>🎙️ 전체 오디오 대본 펼쳐보기 ({script.total_chars:,}자)</summary>"
+            f"<summary>🎙️ 전체 대화 대본 펼쳐보기 ({script.total_chars:,}자 · {script.total_turns}턴)</summary>"
             f"<div class='transcript-body'>{''.join(ch_html)}</div>"
             "</details>"
         )
@@ -303,6 +327,10 @@ def _render_article_page_html(
     .transcript {{ margin-top: 2.5rem; border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.2rem; background: var(--card); }}
     .transcript summary {{ cursor: pointer; font-weight: 600; color: var(--accent); }}
     .transcript-body p {{ white-space: pre-line; }}
+    .cast-box {{ background: var(--quote-bg); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.9rem 0 1.25rem; font-size: 0.9rem; }}
+    .cast-reason {{ color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }}
+    .turn {{ margin: 0.65rem 0; }}
+    .speaker {{ color: var(--accent); margin-right: 0.35rem; }}
     a {{ color: var(--accent); }}
   </style>
 </head>
@@ -416,7 +444,8 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
     feed_url = f"{clean_base}/feed.xml"
 
     filter_buttons = ["<button class='pill active' data-theme='all'>전체</button>"]
-    for tid, slot in THEME_SLOTS.items():
+    for tid in CORE_THEME_IDS:
+        slot = THEME_SLOTS[tid]
         filter_buttons.append(
             f"<button class='pill' data-theme='{esc(tid)}'>{esc(slot.emoji)} {esc(slot.label_kr)}</button>"
         )
@@ -428,6 +457,12 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
         sub_subject = ep.get("sub_subject_kr", "")
         article_href = f"posts/{esc(ep['article_filename'], quote=True)}"
         dur = _format_itunes_duration(ep.get("duration_seconds", 0)) if ep.get("mp3_filename") else "텍스트 전용"
+        cast_summary = ep.get("dialogue_cast_summary", "")
+        meta_parts = [ep.get("date_slug", ""), theme_label, sub_subject]
+        if cast_summary:
+            meta_parts.append(cast_summary)
+        meta_parts.append(dur)
+        meta_line = " · ".join(p for p in meta_parts if p)
         audio_tag = (
             f"<audio controls preload='none' src='episodes/{esc(ep['mp3_filename'], quote=True)}'></audio>"
             if ep.get("mp3_filename")
@@ -435,7 +470,7 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
         )
         cards.append(
             f"<article class='card' data-theme='{esc(tid)}'>"
-            f"<div class='meta'>{esc(ep.get('date_slug', ''))} · {esc(theme_label)} · {esc(sub_subject)} · {esc(dur)}</div>"
+            f"<div class='meta'>{esc(meta_line)}</div>"
             f"<h2><a href='{article_href}'>{esc(ep['title'])}</a></h2>"
             f"<p class='sub'>{esc(ep.get('subtitle_kr', ''))}</p>"
             f"{audio_tag}"
@@ -591,6 +626,9 @@ def publish_deep_dive(
         except (OSError, json.JSONDecodeError):
             episodes = []
 
+    new_source_urls_norm = {
+        d.candidate.url.strip().rstrip("/") for d in docs if d.candidate.url.strip()
+    }
     new_entry: dict[str, Any] = {
         "guid": guid,
         "date_slug": date_slug,
@@ -599,6 +637,9 @@ def publish_deep_dive(
         "sub_subject_kr": decision.sub_subject_kr,
         "title": episode_title,
         "subtitle_kr": note.subtitle_kr,
+        "dialogue_cast_summary": (
+            f"{len(script.cast.speakers)}인 대화" if script is not None else ""
+        ),
         "pub_date_rfc2822": format_datetime(now_kst),
         "published_iso": now_kst.isoformat(),
         "article_filename": article_filename,
@@ -610,12 +651,21 @@ def publish_deep_dive(
         "description_html": body_html,
     }
 
-    # 같은 날짜·같은 테마 재실행 시 기존 항목 교체
-    replaced = [
-        ep
-        for ep in episodes
-        if ep.get("date_slug") == date_slug and ep.get("theme_id") == theme.theme_id
-    ]
+    def _is_replaced_entry(ep: dict[str, Any]) -> bool:
+        if ep.get("date_slug") == date_slug and ep.get("theme_id") == theme.theme_id:
+            return True
+        if new_source_urls_norm:
+            ep_urls = {
+                u.strip().rstrip("/")
+                for u in ep.get("source_urls", [])
+                if isinstance(u, str) and u.strip()
+            }
+            if ep_urls and ep_urls == new_source_urls_norm:
+                return True
+        return False
+
+    # 같은 날짜·같은 테마 또는 동일 원문(예: weekend_special -> 핵심 테마 재분류) 재실행 시 기존 항목 교체
+    replaced = [ep for ep in episodes if _is_replaced_entry(ep)]
     for old_ep in replaced:
         old_mp3 = old_ep.get("mp3_filename")
         if old_mp3 and old_mp3 != mp3_filename:
@@ -624,11 +674,7 @@ def publish_deep_dive(
         if old_art and old_art != article_filename:
             (posts_dir / old_art).unlink(missing_ok=True)
 
-    episodes = [
-        ep
-        for ep in episodes
-        if not (ep.get("date_slug") == date_slug and ep.get("theme_id") == theme.theme_id)
-    ]
+    episodes = [ep for ep in episodes if not _is_replaced_entry(ep)]
     episodes.insert(0, new_entry)
     episodes.sort(key=lambda ep: ep.get("published_iso", ""), reverse=True)
 

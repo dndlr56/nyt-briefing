@@ -2,7 +2,7 @@ name: Deep Dive Knowledge Briefing
 
 on:
   push:
-    # feat/deep-dive-briefing 테스트 전용: 푸시 시 오디오 생략(skip_audio=true)으로 요약·웹 리더·토큰만 실측
+    # feat/deep-dive-briefing 테스트 전용: 푸시 시 2~3인 대화형 오디오 + 5개 핵심 탭 자동 배정 실측
     branches:
       - feat/deep-dive-briefing
   schedule:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       theme:
-        description: '테마 슬롯 선택 (auto=요일별 로테이션)'
+        description: '테마 슬롯 선택 (auto=요일별 로테이션, 주말은 5대 핵심 탭에 자동 배정)'
         required: true
         default: 'auto'
         type: choice
@@ -27,10 +27,11 @@ on:
       target_minutes:
         description: '목표 오디오 분량(분, 15~60 — 토큰 실측 후 조정 권장)'
         required: true
-        default: '30'
+        default: '25'
         type: choice
         options:
           - '20'
+          - '25'
           - '30'
           - '40'
           - '50'
@@ -44,7 +45,7 @@ on:
           - free
           - paid
       note_model:
-        description: 'Stage 1 구조화 독해 노트 모델 (기본: gemini-4-hydrogen, thinking=high)'
+        description: 'Stage 1 원문 충실 요약 노트 모델 (기본: gemini-4-hydrogen, thinking=high)'
         required: true
         default: 'gemini-4-hydrogen'
         type: choice
@@ -52,7 +53,7 @@ on:
           - gemini-4-hydrogen
           - gemini-3.5-flash-lite
       script_model:
-        description: 'Stage 2 휴버만식 롱폼 오디오 대본 모델 (기본: gemini-4-hydrogen, thinking=low)'
+        description: 'Stage 2 다중 화자 대화형 대본 모델 (기본: gemini-4-hydrogen, thinking=low)'
         required: true
         default: 'gemini-4-hydrogen'
         type: choice
@@ -60,14 +61,14 @@ on:
           - gemini-4-hydrogen
           - gemini-3.5-flash-lite
       tts_provider:
-        description: 'TTS 엔진 (30~60분 롱폼은 무료·무제한인 edge_tts 권장)'
+        description: '다중 화자 TTS 엔진 (google_cloud_tts=Chirp3-HD 3화자 월 100만자 무료 / edge_tts=무료 무제한 3화자)'
         required: true
-        default: 'edge_tts'
+        default: 'google_cloud_tts'
         type: choice
         options:
+          - google_cloud_tts
           - edge_tts
           - gemini_tts
-          - google_cloud_tts
       source_url:
         description: '(선택) 자동 수집 대신 직접 해부할 특정 논문/기사/PDF URL'
         required: false
@@ -151,11 +152,11 @@ jobs:
           DEEP_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/deep
         run: |
           THEME="auto"
-          TARGET_MINUTES="30"
+          TARGET_MINUTES="25"
           API_TIER="free"
           NOTE_MODEL="gemini-4-hydrogen"
           SCRIPT_MODEL="gemini-4-hydrogen"
-          TTS_PROVIDER="edge_tts"
+          TTS_PROVIDER="google_cloud_tts"
           SOURCE_URL=""
           SEARCH_TITLE=""
           SKIP_AUDIO="false"
@@ -163,8 +164,10 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ]; then
             THEME="weekend_special"
             SEARCH_TITLE="Dementia prevention, intervention, and care: 2024 report of the Lancet standing Commission"
-            SKIP_AUDIO="true"
-            echo "[INFO] Feature branch push test: Saturday weekend_special + Lancet 2024 DB search (--skip-audio)."
+            TARGET_MINUTES="25"
+            TTS_PROVIDER="google_cloud_tts"
+            SKIP_AUDIO="false"
+            echo "[INFO] Feature branch push test: Lancet 2024 -> core tab auto-classification + 2-3 speaker dialogue audio."
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             THEME="${{ inputs.theme }}"
             TARGET_MINUTES="${{ inputs.target_minutes }}"

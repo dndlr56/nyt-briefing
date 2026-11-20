@@ -20,25 +20,27 @@
 | 수 | `health_medicine` | 의학·건강·장수 | Europe PMC 고인용 리뷰·메타분석(**4년**), OpenAlex FWCI 리뷰(**4년**), Nature Medicine·eLife |
 | 목 | `econ_geopolitics` | 경제·금융·지정학 | OpenAlex 행동재무·거시·지정학(**3~4년**), Semantic Scholar 경제(**4년**), NBER·BIS·IMF·Brookings·RAND·CSIS, arXiv(`q-fin`/`econ`) |
 | 금 | `law_cases` | 대한민국 법학·판례·법조 칼럼 | 대한민국 대법원 판례속보, 법률신문(판결·오피니언), 대한변협 법조신문, 법률저널(로스쿨·연재), OpenAlex 한국 법학 OA 논문(최근 5년) |
-| 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**5년**), Semantic Scholar 명작(**5년**), Aeon·Quanta·Foreign Affairs·Just Security·Brookings |
+| 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**5년**), Semantic Scholar 명작(**5년**), Aeon·Quanta·Foreign Affairs·Just Security·Brookings *(웹 리더 발행 시 내용에 맞는 위 5개 핵심 탭 중 하나에 자동 배정)* |
 
+> **아카이브 탭 정책**: 웹 리더(`deep/index.html`)에는 별도의 '주말 무제한 스페셜' 탭을 두지 않고 **전체 + 5대 핵심 분야 탭**만 노출합니다. 주말 슬롯이나 수동 지정(`source_url`/`search_title`) 문헌은 Stage 1에서 원문 성격에 가장 맞는 핵심 탭으로 자동 분류됩니다.
+>
 > **선택 API 키 (미등록해도 정상 동작)**: `SEMANTIC_SCHOLAR_API_KEY`(무료 1 RPS 전용 한도) 및 `CORE_API_KEY`([core.ac.uk](https://core.ac.uk/services/api) 무료 키 — 출판사 PDF가 막힐 때 대학 리포지토리 Green OA 전문 자동 회수)를 GitHub Secrets에 추가하면 탐색·전문 회수 안정성이 더욱 높아집니다.
 
 ---
 
-## 3. 단계별 모델·추론 수준 & 토큰 실측 가이드
+## 3. 단계별 모델·추론 수준 & 다중 화자 대화형 TTS
 > `gemini-4-hydrogen`의 공식 지원 추론 레벨은 `low`, `medium`, `high`(기본), `xhigh`입니다 (`minimal` 미지원 — 자동 `low` 보정 내장).
 
 | 단계 | 기본 모델 | 기본 `thinking_level` | 설계 의도 |
 | :--- | :--- | :--- | :--- |
-| 문헌 선별 | `gemini-3.5-flash-lite` | `low` | 후보 35건(피인용 수·권위 포함) 스캔 및 1편 vs 2~3편 모드 판단 |
-| Stage 1: 구조화 독해 노트 | `gemini-4-hydrogen` | `high` | 원문 방법론·논증·한계·비교표·챕터 설계 핵심 추론 (1회 집중 투입) |
-| Stage 2: 챕터 본문 대본 | `gemini-4-hydrogen` | `low` | 완성된 설계도 기반 풍부한 구어체 전개 (챕터별 추론 토큰 폭증 방지) |
-| Stage 2: 오프닝 / 클로징 | `gemini-4-hydrogen` | `low` | Hydrogen 최저 추론 레벨로 간결하고 빠르게 도입·마무리 작성 |
+| 문헌 선별 | `gemini-3.5-flash-lite` | `low` | 후보 35건(FWCI·상위 백분위·실질 인용 포함) 스캔 및 1편 vs 2~3편 모드 판단 |
+| Stage 1: 원문 충실 요약·분류·캐스팅 | `gemini-4-hydrogen` | `high` | 원문 충실 번역·요약 노트, 5대 탭 분류, 2~3인 대화 캐스팅 및 챕터 설계 (1회 집중 투입) |
+| Stage 2: 챕터 대화 대본 | `gemini-4-hydrogen` | `low` | 문헌 성격에 맞는 2~3인 대화(`사회자+패널`, `패널2`, `사회자+패널2`, `패널3`) 전개 |
+| Stage 2: 오프닝 / 클로징 | `gemini-4-hydrogen` | `low` | Hydrogen 최저 추론 레벨로 간결하고 자연스럽게 도입·마무리 대화 작성 |
+| Stage 2: 다중 화자 TTS | `google_cloud_tts` (기본) / `edge_tts` | — | Chirp3-HD 3화자(`Kore`/`Charon`/`Aoede`, 월 100만자 무료) 합성 + 장애 시 Edge TTS 3화자(`SunHi`/`Hyunsu`/`InJoon`) 자동 폴백 |
 
 GitHub Actions에서 **`Actions → Deep Dive Knowledge Briefing → Run workflow`**로 수동 실행하면 텔레그램 알림과 `output/deep_dive/run_summary_*.json`에 단계별 실제 토큰·비용이 기록됩니다.
-- 먼저 `target_minutes=30`, `api_tier=free`, `tts_provider=edge_tts`로 실측한 뒤 분량(`20`~`60`분)을 확정해 보세요.
-- 특정 논문이나 PDF 링크를 직접 해부하려면 `source_url` 입력칸에 URL을 넣으면 됩니다.
+- 특정 논문이나 PDF 링크를 직접 요약하려면 `source_url` 또는 `search_title` 입력칸을 사용하면 됩니다.
 
 ---
 

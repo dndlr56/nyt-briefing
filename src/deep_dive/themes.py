@@ -108,6 +108,16 @@ class ThemeSlot:
     html_lists: tuple[HtmlListSpec, ...] = field(default_factory=tuple)
 
 
+# 웹 리더 아카이브에 표시되는 5개 핵심 분야 탭 (주말 스페셜 글도 내용에 맞는 5개 중 하나로 배정)
+CORE_THEME_IDS: tuple[str, ...] = (
+    "ai_tech",
+    "science_mind",
+    "health_medicine",
+    "econ_geopolitics",
+    "law_cases",
+)
+
+
 THEME_SLOTS: dict[str, ThemeSlot] = {
     "ai_tech": ThemeSlot(
         theme_id="ai_tech",

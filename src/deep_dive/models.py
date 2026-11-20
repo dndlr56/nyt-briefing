@@ -8,6 +8,22 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+CoreThemeId = Literal[
+    "ai_tech",
+    "science_mind",
+    "health_medicine",
+    "econ_geopolitics",
+    "law_cases",
+]
+SpeakerId = Literal["S1", "S2", "S3"]
+DialogueFormatType = Literal[
+    "host_and_expert",
+    "two_panelists",
+    "host_and_two_panelists",
+    "three_panelists",
+]
+
+
 @dataclass
 class SourceCandidate:
     """수집 단계에서 확보한 1차 문헌 후보(논문·보고서·에세이·판례)."""
@@ -104,6 +120,40 @@ class SummaryTableRow(BaseModel):
     detail_kr: str = Field(description="원문에 근거한 핵심 수치·근거·내용 요약")
 
 
+class SpeakerProfile(BaseModel):
+    speaker_id: SpeakerId = Field(
+        description="화자 ID ('S1'=여성 목소리, 'S2'=남성 목소리 1, 'S3'=남성/여성 목소리 2)"
+    )
+    name_kr: str = Field(
+        description="대화 중 부르기 자연스러운 짧은 한국어 이름 (예: S1='지수', S2='현수', S3='인준')"
+    )
+    role_title_kr: str = Field(
+        description="역할 라벨 (예: '사회자', '패널', '역학·예방 담당 패널', '다수의견 해설 패널')"
+    )
+    perspective_kr: str = Field(
+        description="이 화자가 원문에서 주로 맡아 설명하거나 대변할 영역/관점 1문장 (반드시 원문 근거 기반)"
+    )
+
+
+class DialogueCast(BaseModel):
+    format_type: DialogueFormatType = Field(
+        description=(
+            "글의 성격에 맞는 최적 대화 포맷: "
+            "'host_and_expert'(사회자1+패널1), 'two_panelists'(패널2), "
+            "'host_and_two_panelists'(사회자1+패널2 — 상반된 두 관점/다수·반대의견/다학제), "
+            "'three_panelists'(패널3 — 3개 축 대형 보고서·복수 논문 종합)"
+        )
+    )
+    format_reason_kr: str = Field(
+        description="이 문헌의 특성상 이 화자 구성을 선택한 이유 1문장"
+    )
+    speakers: list[SpeakerProfile] = Field(
+        min_length=2,
+        max_length=3,
+        description="실제 참여하는 2명(S1, S2) 또는 3명(S1, S2, S3)의 화자 구성",
+    )
+
+
 class ChapterBlueprint(BaseModel):
     chapter_number: int = Field(description="챕터 순번 (1부터 시작)")
     title_kr: str = Field(description="챕터 소제목 (자연스러운 한국어)")
@@ -116,6 +166,14 @@ class ChapterBlueprint(BaseModel):
 
 
 class DeepDiveStudyNote(BaseModel):
+    primary_theme_id: CoreThemeId = Field(
+        description=(
+            "이 문헌이 가장 정확히 속하는 5대 핵심 아카이브 분야 중 하나: "
+            "'ai_tech'(AI·기술·사회), 'science_mind'(종합과학·뇌인지), "
+            "'health_medicine'(의학·건강·장수), 'econ_geopolitics'(경제·금융·지정학), "
+            "'law_cases'(대한민국 법학·판례·법조 칼럼)"
+        )
+    )
     episode_title_kr: str = Field(
         description="원문 주제를 정확하고 깔끔하게 전달하는 자연스러운 한국어 제목 (날짜 접두사·불필요한 영문 병기 제외)"
     )
@@ -164,6 +222,9 @@ class DeepDiveStudyNote(BaseModel):
         max_length=3,
         description="원문에서 그대로 발췌한 핵심 문장 2~3개와 자연스러운 한국어 번역",
     )
+    dialogue_cast: DialogueCast = Field(
+        description="원문 성격에 맞춘 2인 또는 3인 대화형 오디오 캐스팅 설계"
+    )
     chapters: list[ChapterBlueprint] = Field(
         min_length=4,
         max_length=6,
@@ -171,33 +232,66 @@ class DeepDiveStudyNote(BaseModel):
     )
 
 
-class ChapterNarrationOutput(BaseModel):
-    narration: str = Field(
+class DialogueTurn(BaseModel):
+    speaker_id: SpeakerId = Field(description="발언 화자 ID ('S1', 'S2', 또는 'S3')")
+    text: str = Field(
         description=(
             "마크다운·불릿·URL·태그·불필요한 영문 병기 없이 귀로 자연스럽게 들리는 "
-            "순수 한국어 번역·해설 발화 대본"
+            "순수 한국어 대화 발화 (보통 2~5문장)"
         )
+    )
+
+
+class ChapterDialogueOutput(BaseModel):
+    turns: list[DialogueTurn] = Field(
+        min_length=2,
+        description="해당 챕터(또는 오프닝/클로징)를 구성하는 화자 간 대화 턴 목록",
     )
 
 
 @dataclass
 class DeepDiveScript:
     episode_title: str
-    opening: str
-    chapters: list[tuple[str, str]]  # [(chapter_title_kr, narration_text), ...]
-    closing: str
+    cast: DialogueCast
+    opening_turns: list[DialogueTurn]
+    chapters: list[tuple[str, list[DialogueTurn]]]  # [(chapter_title_kr, turns), ...]
+    closing_turns: list[DialogueTurn]
 
-    def to_segments(self) -> list[tuple[str, str]]:
-        segs: list[tuple[str, str]] = []
-        if self.opening.strip():
-            segs.append(("Opening", self.opening.strip()))
-        for idx, (title, narration) in enumerate(self.chapters, start=1):
-            if narration.strip():
-                segs.append((f"Chapter {idx}: {title}", narration.strip()))
-        if self.closing.strip():
-            segs.append(("Closing", self.closing.strip()))
-        return segs
+    def speaker_label_map(self) -> dict[str, str]:
+        return {
+            sp.speaker_id: f"{sp.name_kr} ({sp.role_title_kr})"
+            for sp in self.cast.speakers
+        }
+
+    def speaker_name_map(self) -> dict[str, str]:
+        return {sp.speaker_id: sp.name_kr for sp in self.cast.speakers}
+
+    def all_turns(self) -> list[DialogueTurn]:
+        turns: list[DialogueTurn] = list(self.opening_turns)
+        for _, ch_turns in self.chapters:
+            turns.extend(ch_turns)
+        turns.extend(self.closing_turns)
+        return turns
+
+    def to_dialogue_items(self) -> list[tuple[str, str, str, bool]]:
+        """TTS 합성용 (section_label, speaker_id, text, is_section_end) 시퀀스를 반환합니다."""
+        items: list[tuple[str, str, str, bool]] = []
+
+        def _append_section(sec_label: str, turns: list[DialogueTurn]) -> None:
+            valid = [t for t in turns if t.text and t.text.strip()]
+            for idx, t in enumerate(valid):
+                items.append((sec_label, t.speaker_id, t.text.strip(), idx == len(valid) - 1))
+
+        _append_section("Opening", self.opening_turns)
+        for idx, (title, ch_turns) in enumerate(self.chapters, start=1):
+            _append_section(f"Chapter {idx}: {title}", ch_turns)
+        _append_section("Closing", self.closing_turns)
+        return items
 
     @property
     def total_chars(self) -> int:
-        return sum(len(text) for _, text in self.to_segments())
+        return sum(len(t.text.strip()) for t in self.all_turns())
+
+    @property
+    def total_turns(self) -> int:
+        return len(self.all_turns())

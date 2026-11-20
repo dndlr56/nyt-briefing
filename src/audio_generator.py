@@ -760,3 +760,276 @@ def generate_audio_briefing(
         style=style,
     )
 
+
+DEFAULT_EDGE_DIALOGUE_VOICES: dict[str, str] = {
+    "S1": "ko-KR-SunHiNeural",              # 여성: 또렷·자연스러운 진행자/패널 1
+    "S2": "ko-KR-HyunsuMultilingualNeural", # 남성: 차분·지적인 해설 패널
+    "S3": "ko-KR-InJoonNeural",             # 남성: 친근·선명한 보조 패널
+}
+
+DEFAULT_CLOUD_DIALOGUE_VOICES: dict[str, str] = {
+    "S1": "ko-KR-Chirp3-HD-Kore",    # 여성: 단정·또렷
+    "S2": "ko-KR-Chirp3-HD-Charon",  # 남성: 차분·지적
+    "S3": "ko-KR-Chirp3-HD-Aoede",   # 여성: 산뜻·자연스러움
+}
+
+
+def _write_silence_wav(path: Path, duration_seconds: float, sample_rate: int = 24000) -> None:
+    """지정 길이의 24kHz 모노 무음 WAV 파일을 생성합니다."""
+    num_frames = max(1, int(sample_rate * duration_seconds))
+    with wave.open(str(path), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * num_frames)
+
+
+def _concat_dialogue_parts_to_mp3(
+    turn_audios: list[tuple[bytes, bool]],
+    output_mp3: Path,
+    input_suffix: str,
+    turn_pause_seconds: float = 0.28,
+    section_pause_seconds: float = 0.85,
+) -> None:
+    """수십~수백 개의 대화 턴 오디오를 24kHz 모노 WAV로 정규화한 뒤 ffmpeg concat demuxer로 MP3 결합합니다."""
+    if not turn_audios:
+        raise ValueError("결합할 대화 오디오 파트가 없습니다.")
+
+    output_mp3.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="deepdive_dialogue_") as tmp_dir_str:
+        tmp_dir = Path(tmp_dir_str)
+        turn_sil = tmp_dir / "sil_turn.wav"
+        sec_sil = tmp_dir / "sil_sec.wav"
+        _write_silence_wav(turn_sil, turn_pause_seconds)
+        _write_silence_wav(sec_sil, section_pause_seconds)
+
+        concat_lines: list[str] = []
+        for idx, (audio_bytes, is_section_end) in enumerate(turn_audios):
+            raw_path = tmp_dir / f"turn_{idx:04d}{input_suffix}"
+            wav_path = tmp_dir / f"turn_{idx:04d}.wav"
+            raw_path.write_bytes(audio_bytes)
+
+            norm_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(raw_path),
+                "-ar",
+                "24000",
+                "-ac",
+                "1",
+                "-c:a",
+                "pcm_s16le",
+                str(wav_path),
+            ]
+            res = subprocess.run(norm_cmd, capture_output=True, text=True, check=False)
+            if res.returncode != 0:
+                raise RuntimeError(f"ffmpeg 턴 WAV 정규화 실패 (turn {idx}): {res.stderr.strip()}")
+            raw_path.unlink(missing_ok=True)
+
+            concat_lines.append(f"file '{wav_path.as_posix()}'")
+            if idx < len(turn_audios) - 1:
+                sil_file = sec_sil if is_section_end else turn_sil
+                concat_lines.append(f"file '{sil_file.as_posix()}'")
+
+        list_file = tmp_dir / "concat_list.txt"
+        list_file.write_text("\n".join(concat_lines) + "\n", encoding="utf-8")
+
+        final_cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_file),
+            "-codec:a",
+            "libmp3lame",
+            "-b:a",
+            "96k",
+            "-ar",
+            "24000",
+            "-ac",
+            "1",
+            str(output_mp3),
+        ]
+        final_res = subprocess.run(final_cmd, capture_output=True, text=True, check=False)
+        if final_res.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg 대화 MP3 결합 실패 (exit {final_res.returncode}): {final_res.stderr.strip()}"
+            )
+
+
+def _synthesize_edge_dialogue_turns(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    voice_map: dict[str, str],
+    rate: str = "+0%",
+) -> list[tuple[bytes, bool]]:
+    """Edge TTS로 다중 화자 대화 턴을 순차 합성합니다."""
+    async def _run_all() -> list[tuple[bytes, bool]]:
+        results: list[tuple[bytes, bool]] = []
+        total = len(dialogue_items)
+        for idx, (sec_label, speaker_id, text, is_sec_end) in enumerate(dialogue_items, start=1):
+            voice_name = voice_map.get(speaker_id, DEFAULT_EDGE_DIALOGUE_VOICES["S1"])
+            chunks = _split_text_by_utf8_bytes(text, max_bytes=EDGE_TTS_MAX_UTF8_BYTES)
+            turn_bytes: list[bytes] = []
+            print(
+                f"      [Edge Dialogue TTS] Turn {idx}/{total} ({speaker_id}:{voice_name}, "
+                f"{sec_label}, {len(text)} chars)..."
+            )
+            for chunk in chunks:
+                mp3_bytes = await _synthesize_edge_tts_chunk_async(
+                    text=chunk,
+                    voice_name=voice_name,
+                    rate=rate,
+                )
+                turn_bytes.append(mp3_bytes)
+                await asyncio.sleep(0.45)
+            results.append((b"".join(turn_bytes), is_sec_end))
+        return results
+
+    return asyncio.run(_run_all())
+
+
+def _synthesize_cloud_dialogue_turns(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    voice_map: dict[str, str],
+) -> list[tuple[bytes, bool]]:
+    """Google Cloud TTS(Chirp3-HD 다중 화자)로 대화 턴을 순차 합성합니다."""
+    auth_headers = _get_cloud_tts_auth_headers()
+    results: list[tuple[bytes, bool]] = []
+    total = len(dialogue_items)
+    for idx, (sec_label, speaker_id, text, is_sec_end) in enumerate(dialogue_items, start=1):
+        voice_name = voice_map.get(speaker_id, DEFAULT_CLOUD_DIALOGUE_VOICES["S1"])
+        chunks = _split_text_by_utf8_bytes(text)
+        print(
+            f"      [Cloud Dialogue TTS] Turn {idx}/{total} ({speaker_id}:{voice_name}, "
+            f"{sec_label}, {len(text)} chars)..."
+        )
+        for c_idx, chunk in enumerate(chunks):
+            wav_bytes: bytes | None = None
+            last_err: Exception | None = None
+            for attempt in range(1, 4):
+                try:
+                    wav_bytes = _synthesize_cloud_tts_chunk(
+                        text=chunk,
+                        voice_name=voice_name,
+                        auth_headers=auth_headers,
+                    )
+                    break
+                except Exception as exc:
+                    last_err = exc
+                    err_str = str(exc)
+                    # 인증/권한 오류는 즉시 폴백
+                    if "(401)" in err_str or "(403)" in err_str or "(400)" in err_str:
+                        raise
+                    if attempt < 3:
+                        time.sleep(1.5 * attempt)
+            if wav_bytes is None:
+                raise RuntimeError(f"Cloud Dialogue TTS 턴 {idx} 실패: {last_err}")
+            is_last_chunk = c_idx == len(chunks) - 1
+            results.append((wav_bytes, is_sec_end if is_last_chunk else False))
+    return results
+
+
+def generate_dialogue_audio(
+    dialogue_items: list[tuple[str, str, str, bool]],
+    output_mp3: Path,
+    tts_provider: str | None = None,
+    speaker_voice_map: dict[str, str] | None = None,
+    turn_pause_seconds: float = 0.28,
+    section_pause_seconds: float = 0.85,
+) -> GeneratedAudio:
+    """
+    2~3인 대화형 대본을 화자별 서로 다른 한국어 목소리로 합성해 하나의 MP3로 결합합니다.
+    - edge_tts: ko-KR-SunHiNeural (S1) / ko-KR-HyunsuMultilingualNeural (S2) / ko-KR-InJoonNeural (S3)
+    - google_cloud_tts: ko-KR-Chirp3-HD-Kore (S1) / Charon (S2) / Aoede (S3)
+    """
+    provider = (tts_provider or "edge_tts").strip().lower()
+    if provider == "gemini_tts":
+        # 다중 화자 50+턴 롱폼은 무료 RPD(10회) 초과 방지를 위해 Cloud TTS 또는 Edge TTS로 자동 라우팅
+        if os.getenv("GOOGLE_CLOUD_TTS_CREDENTIALS_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            print("      [INFO] 다중 화자 롱폼 대화는 Google Cloud Chirp3-HD 3화자 엔진으로 합성합니다.")
+            provider = "google_cloud_tts"
+        else:
+            print("      [INFO] 다중 화자 롱폼 대화는 Edge TTS 3화자 엔진으로 합성합니다.")
+            provider = "edge_tts"
+
+    if provider not in ("edge_tts", "google_cloud_tts"):
+        raise ValueError(f"대화형 TTS가 지원하지 않는 프로바이더입니다: {provider}")
+
+    cleaned = [
+        (sec, sp, txt.strip(), is_end)
+        for sec, sp, txt, is_end in dialogue_items
+        if txt and txt.strip()
+    ]
+    if not cleaned:
+        raise ValueError("합성할 대화 턴이 비어 있습니다.")
+
+    has_cloud_creds = bool(
+        os.getenv("GOOGLE_CLOUD_TTS_CREDENTIALS_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    )
+    turn_audios: list[tuple[bytes, bool]] = []
+    input_suffix = ".mp3"
+    selected_model = "microsoft-edge-tts"
+    used_voices: dict[str, str] = {}
+
+    if provider == "edge_tts":
+        voice_map = {**DEFAULT_EDGE_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+        used_voices = voice_map
+        try:
+            turn_audios = _synthesize_edge_dialogue_turns(cleaned, voice_map=voice_map)
+            input_suffix = ".mp3"
+            selected_model = "microsoft-edge-tts"
+        except Exception as edge_exc:
+            if has_cloud_creds:
+                print(
+                    f"      [WARN] Edge Dialogue TTS failed ({edge_exc}). "
+                    "Falling back to Google Cloud Chirp3-HD multi-speaker..."
+                )
+                provider = "google_cloud_tts"
+            else:
+                raise
+
+    if provider == "google_cloud_tts":
+        voice_map = {**DEFAULT_CLOUD_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+        used_voices = voice_map
+        try:
+            turn_audios = _synthesize_cloud_dialogue_turns(cleaned, voice_map=voice_map)
+            input_suffix = ".wav"
+            selected_model = "google-cloud-tts-chirp3-hd"
+        except Exception as cloud_exc:
+            print(
+                f"      [WARN] Cloud Dialogue TTS failed ({cloud_exc}). "
+                "Falling back to Edge TTS multi-speaker..."
+            )
+            provider = "edge_tts"
+            voice_map = {**DEFAULT_EDGE_DIALOGUE_VOICES, **(speaker_voice_map or {})}
+            used_voices = voice_map
+            turn_audios = _synthesize_edge_dialogue_turns(cleaned, voice_map=voice_map)
+            input_suffix = ".mp3"
+            selected_model = "microsoft-edge-tts"
+
+    _concat_dialogue_parts_to_mp3(
+        turn_audios=turn_audios,
+        output_mp3=output_mp3,
+        input_suffix=input_suffix,
+        turn_pause_seconds=turn_pause_seconds,
+        section_pause_seconds=section_pause_seconds,
+    )
+
+    probed = _get_media_duration_seconds(output_mp3)
+    speaker_ids_used = sorted({sp for _, sp, _, _ in cleaned})
+    voice_summary = ", ".join(f"{sid}={used_voices.get(sid, '')}" for sid in speaker_ids_used)
+
+    return GeneratedAudio(
+        mp3_path=output_mp3,
+        duration_seconds=max(1, round(probed)) if probed > 0 else 1,
+        file_size_bytes=output_mp3.stat().st_size,
+        voice=voice_summary,
+        model=selected_model,
+        provider=provider,
+    )
+
+

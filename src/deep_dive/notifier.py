@@ -23,9 +23,10 @@ def build_deep_dive_telegram_message(
     usage_summary_text: str | None = None,
 ) -> str:
     esc = html.escape
-    mode_label = "1편 심층 해부" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 브리핑"
+    mode_label = "1편 충실 요약" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 요약"
     dur_min = round(duration_seconds / 60) if duration_seconds > 0 else 0
-    dur_str = f" · 🎧 약 {dur_min}분" if dur_min > 0 else ""
+    speakers_n = len(note.dialogue_cast.speakers)
+    dur_str = f" · 🎧 {speakers_n}인 대화 약 {dur_min}분" if dur_min > 0 else ""
 
     bullets = "\n".join(f"• {esc(b)}" for b in note.tldr_bullets)
     sources = "\n".join(

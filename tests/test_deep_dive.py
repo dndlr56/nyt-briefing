@@ -21,9 +21,12 @@ from deep_dive.models import (
     CuratedPick,
     DeepDiveScript,
     DeepDiveStudyNote,
+    DialogueCast,
+    DialogueTurn,
     FetchedDocument,
     KeyQuote,
     SourceCandidate,
+    SpeakerProfile,
     SummarySection,
     SummaryTableRow,
 )
@@ -36,8 +39,30 @@ from deep_dive.web_publisher import load_covered_urls_from_pages, publish_deep_d
 KST = timezone(timedelta(hours=9))
 
 
+def _sample_cast() -> DialogueCast:
+    return DialogueCast(
+        format_type="host_and_expert",
+        format_reason_kr="실험 근거와 인지 메커니즘을 문답식으로 명쾌하게 정리하기 위해 2인 구성을 선택했습니다.",
+        speakers=[
+            SpeakerProfile(
+                speaker_id="S1",
+                name_kr="지수",
+                role_title_kr="사회자",
+                perspective_kr="핵심 질문을 던지고 논의 흐름을 정리합니다.",
+            ),
+            SpeakerProfile(
+                speaker_id="S2",
+                name_kr="현수",
+                role_title_kr="인지심리 패널",
+                perspective_kr="원문의 실험 결과와 메커니즘을 충실히 해설합니다.",
+            ),
+        ],
+    )
+
+
 def _sample_note() -> DeepDiveStudyNote:
     return DeepDiveStudyNote(
+        primary_theme_id="science_mind",
         episode_title_kr="메타인지와 인출 연습이 장기 기억을 강화하는 메커니즘",
         subtitle_kr="반복 읽기보다 능동적 인출이 지연 기억 유지에 효과적인 이유를 정리한 리뷰",
         tldr_bullets=[
@@ -85,6 +110,7 @@ def _sample_note() -> DeepDiveStudyNote:
                 source_label="Sample Cognitive Science Review (2026)",
             ),
         ],
+        dialogue_cast=_sample_cast(),
         chapters=[
             ChapterBlueprint(chapter_number=1, title_kr="왜 열심히 읽어도 기억이 안 날까", focus_kr="유창성 착각과 수동 학습의 한계", key_points=["친숙함과 이해의 차이", "지연 시험 결과"]),
             ChapterBlueprint(chapter_number=2, title_kr="인출 연습의 신경 메커니즘", focus_kr="해마와 전전두엽의 재활성화", key_points=["인출 경로 강화", "피드백 효과"]),
@@ -167,10 +193,31 @@ class DeepDivePipelineTests(unittest.TestCase):
         )
         script = DeepDiveScript(
             episode_title="[종합과학·뇌인지] 메타인지와 인출 연습 | 2026.11.24",
-            opening="안녕하세요, 오늘의 딥다이브입니다.",
-            chapters=[("왜 읽어도 기억이 안 날까", "본문 발화 테스트입니다.")],
-            closing="오늘 에피소드를 마칩니다.",
+            cast=note.dialogue_cast,
+            opening_turns=[
+                DialogueTurn(speaker_id="S1", text="안녕하세요, 오늘의 딥다이브 브리핑을 시작합니다."),
+                DialogueTurn(speaker_id="S2", text="반갑습니다. 오늘은 인출 연습 리뷰 논문을 자세히 살펴보겠습니다."),
+            ],
+            chapters=[
+                (
+                    "왜 읽어도 기억이 안 날까",
+                    [
+                        DialogueTurn(speaker_id="S1", text="반복해서 읽으면 공부가 잘 된 느낌인데 왜 시험에서는 막힐까요?"),
+                        DialogueTurn(speaker_id="S2", text="원문에서는 이를 유창성 착각으로 설명합니다. 친숙함과 실제 인출 능력은 다릅니다."),
+                    ],
+                )
+            ],
+            closing_turns=[
+                DialogueTurn(speaker_id="S1", text="오늘 내용 잘 정리됐습니다. 청취해 주셔서 감사합니다."),
+                DialogueTurn(speaker_id="S2", text="다음 에피소드에서 다시 뵙겠습니다."),
+            ],
         )
+
+        dialogue_items = script.to_dialogue_items()
+        self.assertEqual(len(dialogue_items), 6)
+        self.assertTrue(dialogue_items[1][3])  # Opening 마지막 턴
+        self.assertTrue(dialogue_items[3][3])  # Chapter 1 마지막 턴
+        self.assertTrue(dialogue_items[5][3])  # Closing 마지막 턴
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = Path(tmp)
@@ -178,6 +225,23 @@ class DeepDivePipelineTests(unittest.TestCase):
             fake_mp3.write_bytes(b"ID3" + b"\x00" * 128)
             deep_dir = tmp_dir / "deep"
 
+            # 먼저 과거 weekend_special로 발행된 동일 원문이 있었다고 가정
+            weekend_slot = resolve_theme_slot("weekend_special")
+            old_pub = publish_deep_dive(
+                deep_dir=deep_dir,
+                base_url="https://dndlr56.github.io/nyt-briefing/deep",
+                date_slug="2026-11-24",
+                theme=weekend_slot,
+                decision=decision,
+                note=note,
+                docs=[doc],
+                script=None,
+                mp3_path=None,
+                duration_seconds=0,
+            )
+            self.assertTrue(old_pub.article_path.exists())
+
+            # 같은 원문을 핵심 테마(science_mind) + 오디오로 재발행하면 기존 weekend_special 항목이 교체되어야 함
             pub = publish_deep_dive(
                 deep_dir=deep_dir,
                 base_url="https://dndlr56.github.io/nyt-briefing/deep",
@@ -193,9 +257,25 @@ class DeepDivePipelineTests(unittest.TestCase):
 
             self.assertTrue(pub.feed_path.exists())
             self.assertTrue(pub.article_path.exists())
+            self.assertFalse(old_pub.article_path.exists())
             self.assertTrue((deep_dir / "index.html").exists())
-            self.assertIn("Retrieval Practice", pub.article_path.read_text(encoding="utf-8"))
+
+            article_html = pub.article_path.read_text(encoding="utf-8")
+            self.assertIn("Retrieval Practice", article_html)
+            self.assertIn("지수 (사회자)", article_html)
+            self.assertIn("현수 (인지심리 패널)", article_html)
+            self.assertIn("2인 대화", article_html)
+
+            index_html = (deep_dir / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn("data-theme='weekend_special'", index_html)
+            self.assertIn("data-theme='science_mind'", index_html)
+            self.assertIn("data-theme='health_medicine'", index_html)
             self.assertIn("<enclosure ", pub.feed_path.read_text(encoding="utf-8"))
+
+            import json
+            metadata = json.loads((deep_dir / "episodes" / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(metadata), 1)
+            self.assertEqual(metadata[0]["theme_id"], "science_mind")
 
             covered = load_covered_urls_from_pages(deep_dir)
             self.assertIn("https://pmc.ncbi.nlm.nih.gov/articles/PMC999999", covered)
@@ -210,6 +290,7 @@ class DeepDivePipelineTests(unittest.TestCase):
                 duration_seconds=1840,
             )
             self.assertIn("Deep Dive 브리핑", tg_msg)
+            self.assertIn("2인 대화", tg_msg)
             self.assertIn(pub.article_url, tg_msg)
 
     def test_drive_configured_default_false(self) -> None:
