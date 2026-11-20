@@ -17,6 +17,7 @@ class RssFeedSpec:
     sub_topic_hint: str = ""
     authority_tier: int = 1
     max_items: int = 8
+    lookback_days: int = 30  # 주간·격주 에세이/보고서 기본 30일 (월간 저널은 60일 지정)
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,7 @@ class ArxivQuerySpec:
     query: str
     sub_topic_hint: str = ""
     max_results: int = 10
+    lookback_days: int = 14  # arXiv는 평일 매일 발행 → 최근 14일(2주) 기본
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,7 @@ class PmcQuerySpec:
     query: str
     sub_topic_hint: str = ""
     max_results: int = 8
+    lookback_days: int = 90  # 탑티어 의학/인지 저널 OA 색인 주기를 고려해 최근 90일(3개월) 기본
 
 
 @dataclass(frozen=True)
@@ -309,6 +312,7 @@ THEME_SLOTS: dict[str, ThemeSlot] = {
                 sub_topic_hint="헌법·공법·기업법·법이론",
                 authority_tier=1,
                 max_items=8,
+                lookback_days=60,
             ),
             RssFeedSpec(
                 name="Lawfare (Tech, Constitutional & National Security Law)",
@@ -325,6 +329,7 @@ THEME_SLOTS: dict[str, ThemeSlot] = {
                 sub_topic_hint="비교헌법·기본권·사법심사",
                 authority_tier=2,
                 max_items=6,
+                lookback_days=45,
             ),
         ),
         arxiv_queries=(
@@ -353,6 +358,7 @@ THEME_SLOTS: dict[str, ThemeSlot] = {
                 sub_topic_hint="철학·과학·인문 장문 에세이",
                 authority_tier=1,
                 max_items=8,
+                lookback_days=45,
             ),
             RssFeedSpec(
                 name="Quanta Magazine",
@@ -369,6 +375,7 @@ THEME_SLOTS: dict[str, ThemeSlot] = {
                 sub_topic_hint="글로벌 질서·지정학 장문",
                 authority_tier=1,
                 max_items=6,
+                lookback_days=60,
             ),
             RssFeedSpec(
                 name="Brookings Institution",

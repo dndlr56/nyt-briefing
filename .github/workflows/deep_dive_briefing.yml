@@ -2,11 +2,9 @@ name: Deep Dive Knowledge Briefing
 
 on:
   schedule:
-    # 월~금 한국시간(KST, UTC+9) 오전 8시 00분 = 일~목 UTC 23시 00분
-    # (매일 07:00 KST 뉴스 브리핑과 1시간 간격을 두어 gh-pages 충돌 방지)
-    - cron: '0 23 * * 0-4'
-    # 토요일 스페셜 (KST 토요일 오전 9시 00분 = UTC 토요일 00시 00분)
-    - cron: '0 0 * * 6'
+    # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오전 7시 30분 = UTC 22시 30분
+    # (매일 07:00 KST 뉴스 브리핑과 30분 간격 + concurrency 그룹으로 gh-pages 충돌 방지)
+    - cron: '30 22 * * *'
   workflow_dispatch:
     inputs:
       theme:
@@ -42,21 +40,19 @@ on:
           - free
           - paid
       note_model:
-        description: 'Stage 1 구조화 독해 노트 모델'
+        description: 'Stage 1 구조화 독해 노트 모델 (기본: gemini-4-hydrogen, thinking=medium)'
         required: true
-        default: 'gemini-3.8-flash'
+        default: 'gemini-4-hydrogen'
         type: choice
         options:
-          - gemini-3.8-flash
           - gemini-4-hydrogen
           - gemini-3.5-flash-lite
       script_model:
-        description: 'Stage 2 휴버만식 롱폼 오디오 대본 모델'
+        description: 'Stage 2 휴버만식 롱폼 오디오 대본 모델 (기본: gemini-4-hydrogen, chapters=low / bookends=minimal)'
         required: true
-        default: 'gemini-3.8-flash'
+        default: 'gemini-4-hydrogen'
         type: choice
         options:
-          - gemini-3.8-flash
           - gemini-4-hydrogen
           - gemini-3.5-flash-lite
       tts_provider:
@@ -147,8 +143,8 @@ jobs:
           THEME="auto"
           TARGET_MINUTES="30"
           API_TIER="free"
-          NOTE_MODEL="gemini-3.8-flash"
-          SCRIPT_MODEL="gemini-3.8-flash"
+          NOTE_MODEL="gemini-4-hydrogen"
+          SCRIPT_MODEL="gemini-4-hydrogen"
           TTS_PROVIDER="edge_tts"
           SOURCE_URL=""
           SKIP_AUDIO="false"

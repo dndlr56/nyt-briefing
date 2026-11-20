@@ -215,6 +215,31 @@ class DeepDivePipelineTests(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             self.assertFalse(is_drive_configured())
 
+    def test_lookback_filtering(self) -> None:
+        from deep_dive.sources import _filter_by_lookback
+
+        now = datetime(2026, 11, 20, 0, 0, tzinfo=timezone.utc)
+        fresh = SourceCandidate(
+            title="Fresh Paper",
+            url="https://example.org/fresh",
+            source_name="arXiv",
+            theme_id="ai_tech",
+            published="2026-11-15",
+        )
+        old = SourceCandidate(
+            title="Old Paper",
+            url="https://example.org/old",
+            source_name="arXiv",
+            theme_id="ai_tech",
+            published="2026-09-01",
+        )
+        filtered = _filter_by_lookback([fresh, old], lookback_days=14, now_utc=now)
+        self.assertEqual([c.title for c in filtered], ["Fresh Paper"])
+
+        # 기간 내 결과가 없으면 안전 폴백으로 빈 리스트를 반환하지 않음
+        fallback = _filter_by_lookback([old], lookback_days=14, now_utc=now)
+        self.assertEqual([c.title for c in fallback], ["Old Paper"])
+
 
 if __name__ == "__main__":
     unittest.main()

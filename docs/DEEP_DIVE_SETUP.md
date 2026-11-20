@@ -10,25 +10,29 @@
 
 ---
 
-## 2. 요일별 자동 테마 로테이션 (KST 기준)
-| 요일 | 테마 ID | 분야 | 대표 1차 소스 (전문 확보 우선) |
+## 2. 요일별 자동 테마 로테이션 (매일 오전 07:30 KST, 월~일)
+| 요일 | 테마 ID | 분야 | 대표 1차 소스 및 탐색 기간 (Lookback) |
 | :--- | :--- | :--- | :--- |
-| 월 | `ai_tech` | AI·기술·사회 | arXiv(`cs.AI`/`cs.CL`/`cs.CY`), Nature Machine Intelligence, DeepMind Blog, MIT Tech Review |
-| 화 | `science_mind` | 종합과학·뇌인지 | Quanta Magazine, Nature/Science OA, Nature Comms, Science Advances, PMC 인지·학습 리뷰 |
-| 수 | `health_medicine` | 의학·건강·장수 | PMC OA(수면·운동·대사·장수·정신의학 리뷰), Nature Medicine, eLife |
-| 목 | `econ_geopolitics` | 경제·금융·지정학 | NBER, BIS, IMF, Brookings, RAND, CSIS, arXiv(`q-fin`/`econ`) |
-| 금 | `law_cases` | 법학·판례 입문 | SCOTUSblog, Harvard Law Review, Lawfare, Verfassungsblog, arXiv AI 규제/저작권 |
-| 토·일 | `weekend_special` | 주말 무제한 스페셜 | Aeon, Quanta, Foreign Affairs, Brookings, SCOTUSblog, arXiv 대형 서베이 |
+| 월 | `ai_tech` | AI·기술·사회 | arXiv(`cs.AI`/`cs.CL`/`cs.CY`, **14일**), Nature Machine Intelligence·DeepMind·MIT Tech Review(**30일**) |
+| 화 | `science_mind` | 종합과학·뇌인지 | Quanta·Nature·Science Advances·Nature Comms(**30일**), PMC 인지·학습 리뷰(**90일**) |
+| 수 | `health_medicine` | 의학·건강·장수 | PMC OA 의학·수면·운동·장수·정신의학 리뷰(**90일**), Nature Medicine·eLife(**30일**) |
+| 목 | `econ_geopolitics` | 경제·금융·지정학 | NBER·BIS·IMF·Brookings·RAND·CSIS(**30일**), arXiv `q-fin`/`econ`(**14일**) |
+| 금 | `law_cases` | 법학·판례 입문 | SCOTUSblog·Lawfare(**30일**), Verfassungsblog(**45일**), Harvard Law Review(**60일**), arXiv AI 법(**14일**) |
+| 토·일 | `weekend_special` | 주말 무제한 스페셜 | Aeon(**45일**), Quanta·Brookings·SCOTUSblog(**30일**), Foreign Affairs(**60일**), arXiv 서베이(**14일**) |
 
 ---
 
-## 3. 토큰 소모량 실측 & 튜닝 방법
-GitHub Actions에서 **`Actions → Deep Dive Knowledge Briefing → Run workflow`**로 수동 실행하면:
-1. 텔레그램 알림과 워크플로우 로그, `output/deep_dive/run_summary_*.json`에 **단계별 실제 입력·출력·추론 토큰 및 유료 환산 비용**이 기록됩니다.
-2. 먼저 `target_minutes=30`, `api_tier=free`, `note_model=gemini-3.8-flash`, `script_model=gemini-3.8-flash`, `tts_provider=edge_tts`로 테스트해 토큰과 오디오 품질을 확인한 뒤,
-   - 더 긴 휴버만식 강의를 원하시면 `target_minutes=45` 또는 `60`으로 늘리고,
-   - 더 깊은 서술을 원하시면 `script_model=gemini-4-hydrogen`으로 비교해 보세요.
-3. 특정 논문이나 PDF 링크를 직접 돌려보고 싶다면 `source_url` 입력칸에 URL(예: arXiv PDF 링크)을 넣으면 바로 해부합니다.
+## 3. 단계별 모델·추론 수준 & 토큰 실측 가이드
+| 단계 | 기본 모델 | 기본 `thinking_level` | 설계 의도 |
+| :--- | :--- | :--- | :--- |
+| 문헌 선별 | `gemini-3.5-flash-lite` | `low` | 후보 35건 메타데이터 스캔·1편 vs 2~3편 모드 판단 |
+| Stage 1: 구조화 독해 노트 | `gemini-4-hydrogen` | `medium` | 원문 전체 방법론·논증·한계·비교표·챕터 설계 핵심 추론 |
+| Stage 2: 챕터 본문 대본 | `gemini-4-hydrogen` | `low` | 설계도 기반 풍부한 구어체 전개 (추론 토큰 폭증 방지) |
+| Stage 2: 오프닝 / 클로징 | `gemini-4-hydrogen` | `minimal` | 완성된 노트 기반 간결한 도입·마무리 |
+
+GitHub Actions에서 **`Actions → Deep Dive Knowledge Briefing → Run workflow`**로 수동 실행하면 텔레그램 알림과 `output/deep_dive/run_summary_*.json`에 단계별 실제 토큰·비용이 기록됩니다.
+- 먼저 `target_minutes=30`, `api_tier=free`, `tts_provider=edge_tts`로 실측한 뒤 분량(`20`~`60`분)을 확정해 보세요.
+- 특정 논문이나 PDF 링크를 직접 해부하려면 `source_url` 입력칸에 URL을 넣으면 됩니다.
 
 ---
 

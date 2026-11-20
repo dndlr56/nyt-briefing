@@ -14,6 +14,7 @@ from usage_tracker import RunUsageTracker
 
 
 DEFAULT_CURATOR_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_CURATOR_THINKING = "low"  # 후보 35건 메타데이터 스캔·적응형 모드 판단에 적합한 경량 추론
 
 
 CURATOR_SYSTEM_INSTRUCTION = """당신은 서울대학교 철학·심리학 전공(로스쿨 입학 예정, 주식 초보 투자자) 독자를 위한 'Deep Dive Knowledge Briefing' 수석 학술 편집장입니다.
@@ -72,6 +73,7 @@ def curate_candidates(
     )
 
     selected_model = model or os.getenv("DEEP_CURATOR_MODEL", DEFAULT_CURATOR_MODEL)
+    thinking_level = os.getenv("DEEP_CURATOR_THINKING", DEFAULT_CURATOR_THINKING)
     client = genai.Client()
 
     last_exc: Exception | None = None
@@ -84,7 +86,7 @@ def curate_candidates(
                 response_mime_type="application/json",
                 response_format=CurationDecision.model_json_schema(),
                 generation_config={
-                    "thinking_level": "low",
+                    "thinking_level": thinking_level,
                     "max_output_tokens": 2048,
                 },
                 store=False,

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 import io
 from pathlib import Path
 import re
@@ -36,6 +38,7 @@ MAX_LLM_DOCUMENT_CHARS = 75_000  # 단일 문서 LLM 입력 상한 (~20K~25K 토
 MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB 안전 상한
 
 _WS_RE = re.compile(r"\s+")
+_ISO_DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 _PAYWALL_MARKERS = (
     "subscribe to continue reading",
     "buy this article",
@@ -61,12 +64,64 @@ def _local_tag(tag: str) -> str:
     return tag.split("}", 1)[-1] if "}" in tag else tag
 
 
+def _parse_published_datetime(raw: str) -> datetime | None:
+    """ISO 8601 또는 RFC 2822 날짜 문자열을 UTC aware datetime으로 파싱합니다."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        pass
+    try:
+        dt = parsedate_to_datetime(text)
+        return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        pass
+    match = _ISO_DATE_RE.search(text)
+    if match:
+        y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
+        try:
+            return datetime(y, m, d, tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _filter_by_lookback(
+    candidates: list[SourceCandidate],
+    lookback_days: int,
+    now_utc: datetime | None = None,
+) -> list[SourceCandidate]:
+    """지정된 lookback_days 이내 문헌만 남깁니다 (날짜 미상 항목은 보존, 0건이면 완화 폴백)."""
+    if lookback_days <= 0 or not candidates:
+        return candidates
+    ref = now_utc or datetime.now(timezone.utc)
+    cutoff = ref - timedelta(days=lookback_days)
+
+    recent: list[SourceCandidate] = []
+    for cand in candidates:
+        pub_dt = _parse_published_datetime(cand.published)
+        if pub_dt is None or pub_dt >= cutoff:
+            recent.append(cand)
+    # 엄격한 기간 내 0건이면 2배 기간으로 완화해 빈 결과 방지
+    if not recent:
+        relaxed_cutoff = ref - timedelta(days=lookback_days * 2)
+        recent = [
+            c
+            for c in candidates
+            if (_parse_published_datetime(c.published) or ref) >= relaxed_cutoff
+        ]
+    return recent or candidates[:3]
+
+
 def fetch_arxiv_candidates(spec: ArxivQuerySpec, theme_id: str) -> list[SourceCandidate]:
-    """arXiv Atom API에서 최근 권위 있는 논문 후보를 수집합니다."""
+    """arXiv Atom API에서 최근 lookback_days 이내 권위 있는 논문 후보를 수집합니다."""
     params = {
         "search_query": spec.query,
         "start": 0,
-        "max_results": spec.max_results,
+        "max_results": max(spec.max_results, 15),
         "sortBy": "submittedDate",
         "sortOrder": "descending",
     }
@@ -111,16 +166,18 @@ def fetch_arxiv_candidates(spec: ArxivQuerySpec, theme_id: str) -> list[SourceCa
                     authority_tier=1,
                 )
             )
-    return candidates
+    return _filter_by_lookback(candidates, spec.lookback_days)[: spec.max_results]
 
 
 def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandidate]:
-    """PubMed Central(PMC) Open Access 논문 후보를 NCBI E-utilities로 수집합니다."""
+    """PubMed Central(PMC) Open Access 논문 후보를 최근 lookback_days 기준으로 수집합니다."""
     search_params = {
         "db": "pmc",
         "term": spec.query,
         "retmax": spec.max_results,
         "sort": "pub date",
+        "datetype": "pdat",
+        "reldate": spec.lookback_days,
         "retmode": "json",
     }
     search_resp = requests.get(
@@ -128,6 +185,15 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
     )
     search_resp.raise_for_status()
     id_list = search_resp.json().get("esearchresult", {}).get("idlist", [])
+    if not id_list and spec.lookback_days < 180:
+        # 최근 90일 내 결과 없을 시 180일로 자동 1회 확장
+        search_params["reldate"] = 180
+        time.sleep(0.4)
+        retry_resp = requests.get(
+            NCBI_ESEARCH_URL, params=search_params, headers=HTTP_HEADERS, timeout=25
+        )
+        retry_resp.raise_for_status()
+        id_list = retry_resp.json().get("esearchresult", {}).get("idlist", [])
     if not id_list:
         return []
 
@@ -183,7 +249,7 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
 
 
 def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandidate]:
-    """표준 RSS 2.0 / Atom / RDF 피드에서 문헌 후보를 수집합니다."""
+    """표준 RSS 2.0 / Atom / RDF 피드에서 lookback_days 이내 문헌 후보를 수집합니다."""
     resp = requests.get(spec.url, headers=HTTP_HEADERS, timeout=25)
     resp.raise_for_status()
 
@@ -196,7 +262,7 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
         if tag in ("item", "entry"):
             items.append(elem)
 
-    for item in items[: spec.max_items]:
+    for item in items[: max(spec.max_items * 2, 16)]:
         title = ""
         link = ""
         published = ""
@@ -241,7 +307,7 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
                     url=link,
                     source_name=spec.name,
                     theme_id=theme_id,
-                    published=published[:25],
+                    published=published[:35],
                     authors=", ".join(authors_list[:4]),
                     abstract=summary[:1500],
                     pdf_url=pdf_url,
@@ -250,7 +316,7 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
                     authority_tier=spec.authority_tier,
                 )
             )
-    return candidates
+    return _filter_by_lookback(candidates, spec.lookback_days)[: spec.max_items]
 
 
 def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:

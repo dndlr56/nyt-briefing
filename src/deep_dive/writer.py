@@ -22,8 +22,11 @@ from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
-DEFAULT_NOTE_MODEL = "gemini-3.8-flash"
+DEFAULT_NOTE_MODEL = "gemini-4-hydrogen"
 DEFAULT_SCRIPT_MODEL = "gemini-4-hydrogen"
+DEFAULT_NOTE_THINKING = "medium"       # 원문 전체 방법론·논증·한계·챕터 설계: 깊은 구조 추론
+DEFAULT_CHAPTER_THINKING = "low"       # 설계도 기반 롱폼 구어체 전개: 출력 밀도·토큰 효율 균형
+DEFAULT_BOOKEND_THINKING = "minimal"   # 오프닝/클로징: 이미 완성된 노트 요약 기반 경량 추론
 DEFAULT_CHARS_PER_MINUTE = 420  # 한국어 낭독 속도 기준 약 410~430자/분
 
 
@@ -132,6 +135,7 @@ def generate_study_note(
 ) -> DeepDiveStudyNote:
     """Stage 1: 원문 전문을 분석해 웹 리더·Google Doc용 구조화 독해 노트와 챕터 설계도를 생성합니다."""
     selected_model = model or os.getenv("DEEP_NOTE_MODEL", DEFAULT_NOTE_MODEL)
+    note_thinking = os.getenv("DEEP_NOTE_THINKING", DEFAULT_NOTE_THINKING)
     client = genai.Client()
 
     today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일")
@@ -156,8 +160,8 @@ def generate_study_note(
         system_instruction=STUDY_NOTE_SYSTEM_INSTRUCTION,
         prompt=prompt,
         schema=DeepDiveStudyNote.model_json_schema(),
-        max_output_tokens=16384,
-        thinking_level="low",
+        max_output_tokens=20480,
+        thinking_level=note_thinking,
         stage="구조화 독해 노트",
         usage_tracker=usage_tracker,
     )
@@ -179,6 +183,8 @@ def generate_longform_script(
     20~60분 분량의 휴버만식 심층 오디오 대본을 조립합니다.
     """
     selected_model = model or os.getenv("DEEP_SCRIPT_MODEL", DEFAULT_SCRIPT_MODEL)
+    chapter_thinking = os.getenv("DEEP_CHAPTER_THINKING", DEFAULT_CHAPTER_THINKING)
+    bookend_thinking = os.getenv("DEEP_BOOKEND_THINKING", DEFAULT_BOOKEND_THINKING)
     api_tier = (os.getenv("GEMINI_API_TIER") or "free").strip().lower()
     sleep_sec = (
         inter_call_sleep
@@ -207,7 +213,7 @@ def generate_longform_script(
     )
 
     # 1) 오프닝 생성
-    print(f"      [Script] Opening 생성 중 (목표 ~{opening_target}자)...")
+    print(f"      [Script] Opening 생성 중 (목표 ~{opening_target}자, thinking={bookend_thinking})...")
     opening_prompt = (
         f"에피소드 제목: {episode_title}\n"
         f"부제: {note.subtitle_kr}\n"
@@ -224,7 +230,7 @@ def generate_longform_script(
         prompt=opening_prompt,
         schema=ChapterNarrationOutput.model_json_schema(),
         max_output_tokens=4096,
-        thinking_level="low",
+        thinking_level=bookend_thinking,
         stage="대본 Opening",
         usage_tracker=usage_tracker,
     )
@@ -243,7 +249,7 @@ def generate_longform_script(
         max_c = int(per_chapter_target * 1.15)
         print(
             f"      [Script] Chapter {idx}/{chapter_count} '{ch.title_kr}' 생성 중 "
-            f"(목표 {min_c}~{max_c}자)..."
+            f"(목표 {min_c}~{max_c}자, thinking={chapter_thinking})..."
         )
         points_str = "\n".join(f"- {p}" for p in ch.key_points)
         chapter_prompt = (
@@ -267,7 +273,7 @@ def generate_longform_script(
             prompt=chapter_prompt,
             schema=ChapterNarrationOutput.model_json_schema(),
             max_output_tokens=12288,
-            thinking_level="low",
+            thinking_level=chapter_thinking,
             stage=f"대본 Chapter {idx}",
             usage_tracker=usage_tracker,
         )
@@ -278,7 +284,7 @@ def generate_longform_script(
     # 3) 클로징 생성
     if sleep_sec > 0:
         time.sleep(min(sleep_sec, 10.0))
-    print(f"      [Script] Closing 생성 중 (목표 ~{closing_target}자)...")
+    print(f"      [Script] Closing 생성 중 (목표 ~{closing_target}자, thinking={bookend_thinking})...")
     takeaways_str = "\n".join(f"- {t}" for t in note.practical_takeaways_kr)
     closing_prompt = (
         f"에피소드: {episode_title}\n"
@@ -294,7 +300,7 @@ def generate_longform_script(
         prompt=closing_prompt,
         schema=ChapterNarrationOutput.model_json_schema(),
         max_output_tokens=4096,
-        thinking_level="low",
+        thinking_level=bookend_thinking,
         stage="대본 Closing",
         usage_tracker=usage_tracker,
     )
