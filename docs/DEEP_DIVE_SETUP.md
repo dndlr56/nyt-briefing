@@ -67,7 +67,7 @@ Deep-Dive-Briefing/
 ├── Master_Index (Google Sheet)
 └── YYYY-MM/
     └── YYYY-MM-DD_<theme>_<제목>/
-        ├── [YYYY-MM-DD] <제목> (Google Doc)
+        ├── [YYYY-MM-DD] <제목>.pdf (요약 노트 PDF)
         ├── <원문>.pdf (PDF 확보 시 — NotebookLM 투입 가능)
         └── full_text.txt
 ```

@@ -226,6 +226,32 @@ def _safe_folder_name(date_slug: str, theme_id: str, title: str) -> str:
     return f"{date_slug}_{theme_id}_{slug or 'briefing'}"
 
 
+def _export_google_doc_as_pdf(headers: dict[str, str], doc_id: str) -> bytes:
+    """Google Drive API로 Google Doc을 깔끔한 A4 PDF 바이트로 내보냅니다."""
+    resp = requests.get(
+        f"{DRIVE_API_BASE}/files/{doc_id}/export",
+        headers=headers,
+        params={"mimeType": "application/pdf"},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.content
+
+
+def _delete_drive_file(headers: dict[str, str], file_id: str) -> None:
+    """임시 변환용 Google Doc을 정리합니다."""
+    requests.delete(
+        f"{DRIVE_API_BASE}/files/{file_id}",
+        headers=headers,
+        timeout=25,
+    )
+
+
+def _safe_filename(text: str, max_len: int = 60) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|]+', "", text).strip()
+    return cleaned[:max_len] or "briefing"
+
+
 def archive_to_google_drive(
     date_slug: str,
     theme: ThemeSlot,
@@ -238,7 +264,8 @@ def archive_to_google_drive(
     """
     3단 Google Drive 아카이빙 실행:
     1) Deep-Dive-Briefing/YYYY-MM/YYYY-MM-DD_<theme>_<title>/ 폴더 생성
-    2) 구조화 브리핑 노트 Google Doc 업로드 (HTML → Google Docs 자동 변환)
+    2) 구조화 브리핑 노트를 PDF 파일([YYYY-MM-DD] <제목>.pdf)로 변환·저장
+       (HTML → 임시 Google Doc 렌더링 → PDF 내보내기 → 실제 .pdf 저장 후 임시 Doc 삭제)
     3) 원문 PDF(있을 경우) + full_text.txt 업로드
     4) Master_Index Google Sheet에 1행 추가
     """
@@ -254,21 +281,52 @@ def archive_to_google_drive(
     day_folder_name = _safe_folder_name(date_slug, theme.theme_id, note.episode_title_kr)
     day_folder_id = _find_or_create_folder(headers, day_folder_name, parent_id=month_id)
 
-    # 1) 브리핑 노트 Google Doc 생성
+    # 1) 브리핑 노트 PDF 생성 (Google Docs 렌더링 엔진으로 한글·표·인용문을 깔끔한 PDF로 변환)
     wrapped_html = (
-        "<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'></head>"
+        "<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'>"
+        "<style>"
+        "body { font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; line-height: 1.65; color: #1f2937; font-size: 10.5pt; }"
+        "h1 { font-size: 17pt; margin-bottom: 6pt; color: #111827; }"
+        "h2 { font-size: 13pt; margin-top: 16pt; margin-bottom: 6pt; border-bottom: 1px solid #d1d5db; padding-bottom: 3pt; color: #1e3a8a; }"
+        "h3 { font-size: 11pt; margin-top: 11pt; margin-bottom: 4pt; color: #111827; }"
+        "table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9.5pt; }"
+        "th, td { border: 1px solid #d1d5db; padding: 5pt 7pt; text-align: left; vertical-align: top; }"
+        "th { background: #f3f4f6; width: 25%; }"
+        "blockquote { background: #f9fafb; border-left: 3px solid #6b7280; margin: 8pt 0; padding: 6pt 10pt; }"
+        "ul, ol { margin: 4pt 0 8pt 16pt; }"
+        "</style></head>"
         f"<body><h1>{note.episode_title_kr}</h1>{doc_html}</body></html>"
     )
-    doc_id = _upload_multipart_file(
+    safe_title = _safe_filename(note.episode_title_kr)
+    temp_doc_id = _upload_multipart_file(
         headers=headers,
         metadata={
-            "name": f"[{date_slug}] {note.episode_title_kr}",
+            "name": f"_tmp_{date_slug}_{safe_title}",
             "mimeType": "application/vnd.google-apps.document",
             "parents": [day_folder_id],
         },
         content_bytes=wrapped_html.encode("utf-8"),
         content_mime="text/html; charset=UTF-8",
     )
+
+    doc_id = temp_doc_id
+    doc_url = f"https://docs.google.com/document/d/{temp_doc_id}/edit"
+    try:
+        summary_pdf_bytes = _export_google_doc_as_pdf(headers, temp_doc_id)
+        summary_pdf_id = _upload_multipart_file(
+            headers=headers,
+            metadata={
+                "name": f"[{date_slug}] {safe_title}.pdf",
+                "parents": [day_folder_id],
+            },
+            content_bytes=summary_pdf_bytes,
+            content_mime="application/pdf",
+        )
+        doc_id = summary_pdf_id
+        doc_url = f"https://drive.google.com/file/d/{summary_pdf_id}/view"
+        _delete_drive_file(headers, temp_doc_id)
+    except Exception as exc:
+        print(f"      [WARN] 요약 노트 PDF 변환 실패 -> Google Doc으로 유지합니다: {exc}")
 
     # 2) 원문 PDF 및 추출 텍스트(full_text.txt) 저장
     pdf_count = 0
@@ -300,7 +358,6 @@ def archive_to_google_drive(
     # 3) Master_Index Google Sheet 갱신
     sheet_id = _find_or_create_master_sheet(headers, root_id)
     folder_url = f"https://drive.google.com/drive/folders/{day_folder_id}"
-    doc_url = f"https://docs.google.com/document/d/{doc_id}/edit"
     sheet_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
 
     sources_summary = " / ".join(
@@ -308,7 +365,7 @@ def archive_to_google_drive(
         for d in docs
     )
     primary_urls = "\n".join(d.candidate.url for d in docs)
-    mode_label = "1편 심층" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합"
+    mode_label = "1편 충실 요약" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 요약"
 
     _append_master_sheet_row(
         headers=headers,
