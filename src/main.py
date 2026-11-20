@@ -132,7 +132,7 @@ def main() -> int:
         "--tts-model",
         type=str,
         default=None,
-        help="gemini_tts 선택 시 사용할 모델 (기본값: gemini-3.8-flash-tts)",
+        help="gemini_tts 선택 시 사용할 모델 (기본값: gemini-3.8-flash-lite-tts)",
     )
     parser.add_argument(
         "--output-dir",

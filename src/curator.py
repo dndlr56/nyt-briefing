@@ -10,7 +10,7 @@ from google import genai
 from pydantic import BaseModel, Field, ValidationError
 
 from guardian_fetcher import ArticleCandidate, FullArticle
-from usage_tracker import RunUsageTracker
+from usage_tracker import RunUsageTracker, is_rate_limit_error, try_switch_to_paid_key
 
 
 class SelectedArticleRef(BaseModel):
@@ -101,11 +101,6 @@ DEFAULT_SELECTION_MODEL = "gemini-4-hydrogen"
 DEFAULT_SUMMARY_MODEL = "gemini-4-hydrogen"
 
 
-def _is_rate_limit_error(exc: Exception) -> bool:
-    msg = str(exc).lower()
-    return "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
-
-
 def select_articles(
     candidates: list[ArticleCandidate],
     model: str | None = None,
@@ -145,7 +140,7 @@ def select_articles(
 
     last_exc: Exception | None = None
     result: SelectionResult | None = None
-    for attempt in range(1, 4):
+    for attempt in range(1, 5):
         try:
             interaction = client.interactions.create(
                 model=selected_model,
@@ -171,16 +166,24 @@ def select_articles(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 3:
-            wait_sec = 20 * attempt if _is_rate_limit_error(last_exc) else 3 * attempt
+        if attempt < 4:
+            if is_rate_limit_error(last_exc):
+                if attempt >= 2:
+                    paid_key = try_switch_to_paid_key()
+                    if paid_key:
+                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta"})
+                        continue
+                wait_sec = 20
+            else:
+                wait_sec = 3 * attempt
             print(
-                f"      [WARN] Stage 1 failed (attempt {attempt}/3): {last_exc}. "
+                f"      [WARN] Stage 1 failed (attempt {attempt}/4): {last_exc}. "
                 f"Retrying in {wait_sec}s..."
             )
             time.sleep(wait_sec)
 
     if result is None:
-        raise RuntimeError(f"1단계 기사 선별 3회 실패: {last_exc}")
+        raise RuntimeError(f"1단계 기사 선별 실패: {last_exc}")
 
     selected_pairs: list[tuple[ArticleCandidate, str]] = []
     seen: set[str] = set()
@@ -231,7 +234,7 @@ def summarize_full_articles(
     )
 
     last_exc: Exception | None = None
-    for attempt in range(1, 4):
+    for attempt in range(1, 5):
         try:
             interaction = client.interactions.create(
                 model=selected_model,
@@ -256,12 +259,20 @@ def summarize_full_articles(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 3:
-            wait_sec = 20 * attempt if _is_rate_limit_error(last_exc) else 3 * attempt
+        if attempt < 4:
+            if is_rate_limit_error(last_exc):
+                if attempt >= 2:
+                    paid_key = try_switch_to_paid_key()
+                    if paid_key:
+                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta"})
+                        continue
+                wait_sec = 20
+            else:
+                wait_sec = 3 * attempt
             print(
-                f"      [WARN] Stage 2 summary failed (attempt {attempt}/3): {last_exc}. "
+                f"      [WARN] Stage 2 summary failed (attempt {attempt}/4): {last_exc}. "
                 f"Retrying in {wait_sec}s..."
             )
             time.sleep(wait_sec)
 
-    raise RuntimeError(f"2단계 기사 요약 3회 실패: {last_exc}")
+    raise RuntimeError(f"2단계 기사 요약 실패: {last_exc}")

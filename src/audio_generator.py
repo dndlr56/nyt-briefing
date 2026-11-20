@@ -19,6 +19,7 @@ from google import genai
 import requests
 
 from script_writer import RoundupAudioScript, get_script_segments
+from usage_tracker import is_rate_limit_error, try_switch_to_paid_key
 
 
 KST = timezone(timedelta(hours=9))
@@ -28,7 +29,7 @@ CLOUD_TTS_MAX_UTF8_BYTES = 4200  # Google Cloud TTS 5,000바이트 제한에 여
 DEFAULT_TTS_PROVIDER = "gemini_tts"
 DEFAULT_EDGE_TTS_VOICE = "ko-KR-HyunsuMultilingualNeural"
 DEFAULT_CLOUD_TTS_VOICE = "ko-KR-Chirp3-HD-Kore"
-DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts"
+DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-lite-tts"
 DEFAULT_GEMINI_TTS_VOICE = "auto_rotate"
 # 매일 다른 여성 목소리로 비교 테스트하기 위한 공식 Gemini TTS 여성 보이스 로테이션 (11/20=Kore 기준)
 GEMINI_TTS_ROTATION_VOICES: tuple[str, ...] = (
@@ -436,9 +437,9 @@ def _synthesize_gemini_tts_part(
     model: str,
     voice: str,
     style: str,
-    max_retries: int = 3,
-) -> bytes:
-    """Gemini TTS로 단일 파트를 WAV 음성 합성합니다 (429 재시도 포함)."""
+    max_retries: int = 4,
+) -> tuple[bytes, genai.Client]:
+    """Gemini TTS로 단일 파트를 WAV 음성 합성합니다 (무료 한도 소진 시 유료 키 자동 전환 포함)."""
     part_payload: dict[str, object] = {
         "type": "text",
         "text": text.strip(),
@@ -451,10 +452,11 @@ def _synthesize_gemini_tts_part(
             }
         ]
 
+    active_client = client
     last_exc: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
-            interaction = client.interactions.create(
+            interaction = active_client.interactions.create(
                 model=model,
                 input=[part_payload],
                 response_format={"type": "audio"},
@@ -474,16 +476,25 @@ def _synthesize_gemini_tts_part(
                 )
 
             if isinstance(raw_data, bytes):
-                return raw_data
+                return raw_data, active_client
             if isinstance(raw_data, str):
-                return base64.b64decode(raw_data)
+                return base64.b64decode(raw_data), active_client
             raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
         except Exception as exc:
             last_exc = exc
             if attempt < max_retries:
-                msg = str(exc).lower()
-                is_rate = "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
-                wait_sec = 25 * attempt if is_rate else 5 * attempt
+                if is_rate_limit_error(exc):
+                    if attempt >= 2:
+                        paid_key = try_switch_to_paid_key()
+                        if paid_key:
+                            active_client = genai.Client(
+                                api_key=paid_key,
+                                http_options={"api_version": "v1beta"},
+                            )
+                            continue
+                    wait_sec = 22
+                else:
+                    wait_sec = 5 * attempt
                 print(
                     f"      [WARN] Gemini TTS attempt {attempt}/{max_retries} failed "
                     f"({type(exc).__name__}: {exc}). Retrying in {wait_sec}s..."
@@ -636,11 +647,11 @@ def generate_audio_briefing(
             client = genai.Client(http_options={"api_version": "v1beta"})
 
             grouped_parts = _group_segments_balanced(segments, max_parts=GEMINI_TTS_MAX_PARTS)
-            api_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
-            min_interval = GEMINI_TTS_MIN_INTERVAL_SECONDS if api_tier == "free" else 0.0
 
             last_call_start = 0.0
             for idx, part_text in enumerate(grouped_parts, start=1):
+                api_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
+                min_interval = GEMINI_TTS_MIN_INTERVAL_SECONDS if api_tier == "free" else 0.0
                 if idx > 1 and min_interval > 0:
                     elapsed = time.monotonic() - last_call_start
                     if elapsed < min_interval:
@@ -655,7 +666,7 @@ def generate_audio_briefing(
                     f"      [Gemini TTS] Part {idx}/{len(grouped_parts)} "
                     f"({len(part_text)} chars, model={selected_model}, voice={selected_voice})..."
                 )
-                wav_bytes = _synthesize_gemini_tts_part(
+                wav_bytes, client = _synthesize_gemini_tts_part(
                     client=client,
                     text=part_text,
                     model=selected_model,

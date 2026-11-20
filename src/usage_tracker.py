@@ -100,6 +100,37 @@ def extract_interaction_usage(
     )
 
 
+def is_rate_limit_error(exc: Exception) -> bool:
+    """Gemini API 429 / 할당량(quota) 초과 오류인지 판별합니다."""
+    msg = str(exc).lower()
+    return (
+        "429" in msg
+        or "resource_exhausted" in msg
+        or "quota" in msg
+        or "rate limit" in msg
+        or "too many requests" in msg
+    )
+
+
+def try_switch_to_paid_key() -> str | None:
+    """무료 티어 한도 소진 시 유료 API 키(GEMINI_PAID_API_KEY)로 전환하고 새 키를 반환합니다."""
+    current_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
+    paid_key = (os.getenv("GEMINI_PAID_API_KEY") or "").strip()
+    current_key = (os.getenv("GEMINI_API_KEY") or "").strip()
+
+    if current_tier != "free" or not paid_key or paid_key == current_key:
+        return None
+
+    os.environ["GEMINI_API_KEY"] = paid_key
+    os.environ["GEMINI_API_TIER"] = "paid"
+    os.environ["GEMINI_FALLBACK_USED"] = "1"
+    print(
+        "      [WARN] Gemini Free Tier quota exhausted. "
+        "Switching to Paid API key (GEMINI_PAID_API_KEY)..."
+    )
+    return paid_key
+
+
 @dataclass
 class RunUsageTracker:
     calls: list[GeminiCallUsage] = field(default_factory=list)
@@ -110,8 +141,17 @@ class RunUsageTracker:
     api_tier: str = field(
         default_factory=lambda: (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
     )
+    fallback_to_paid: bool = field(
+        default_factory=lambda: os.getenv("GEMINI_FALLBACK_USED") == "1"
+    )
+
+    def refresh_tier_from_env(self) -> None:
+        self.api_tier = (os.getenv("GEMINI_API_TIER") or self.api_tier).strip().lower()
+        if os.getenv("GEMINI_FALLBACK_USED") == "1":
+            self.fallback_to_paid = True
 
     def add_interaction(self, interaction: Any, stage: str, model: str) -> GeminiCallUsage:
+        self.refresh_tier_from_env()
         record = extract_interaction_usage(interaction, stage=stage, model=model)
         self.calls.append(record)
         return record
@@ -123,6 +163,7 @@ class RunUsageTracker:
         chars: int,
         model: str | None = None,
     ) -> None:
+        self.refresh_tier_from_env()
         self.tts_provider = provider
         self.tts_voice = voice
         self.tts_model = model
@@ -130,6 +171,7 @@ class RunUsageTracker:
 
     @property
     def is_free_tier(self) -> bool:
+        self.refresh_tier_from_env()
         return self.api_tier == "free"
 
     @property
@@ -170,19 +212,30 @@ class RunUsageTracker:
             return "월 100만자 무료 티어 내 $0"
         if self.tts_provider == "gemini_tts" and self.is_free_tier:
             return "무료 티어 $0"
+        if self.tts_provider == "gemini_tts" and self.fallback_to_paid:
+            return "무료 한도 초과 → 유료 티어 자동 전환"
         return "유료 과금"
 
     def format_console_summary(self) -> str:
+        self.refresh_tier_from_env()
         usd = self.estimate_usd()
         krw = round(usd * KRW_PER_USD)
         models = ", ".join(self.models_used) or "unknown"
-        tier_note = "FREE TIER $0 (paid equiv. " if self.is_free_tier else "est. "
-        tier_suffix = ")" if self.is_free_tier else ""
+        if self.is_free_tier:
+            tier_label = "free"
+            cost_str = f"FREE TIER $0 (paid equiv. ${usd:.4f} (~{krw:,} KRW))"
+        elif self.fallback_to_paid:
+            tier_label = "free->paid"
+            cost_str = f"PAID FALLBACK est. ${usd:.4f} (~{krw:,} KRW)"
+        else:
+            tier_label = self.api_tier
+            cost_str = f"est. ${usd:.4f} (~{krw:,} KRW)"
+
         lines = [
-            f"      [Usage] Gemini ({models}, tier={self.api_tier}): "
+            f"      [Usage] Gemini ({models}, tier={tier_label}): "
             f"input={self.total_input_tokens:,} (cached={self.total_cached_tokens:,}), "
             f"output={self.total_billable_output_tokens:,} (thought={self.total_thought_tokens:,}), "
-            f"total={self.total_tokens:,} tokens | {tier_note}${usd:.4f} (~{krw:,} KRW){tier_suffix}"
+            f"total={self.total_tokens:,} tokens | {cost_str}"
         ]
         for c in self.calls:
             lines.append(
@@ -200,6 +253,7 @@ class RunUsageTracker:
 
     def format_show_notes_html(self) -> str:
         """AntennaPod 에피소드 설명란 하단에 붙일 토큰·비용 요약 HTML을 생성합니다."""
+        self.refresh_tier_from_env()
         if not self.calls and not self.tts_provider:
             return ""
 
@@ -228,6 +282,10 @@ class RunUsageTracker:
             if self.is_free_tier:
                 items.append(
                     f"• 예상 API 비용: 무료 티어 $0 (유료 환산 약 ${usd:.4f} · 약 {krw:,}원)"
+                )
+            elif self.fallback_to_paid:
+                items.append(
+                    f"• 예상 API 비용: 무료 한도 초과로 유료 전환 · 약 ${usd:.4f} (약 {krw:,}원 기준)"
                 )
             else:
                 items.append(

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from curator import CuratedArticle, DailyBriefing
 from guardian_fetcher import FullArticle
-from usage_tracker import RunUsageTracker
+from usage_tracker import RunUsageTracker, is_rate_limit_error, try_switch_to_paid_key
 
 
 KST = timezone(timedelta(hours=9))
@@ -131,7 +131,7 @@ def write_roundup_script(
     )
 
     last_exc: Exception | None = None
-    for attempt in range(1, 4):
+    for attempt in range(1, 5):
         try:
             interaction = client.interactions.create(
                 model=selected_model,
@@ -156,17 +156,23 @@ def write_roundup_script(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 3:
-            msg = str(last_exc).lower()
-            is_rate = "429" in msg or "resource_exhausted" in msg or "rate" in msg or "quota" in msg
-            wait_sec = 20 * attempt if is_rate else 3 * attempt
+        if attempt < 4:
+            if is_rate_limit_error(last_exc):
+                if attempt >= 2:
+                    paid_key = try_switch_to_paid_key()
+                    if paid_key:
+                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta"})
+                        continue
+                wait_sec = 20
+            else:
+                wait_sec = 3 * attempt
             print(
-                f"      [WARN] Script generation failed (attempt {attempt}/3): {last_exc}. "
+                f"      [WARN] Script generation failed (attempt {attempt}/4): {last_exc}. "
                 f"Retrying in {wait_sec}s..."
             )
             time.sleep(wait_sec)
 
-    raise RuntimeError(f"방송 대본 생성 3회 실패: {last_exc}")
+    raise RuntimeError(f"방송 대본 생성 실패: {last_exc}")
 
 
 def build_daily_briefing_from_script(

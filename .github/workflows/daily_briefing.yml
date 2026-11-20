@@ -34,13 +34,13 @@ on:
           - google_cloud_tts
           - edge_tts
       tts_model:
-        description: 'gemini_tts 선택 시 모델 (기본값: gemini-3.8-flash-tts)'
+        description: 'gemini_tts 선택 시 모델 (기본값: gemini-3.8-flash-lite-tts)'
         required: false
-        default: 'gemini-3.8-flash-tts'
+        default: 'gemini-3.8-flash-lite-tts'
         type: choice
         options:
-          - gemini-3.8-flash-tts
           - gemini-3.8-flash-lite-tts
+          - gemini-3.8-flash-tts
       voice:
         description: '앵커 목소리 선택 (auto_rotate: 매일 다른 Gemini 여성 목소리 자동 순환)'
         required: true
@@ -127,7 +127,7 @@ jobs:
           MODE="podcast_only"
           API_TIER="free"
           TTS_PROVIDER="gemini_tts"
-          TTS_MODEL="gemini-3.8-flash-tts"
+          TTS_MODEL="gemini-3.8-flash-lite-tts"
           VOICE="auto_rotate"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
