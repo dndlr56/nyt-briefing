@@ -181,6 +181,113 @@ def _filter_by_lookback(
     return recent or candidates[:3]
 
 
+_OPEN_REPO_PDF_HINTS = (
+    "pmc.ncbi.nlm.nih.gov",
+    "ncbi.nlm.nih.gov/pmc",
+    "europepmc.org",
+    "arxiv.org",
+    "biorxiv.org",
+    "medrxiv.org",
+    "osf.io",
+    "psyarxiv.com",
+    "zenodo.org",
+    "hal.",
+    "escholarship.org",
+    "dspace",
+    "repository",
+    "eprints",
+    "nber.org",
+    "bis.org",
+    "imf.org",
+    "worldbank.org",
+    "oecd.org",
+    "ssrn.com",
+    "researchsquare.com",
+    ".edu/",
+    ".ac.uk/",
+)
+
+_BOT_BLOCKING_PDF_DOMAINS = (
+    "cell.com",
+    "sciencedirect.com",
+    "dl.acm.org",
+    "onlinelibrary.wiley.com",
+    "link.springer.com",
+    "tandfonline.com",
+    "academic.oup.com",
+    "journals.sagepub.com",
+    "jstor.org",
+    "ieee.org",
+)
+
+
+def _oa_pdf_priority(url: str) -> int:
+    """오픈 리포지토리 PDF(0) -> 일반 도메인(1) -> 403 봇 차단 빈발 상업 출판사(2) 순으로 우선순위를 매깁니다."""
+    lower = (url or "").strip().lower()
+    if not lower:
+        return 9
+    if any(hint in lower for hint in _OPEN_REPO_PDF_HINTS):
+        return 0
+    host = (urlparse(lower).netloc or "").lower()
+    if any(dom in host for dom in _BOT_BLOCKING_PDF_DOMAINS):
+        return 2
+    return 1
+
+
+def _collect_openalex_oa_urls(work: dict) -> tuple[str, list[str], str, str]:
+    """
+    OpenAlex work의 best_oa_location, locations[], primary_location을 모두 스캔해
+    (대표 pdf_url, 대체 alternate_pdf_urls, landing_url, 발견된 pmc_id)를 반환합니다.
+    봇 차단이 적은 PMC·arXiv·기관 리포지토리 PDF를 상업 출판사(cell.com/acm.org 등)보다 우선합니다.
+    """
+    best_oa = work.get("best_oa_location") or {}
+    primary = work.get("primary_location") or {}
+    locations = work.get("locations") or []
+
+    all_locs: list[dict] = []
+    for loc in [best_oa, *locations, primary]:
+        if isinstance(loc, dict) and loc:
+            all_locs.append(loc)
+
+    seen_pdfs: set[str] = set()
+    raw_pdfs: list[str] = []
+    discovered_pmc = ""
+
+    ids_obj = work.get("ids") or {}
+    raw_pmcid = str(ids_obj.get("pmcid") or "")
+    if "PMC" in raw_pmcid.upper():
+        m = re.search(r"PMC\d+", raw_pmcid, re.IGNORECASE)
+        if m:
+            discovered_pmc = m.group(0).upper()
+
+    for loc in all_locs:
+        for field_name in ("pdf_url", "landing_page_url"):
+            u = str(loc.get(field_name) or "").strip()
+            if not u:
+                continue
+            if not discovered_pmc and "pmc" in u.lower():
+                m = re.search(r"PMC\d+", u, re.IGNORECASE)
+                if m:
+                    discovered_pmc = m.group(0).upper()
+            if field_name == "pdf_url" and u not in seen_pdfs:
+                seen_pdfs.add(u)
+                raw_pdfs.append(u)
+
+    ranked_pdfs = sorted(raw_pdfs, key=_oa_pdf_priority)
+    primary_pdf = ranked_pdfs[0] if ranked_pdfs else ""
+    alternate_pdfs = ranked_pdfs[1:6]
+
+    landing_url = (
+        best_oa.get("landing_page_url")
+        or primary.get("landing_page_url")
+        or work.get("doi")
+        or work.get("id")
+        or ""
+    ).strip()
+
+    return primary_pdf, alternate_pdfs, landing_url, discovered_pmc
+
+
 def fetch_openalex_candidates(
     spec: OpenAlexQuerySpec,
     theme_id: str,
@@ -236,14 +343,7 @@ def fetch_openalex_candidates(
 
         best_oa = work.get("best_oa_location") or {}
         primary = work.get("primary_location") or {}
-        pdf_url = (best_oa.get("pdf_url") or primary.get("pdf_url") or "").strip()
-        landing_url = (
-            best_oa.get("landing_page_url")
-            or primary.get("landing_page_url")
-            or work.get("doi")
-            or work.get("id")
-            or ""
-        ).strip()
+        pdf_url, alternate_pdf_urls, landing_url, pmc_id = _collect_openalex_oa_urls(work)
         if not landing_url:
             continue
 
@@ -266,14 +366,6 @@ def fetch_openalex_candidates(
         if not abstract:
             abstract = f"[OpenAlex Top-Impact OA] Journal: {journal}. Cited by {cited} works."
 
-        pmc_id = ""
-        ids_obj = work.get("ids") or {}
-        raw_pmcid = str(ids_obj.get("pmcid") or "")
-        if "PMC" in raw_pmcid.upper():
-            pmc_match = re.search(r"PMC\d+", raw_pmcid, re.IGNORECASE)
-            if pmc_match:
-                pmc_id = pmc_match.group(0).upper()
-
         candidates.append(
             SourceCandidate(
                 title=title,
@@ -284,6 +376,7 @@ def fetch_openalex_candidates(
                 authors=authors,
                 abstract=abstract[:1500],
                 pdf_url=pdf_url,
+                alternate_pdf_urls=alternate_pdf_urls,
                 pmc_id=pmc_id,
                 source_kind="review" if spec.work_type == "review" else "paper",
                 sub_topic_hint=spec.sub_topic_hint,
@@ -614,12 +707,96 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
     return candidates
 
 
+def _parse_rss_with_beautifulsoup(
+    raw_content: bytes,
+    spec: RssFeedSpec,
+    theme_id: str,
+) -> list[SourceCandidate]:
+    """XML 엔티티 오류 등이 섞인 비표준 RSS/Atom 피드를 BeautifulSoup으로 안전하게 폴백 파싱합니다."""
+    import warnings
+    from bs4 import XMLParsedAsHTMLWarning
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+        soup = BeautifulSoup(raw_content, "html.parser")
+    raw_items = soup.find_all(["item", "entry"])
+    candidates: list[SourceCandidate] = []
+
+    for item in raw_items[: max(spec.max_items * 2, 16)]:
+        title_tag = item.find("title")
+        title = _clean_text(title_tag.get_text(" ", strip=True)) if title_tag else ""
+
+        link = ""
+        pdf_url = ""
+        for link_tag in item.find_all("link"):
+            href = (link_tag.get("href") or link_tag.get_text(strip=True) or "").strip()
+            if not href and link_tag.next_sibling and isinstance(link_tag.next_sibling, str):
+                sibling_text = link_tag.next_sibling.strip()
+                if sibling_text.startswith(("http://", "https://")):
+                    href = sibling_text
+            link_type = (link_tag.get("type") or "").lower()
+            if link_type == "application/pdf" or href.lower().endswith(".pdf"):
+                pdf_url = href
+            elif not link and href:
+                link = href
+        if not link:
+            guid_tag = item.find("guid")
+            guid_text = (guid_tag.get_text(strip=True) if guid_tag else "").strip()
+            if guid_text.startswith(("http://", "https://")):
+                link = guid_text
+
+        pub_tag = item.find(["pubdate", "published", "updated", "dc:date", "date"])
+        published = _clean_text(pub_tag.get_text(" ", strip=True)) if pub_tag else ""
+
+        desc_tag = item.find(["description", "summary", "content:encoded", "encoded"])
+        summary = _strip_html(desc_tag.get_text(" ", strip=True)) if desc_tag else ""
+
+        authors_list: list[str] = []
+        for auth_tag in item.find_all(["dc:creator", "creator", "author"]):
+            name_tag = auth_tag.find("name")
+            name = _clean_text(
+                (name_tag or auth_tag).get_text(" ", strip=True)
+            )
+            if name and name not in authors_list:
+                authors_list.append(name)
+
+        enc_tag = item.find("enclosure")
+        if enc_tag and not pdf_url:
+            enc_url = (enc_tag.get("url") or "").strip()
+            enc_type = (enc_tag.get("type") or "").lower()
+            if "pdf" in enc_type or enc_url.lower().endswith(".pdf"):
+                pdf_url = enc_url
+
+        if title and link:
+            candidates.append(
+                SourceCandidate(
+                    title=title,
+                    url=link,
+                    source_name=spec.name,
+                    theme_id=theme_id,
+                    published=published[:35],
+                    authors=", ".join(authors_list[:4]),
+                    abstract=summary[:1500],
+                    pdf_url=pdf_url,
+                    source_kind=spec.source_kind,
+                    sub_topic_hint=spec.sub_topic_hint,
+                    authority_tier=spec.authority_tier,
+                )
+            )
+    return candidates
+
+
 def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandidate]:
     """표준 RSS 2.0 / Atom / RDF 피드에서 lookback_days 이내 문헌 후보를 수집합니다."""
     resp = requests.get(spec.url, headers=HTTP_HEADERS, timeout=25)
     resp.raise_for_status()
 
-    root = ET.fromstring(resp.content)
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError:
+        fallback_candidates = _parse_rss_with_beautifulsoup(resp.content, spec, theme_id)
+        return _filter_by_lookback(fallback_candidates, spec.lookback_days)[: spec.max_items]
+
     candidates: list[SourceCandidate] = []
 
     items: list[ET.Element] = []
@@ -1021,10 +1198,16 @@ def fetch_full_document(
         except Exception as exc:
             print(f"      [WARN] PMC XML 추출 실패 ({candidate.pmc_id}): {exc}")
 
-    # 2) 직접 PDF URL
-    if candidate.pdf_url:
+    # 2) 직접 PDF URL + 대체 OA PDF 미러 순차 시도 (403 출판사 차단 회피)
+    pdf_candidates: list[str] = []
+    for raw_pdf in [candidate.pdf_url, *candidate.alternate_pdf_urls]:
+        cleaned_pdf = (raw_pdf or "").strip()
+        if cleaned_pdf and cleaned_pdf not in pdf_candidates:
+            pdf_candidates.append(cleaned_pdf)
+
+    for pdf_url in pdf_candidates:
         try:
-            downloaded = _download_pdf(candidate.pdf_url)
+            downloaded = _download_pdf(pdf_url)
             if downloaded:
                 pdf_bytes = downloaded
                 if not full_text:
@@ -1032,8 +1215,10 @@ def fetch_full_document(
                     if _meets_min_length(pdf_text, min_chars):
                         full_text = pdf_text
                         text_source = "pdf"
+                if full_text:
+                    break
         except Exception as exc:
-            print(f"      [WARN] PDF 다운로드/파싱 실패 ({candidate.pdf_url}): {exc}")
+            print(f"      [WARN] PDF 다운로드/파싱 실패 ({pdf_url}): {exc}")
 
     # 3) HTML 전문 추출
     if not full_text and candidate.url:

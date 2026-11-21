@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -36,6 +36,7 @@ class SourceCandidate:
     authors: str = ""
     abstract: str = ""
     pdf_url: str = ""
+    alternate_pdf_urls: list[str] = field(default_factory=list)
     pmc_id: str = ""
     source_kind: str = "article"  # paper | report | essay | case_law | review | legal_column
     sub_topic_hint: str = ""
@@ -73,6 +74,21 @@ class CuratedPick(BaseModel):
     )
 
 
+class BackupPick(BaseModel):
+    candidate_index: int = Field(
+        description="1순위 선별 문헌이 유료 장벽·403 차단 등으로 전문 확보에 실패할 때 대체할 백업 후보의 1-based 인덱스 번호"
+    )
+    sub_subject_kr: str = Field(
+        description="이 백업 문헌 자체의 세부 주제 태그 (예: '인지심리·의사결정', '거시경제·통화정책')"
+    )
+    unifying_angle_kr: str = Field(
+        description="이 백업 문헌이 다루는 핵심 주제 1~2문장"
+    )
+    why_selected_kr: str = Field(
+        description="이 백업 문헌을 대안으로 추천하는 이유 1문장"
+    )
+
+
 class CurationDecision(BaseModel):
     mode: Literal["single_deep_dive", "multi_synthesis"] = Field(
         description=(
@@ -81,7 +97,7 @@ class CurationDecision(BaseModel):
         )
     )
     unifying_angle_kr: str = Field(
-        description="선별된 문헌이 다루는 핵심 주제 1~2문장"
+        description="선별된 1순위 문헌이 다루는 핵심 주제 1~2문장"
     )
     sub_subject_kr: str = Field(
         description="세부 주제 태그 (예: '치매 예방·공중보건', '학습·기억', '대한민국 헌법·판례')"
@@ -89,7 +105,15 @@ class CurationDecision(BaseModel):
     picks: list[CuratedPick] = Field(
         min_length=1,
         max_length=3,
-        description="선별된 1~3편의 문헌 (single_deep_dive는 1편, multi_synthesis는 2~3편)",
+        description="선별된 1순위 문헌 1~3편 (single_deep_dive는 1편, multi_synthesis는 2~3편)",
+    )
+    backup_picks: list[BackupPick] = Field(
+        default_factory=list,
+        max_length=3,
+        description=(
+            "1순위 문헌이 403 차단·유료 장벽으로 실패할 경우 순서대로 대체할 2~3순위 백업 문헌 목록 "
+            "(picks와 중복되지 않는 인덱스, 가급적 PMC/오픈액세스/에세이 등 접근성이 높은 고품질 문헌 우선)"
+        ),
     )
 
 

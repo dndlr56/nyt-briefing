@@ -284,9 +284,34 @@ def main() -> int:
             else:
                 print("     ✗ 유료 장벽 또는 본문 부족으로 제외")
 
-        # 선별 문헌이 모두 페이월 등으로 실패 시, PDF/PMC OA 우선 백업 후보에서 자동 보충
+        # 1순위 문헌이 모두 페이월/403으로 실패 시:
+        # (1) Curator가 미리 선정한 2~3순위 backup_picks를 우선 시도하며 주제·관통 질문을 동기화
+        if not selected_docs and decision.backup_picks:
+            print("   [WARN] 1순위 선별 문헌의 전문 확보 실패 -> AI 추천 2~3순위 백업 문헌 순차 시도...")
+            for rank, bp in enumerate(decision.backup_picks, start=2):
+                if bp.candidate_index in tried_indices or not (1 <= bp.candidate_index <= len(pool)):
+                    continue
+                tried_indices.add(bp.candidate_index)
+                cand = pool[bp.candidate_index - 1]
+                print(f"   • {rank}순위 백업 시도: [{cand.source_name}] {cand.title[:70]}")
+                doc = fetch_full_document(cand)
+                if doc is not None:
+                    selected_docs.append(doc)
+                    decision.mode = "single_deep_dive"
+                    if bp.sub_subject_kr.strip():
+                        decision.sub_subject_kr = bp.sub_subject_kr.strip()
+                    if bp.unifying_angle_kr.strip():
+                        decision.unifying_angle_kr = bp.unifying_angle_kr.strip()
+                    print(
+                        f"     ✓ {rank}순위 백업 확보: [{cand.source_name}] {cand.title[:70]} "
+                        f"({doc.text_source}, {doc.char_count:,}자 | 세부주제: {decision.sub_subject_kr})"
+                    )
+                    break
+                print(f"     ✗ {rank}순위 백업도 유료 장벽/403으로 제외")
+
+        # (2) 추천 백업까지 모두 실패 시, 최후 수단으로 PDF/PMC OA 우선 백업 후보에서 자동 보충 + 메타데이터 초기화
         if not selected_docs:
-            print("   [WARN] 1차 선별 문헌의 전문 확보 실패 -> 오픈액세스 백업 후보 탐색...")
+            print("   [WARN] 추천 백업 문헌도 전문 확보 실패 -> 오픈액세스 자동 백업 후보 탐색...")
             prioritized = sorted(
                 (
                     (idx, c)
@@ -300,7 +325,12 @@ def main() -> int:
                 if doc is not None:
                     selected_docs.append(doc)
                     decision.mode = "single_deep_dive"
-                    print(f"     ✓ 백업 문헌 확보: [{cand.source_name}] {cand.title[:70]}")
+                    decision.sub_subject_kr = cand.sub_topic_hint or theme.label_kr
+                    decision.unifying_angle_kr = f"'{cand.title}'의 핵심 논증, 근거 및 결론 충실 요약"
+                    print(
+                        f"     ✓ 자동 백업 확보: [{cand.source_name}] {cand.title[:70]} "
+                        f"(세부주제 재설정: {decision.sub_subject_kr})"
+                    )
                     break
 
         if not selected_docs:

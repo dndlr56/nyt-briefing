@@ -688,6 +688,97 @@ class DeepDivePipelineTests(unittest.TestCase):
                 xml_text.index("global-briefing-2026-11-20-070000"),
             )
 
+    def test_openalex_mirror_priority_rss_fallback_and_curator_backups(self) -> None:
+        from unittest import mock
+        from deep_dive.curator import DEFAULT_CURATOR_MODEL
+        from deep_dive.models import BackupPick, CuratedPick, CurationDecision
+        from deep_dive.sources import _collect_openalex_oa_urls, fetch_rss_candidates
+        from deep_dive.themes import RssFeedSpec
+
+        # 1) Curator 기본 모델이 gemini-4-hydrogen인지 및 backup_picks 스키마 검증
+        self.assertEqual(DEFAULT_CURATOR_MODEL, "gemini-4-hydrogen")
+        decision = CurationDecision(
+            mode="single_deep_dive",
+            unifying_angle_kr="1순위 핵심 주제",
+            sub_subject_kr="인지심리",
+            picks=[CuratedPick(candidate_index=1, why_selected_kr="1순위")],
+            backup_picks=[
+                BackupPick(
+                    candidate_index=2,
+                    sub_subject_kr="거시경제·정책",
+                    unifying_angle_kr="2순위 핵심 주제",
+                    why_selected_kr="오픈 리포지토리 백업",
+                )
+            ],
+        )
+        self.assertEqual(len(decision.backup_picks), 1)
+        self.assertEqual(decision.backup_picks[0].sub_subject_kr, "거시경제·정책")
+
+        # 2) OpenAlex OA PDF 미러 우선순위: cell.com보다 PMC/OSF 오픈 리포지토리 우선 + PMC ID 발견
+        work = {
+            "ids": {},
+            "best_oa_location": {
+                "pdf_url": "https://www.cell.com/article/S1364661322002364/pdf",
+                "landing_page_url": "https://doi.org/10.1016/j.tics.2022.09.001",
+            },
+            "locations": [
+                {
+                    "pdf_url": "https://www.cell.com/article/S1364661322002364/pdf",
+                    "landing_page_url": "https://www.cell.com/article/S1364661322002364",
+                },
+                {
+                    "pdf_url": "https://europepmc.org/articles/PMC9876543?pdf=render",
+                    "landing_page_url": "https://europepmc.org/articles/PMC9876543",
+                },
+                {
+                    "pdf_url": "https://osf.io/preprints/psyarxiv/abcde/download",
+                    "landing_page_url": "https://osf.io/preprints/psyarxiv/abcde",
+                },
+            ],
+            "primary_location": {
+                "pdf_url": "https://www.cell.com/article/S1364661322002364/pdf",
+                "landing_page_url": "https://doi.org/10.1016/j.tics.2022.09.001",
+            },
+        }
+        primary_pdf, alt_pdfs, landing, pmc_id = _collect_openalex_oa_urls(work)
+        self.assertIn("europepmc.org", primary_pdf)
+        self.assertEqual(pmc_id, "PMC9876543")
+        self.assertTrue(any("osf.io" in u for u in alt_pdfs))
+        self.assertTrue(any("cell.com" in u for u in alt_pdfs))
+        self.assertEqual(landing, "https://doi.org/10.1016/j.tics.2022.09.001")
+
+        # 3) Brookings처럼 정의되지 않은 HTML 엔티티(&nbsp;, &mdash;)가 섞인 RSS 피드 폴백 파싱 검증
+        malformed_rss = (
+            b'<?xml version="1.0" encoding="UTF-8"?>'
+            b"<rss version='2.0'><channel><title>Brookings</title>"
+            b"<item>"
+            b"<title>Global Policy &mdash; Deep Analysis</title>"
+            b"<link>https://www.brookings.edu/articles/global-policy-deep-analysis/</link>"
+            b"<pubDate>Fri, 20 Nov 2026 09:00:00 +0000</pubDate>"
+            b"<description>Macroeconomic&nbsp;shift and industrial policy.</description>"
+            b"</item>"
+            b"</channel></rss>"
+        )
+        fake_resp = mock.MagicMock()
+        fake_resp.content = malformed_rss
+        fake_resp.raise_for_status.return_value = None
+
+        spec = RssFeedSpec(
+            name="Brookings Institution",
+            url="https://www.brookings.edu/feed/",
+            source_kind="report",
+            sub_topic_hint="거시정책",
+            lookback_days=3650,
+            max_items=5,
+        )
+        with mock.patch("deep_dive.sources.requests.get", return_value=fake_resp):
+            cands = fetch_rss_candidates(spec, theme_id="econ_geopolitics")
+        self.assertEqual(len(cands), 1)
+        self.assertIn("Global Policy", cands[0].title)
+        self.assertEqual(
+            cands[0].url, "https://www.brookings.edu/articles/global-policy-deep-analysis/"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
