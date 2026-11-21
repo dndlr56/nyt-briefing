@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deep Dive Knowledge Briefing</title>
+  <link rel="alternate" type="application/rss+xml" title="Deep Dive Knowledge Briefing" href="feed.xml" />
+  <style>
+    :root {
+      --bg: #fafaf9; --card: #ffffff; --text: #1c1917; --muted: #57534e;
+      --border: #e7e5e4; --accent: #1d4ed8; --accent-soft: #eff6ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0c0a09; --card: #1c1917; --text: #f5f5f4; --muted: #a8a29e;
+        --border: #292524; --accent: #60a5fa; --accent-soft: #172554;
+      }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
+      background: var(--bg); color: var(--text); max-width: 860px;
+      margin: 0 auto; padding: 2rem 1.25rem 4rem; line-height: 1.65;
+    }
+    h1 { margin: 0 0 0.4rem; font-size: 1.9rem; }
+    .desc { color: var(--muted); margin: 0 0 1.25rem; }
+    .rss-box { background: var(--card); border: 1px solid var(--border); padding: 0.9rem 1.1rem; border-radius: 10px; margin-bottom: 1.5rem; word-break: break-all; font-size: 0.92rem; }
+    .filters { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 1.5rem; }
+    .pill { border: 1px solid var(--border); background: var(--card); color: var(--text); padding: 0.35rem 0.8rem; border-radius: 999px; cursor: pointer; font-size: 0.86rem; }
+    .pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.35rem; margin-bottom: 1rem; }
+    .card.hidden { display: none; }
+    .meta { font-size: 0.84rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .card h2 { margin: 0 0 0.4rem; font-size: 1.2rem; }
+    .card h2 a { color: var(--text); text-decoration: none; }
+    .card h2 a:hover { color: var(--accent); }
+    .sub { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.95rem; }
+    audio { width: 100%; margin-bottom: 0.75rem; }
+    .read-btn { color: var(--accent); font-weight: 600; text-decoration: none; font-size: 0.93rem; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>📘 Deep Dive Knowledge Briefing</h1>
+  <p class="desc">탑티어 학술 저널(Nature·Science·PMC OA·arXiv), NBER·BIS·Brookings 보고서, 주요 대법원 판례와 장문 에세이를 원문 기반으로 깊이 해부하는 개인 심층 지식 브리핑입니다.</p>
+  <div class="rss-box">
+    <strong>🎧 AntennaPod 통합 구독 RSS (뉴스 + Deep Dive):</strong>
+    <a href="https://dndlr56.github.io/nyt-briefing/feed.xml">https://dndlr56.github.io/nyt-briefing/feed.xml</a>
+    &nbsp;·&nbsp;
+    <a href="../index.html">🗞 글로벌 모닝 뉴스 브리핑으로 이동</a>
+  </div>
+  <div class="filters"><button class='pill active' data-theme='all'>전체</button><button class='pill' data-theme='ai_tech'>🤖 AI·기술·사회</button><button class='pill' data-theme='science_mind'>🧠 종합과학·뇌인지</button><button class='pill' data-theme='health_medicine'>🫀 의학·건강·장수</button><button class='pill' data-theme='econ_geopolitics'>🌐 경제·금융·지정학</button><button class='pill' data-theme='law_cases'>⚖️ 대한민국 법학·판례·법조 칼럼</button></div>
+  <section id="cards"><article class='card' data-theme='ai_tech'><div class='meta'>2026-11-21 · 🤖 AI·기술·사회 · AI 윤리·인지과학·법철학 · 2인 대화 · 00:27:37</div><h2><a href='posts/2026-11-21_ai_tech_계산-윤리학-인지과학과-알고리즘의-언어로-여는-AI-윤리.html'>[AI·기술·사회] 계산 윤리학: 인지과학과 알고리즘의 언어로 여는 AI 윤리 | 2026.11.21</a></h2><p class='sub'>인간의 도덕적 의사결정 연구를 알고리즘으로 정형화하여 윤리적 AI 설계와 인간 도덕 인지의 이해를 동시에 도모하는 계산 윤리학 프레임워크를 제안합니다.</p><audio controls preload='none' src='episodes/deep_dive_2026-11-21_ai_tech_151544.mp3'></audio><div class='actions'><a class='read-btn' href='posts/2026-11-21_ai_tech_계산-윤리학-인지과학과-알고리즘의-언어로-여는-AI-윤리.html'>📖 구조화 독해 노트 열기 →</a></div></article>
+<article class='card' data-theme='health_medicine'><div class='meta'>2026-11-20 · 🫀 의학·건강·장수 · 지정 문헌 심층 요약 · 2인 대화 · 00:26:17</div><h2><a href='posts/2026-11-20_health_medicine_치매-예방-중재-및-돌봄-2024년-란셋-상임위원회-보고서.html'>[의학·건강·장수] 치매 예방, 중재 및 돌봄: 2024년 란셋 상임위원회 보고서 | 2026.11.20</a></h2><p class='sub'>교정 가능한 14가지 위험 요인 관리를 통한 전 생애 치매 예방 전략과 진단·약물·돌봄·기술 활용에 관한 최신 근거 종합 보고서</p><audio controls preload='none' src='episodes/deep_dive_2026-11-20_health_medicine_200543.mp3'></audio><div class='actions'><a class='read-btn' href='posts/2026-11-20_health_medicine_치매-예방-중재-및-돌봄-2024년-란셋-상임위원회-보고서.html'>📖 구조화 독해 노트 열기 →</a></div></article></section>
+  <script>
+    const pills = document.querySelectorAll('.pill');
+    const cards = document.querySelectorAll('.card');
+    pills.forEach(btn => btn.addEventListener('click', () => {
+      pills.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const t = btn.dataset.theme;
+      cards.forEach(c => c.classList.toggle('hidden', t !== 'all' && c.dataset.theme !== t));
+    }));
+  </script>
+</body>
+</html>
