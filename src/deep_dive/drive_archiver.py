@@ -221,9 +221,9 @@ def _append_master_sheet_row(
     resp.raise_for_status()
 
 
-def _safe_folder_name(date_slug: str, theme_id: str, title: str) -> str:
+def _safe_folder_name(date_slug: str, title: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9가-힣 _-]+", "", title).strip()[:45]
-    return f"{date_slug}_{theme_id}_{slug or 'briefing'}"
+    return f"[{date_slug}] {slug or 'briefing'}"
 
 
 def _export_google_doc_as_pdf(headers: dict[str, str], doc_id: str) -> bytes:
@@ -263,7 +263,8 @@ def archive_to_google_drive(
 ) -> DriveArchiveResult:
     """
     3단 Google Drive 아카이빙 실행:
-    1) Deep-Dive-Briefing/YYYY-MM/YYYY-MM-DD_<theme>_<title>/ 폴더 생성
+    1) Deep-Dive-Briefing/<5대 핵심 분야>/[YYYY-MM-DD] <title>/ 폴더 생성
+       (예: Deep-Dive-Briefing/🤖 AI·기술·사회/[2026-11-21] 계산 윤리학.../)
     2) 구조화 브리핑 노트를 PDF 파일([YYYY-MM-DD] <제목>.pdf)로 변환·저장
        (HTML → 임시 Google Doc 렌더링 → PDF 내보내기 → 실제 .pdf 저장 후 임시 Doc 삭제)
     3) 원문 PDF(있을 경우) + full_text.txt 업로드
@@ -275,11 +276,11 @@ def archive_to_google_drive(
     if not root_id:
         root_id = _find_or_create_folder(headers, ROOT_FOLDER_NAME)
 
-    month_name = date_slug[:7]  # YYYY-MM
-    month_id = _find_or_create_folder(headers, month_name, parent_id=root_id)
+    theme_folder_name = f"{theme.emoji} {theme.label_kr}".strip()
+    category_id = _find_or_create_folder(headers, theme_folder_name, parent_id=root_id)
 
-    day_folder_name = _safe_folder_name(date_slug, theme.theme_id, note.episode_title_kr)
-    day_folder_id = _find_or_create_folder(headers, day_folder_name, parent_id=month_id)
+    day_folder_name = _safe_folder_name(date_slug, note.episode_title_kr)
+    day_folder_id = _find_or_create_folder(headers, day_folder_name, parent_id=category_id)
 
     # 1) 브리핑 노트 PDF 생성 (Google Docs 렌더링 엔진으로 한글·표·인용문을 깔끔한 PDF로 변환)
     wrapped_html = (
