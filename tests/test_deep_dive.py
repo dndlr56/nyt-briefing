@@ -779,6 +779,147 @@ class DeepDivePipelineTests(unittest.TestCase):
             cands[0].url, "https://www.brookings.edu/articles/global-policy-deep-analysis/"
         )
 
+    def test_markdown_archiving_and_youtube_safe_rss_links(self) -> None:
+        from deep_dive.drive_archiver import render_study_note_markdown
+        from deep_dive.models import (
+            ChapterBlueprint,
+            CuratedPick,
+            CurationDecision,
+            DeepDiveStudyNote,
+            DialogueCast,
+            SpeakerProfile,
+            FetchedDocument,
+            KeyQuote,
+            SourceCandidate,
+            SummarySection,
+            SummaryTableRow,
+        )
+        from deep_dive.themes import THEME_SLOTS
+        from deep_dive.web_publisher import _ascii_post_slug, publish_deep_dive
+
+        en_doc = FetchedDocument(
+            candidate=SourceCandidate(
+                title="Computational ethics: bridging cognitive science and AI",
+                url="https://doi.org/10.1016/j.tics.2022.02.009",
+                source_name="Trends in Cognitive Sciences",
+                theme_id="ai_tech",
+                published="2022-05-01",
+            ),
+            full_text="Full text body " * 200,
+            text_source="pdf",
+        )
+        ko_doc = FetchedDocument(
+            candidate=SourceCandidate(
+                title="대법원 2026다12345 전원합의체 판결",
+                url="https://example.kr/case/12345",
+                source_name="대한민국 대법원",
+                theme_id="law_cases",
+            ),
+            full_text="판결문 전문 " * 200,
+            text_source="html",
+        )
+        # 1) 순수 ASCII 슬러그 검증 (한글 파일명 금지)
+        en_slug = _ascii_post_slug("2026-11-21", "ai_tech", [en_doc])
+        ko_slug = _ascii_post_slug("2026-11-21", "law_cases", [ko_doc])
+        self.assertTrue(en_slug.isascii())
+        self.assertTrue(ko_slug.isascii())
+        self.assertIn("computational-ethics", en_slug)
+
+        # 2) 공개 RSS/웹 리더에 Google Drive 링크 미노출 + YouTube 친화 순수 ASCII URL 포함
+        note = DeepDiveStudyNote(
+            episode_title_kr="계산 윤리학: 인지과학과 알고리즘의 언어로 여는 AI 윤리",
+            subtitle_kr="도덕적 의사결정의 계산 모델",
+            primary_theme_id="ai_tech",
+            tldr_bullets=["핵심 1", "핵심 2", "핵심 3"],
+            overview_and_purpose_kr="개요 설명",
+            methodology_and_evidence_kr="방법론 설명",
+            body_sections=[
+                SummarySection(heading_kr=f"핵심 장 {i}", content_kr=f"내용 설명 {i}")
+                for i in range(1, 4)
+            ],
+            summary_table=[
+                SummaryTableRow(item="지표", detail_kr="수치 95%"),
+                SummaryTableRow(item="표본", detail_kr="1,000명"),
+                SummaryTableRow(item="결론", detail_kr="유의미한 개선"),
+            ],
+            key_quotes=[
+                KeyQuote(
+                    quote_original="Ethics can be formalized.",
+                    translation_kr="윤리는 형식화될 수 있다.",
+                    source_label="Awad et al.",
+                ),
+                KeyQuote(
+                    quote_original="Moral algorithms need human norms.",
+                    translation_kr="도덕 알고리즘은 인간 규범을 필요로 한다.",
+                    source_label="Awad et al.",
+                ),
+            ],
+            author_stated_limitations_kr=["한계 1", "한계 2"],
+            author_conclusions_kr=["결론 1", "결론 2"],
+            dialogue_cast=DialogueCast(
+                format_type="host_and_expert",
+                format_reason_kr="기본 2인 구성",
+                speakers=[
+                    SpeakerProfile(
+                        speaker_id="S1", name_kr="지수", role_title_kr="사회자", gender="female", perspective_kr="진행"
+                    ),
+                    SpeakerProfile(
+                        speaker_id="S2", name_kr="현수", role_title_kr="패널", gender="male", perspective_kr="해설"
+                    ),
+                ],
+            ),
+            chapters=[
+                ChapterBlueprint(
+                    chapter_number=i, title_kr=f"챕터 {i}", focus_kr=f"개요 {i}", key_points=["포인트 1", "포인트 2"]
+                )
+                for i in range(1, 5)
+            ],
+        )
+        decision = CurationDecision(
+            mode="single_deep_dive",
+            unifying_angle_kr="계산 윤리학의 구조",
+            sub_subject_kr="AI 윤리·인지과학",
+            picks=[CuratedPick(candidate_index=1, why_selected_kr="대표 리뷰")],
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            deep_dir = Path(tmp) / "deep"
+            dummy_mp3 = Path(tmp) / "ep.mp3"
+            dummy_mp3.write_bytes(b"ID3" + b"\x00" * 128)
+            published = publish_deep_dive(
+                deep_dir=deep_dir,
+                base_url="https://dndlr56.github.io/nyt-briefing/deep",
+                date_slug="2026-11-21",
+                theme=THEME_SLOTS["ai_tech"],
+                decision=decision,
+                note=note,
+                docs=[en_doc],
+                mp3_path=dummy_mp3,
+                duration_seconds=1200,
+                drive_doc_url="https://drive.google.com/file/d/secret/view",
+            )
+            self.assertTrue(published.article_url.isascii())
+            feed_xml = published.feed_path.read_text(encoding="utf-8")
+            article_html = published.article_path.read_text(encoding="utf-8")
+            self.assertNotIn("Google Drive", feed_xml)
+            self.assertNotIn("drive.google.com", feed_xml)
+            self.assertNotIn("Google Drive", article_html)
+            self.assertIn(published.article_url, feed_xml)
+            self.assertIn("https://dndlr56.github.io/nyt-briefing/deep/", feed_xml)
+
+        # 3) 마크다운 요약 노트 렌더링 검증 (YAML frontmatter + 표 + 인용)
+        md = render_study_note_markdown(
+            date_slug="2026-11-21",
+            theme=THEME_SLOTS["ai_tech"],
+            decision=decision,
+            note=note,
+            docs=[en_doc],
+            web_article_url="https://dndlr56.github.io/nyt-briefing/deep/posts/2026-11-21_ai_tech_computational-ethics.html",
+        )
+        self.assertTrue(md.startswith("---\n"))
+        self.assertIn('theme_id: "ai_tech"', md)
+        self.assertIn("| 지표 | 수치 95% |", md)
+        self.assertIn("Ethics can be formalized.", md)
+
 
 if __name__ == "__main__":
     unittest.main()

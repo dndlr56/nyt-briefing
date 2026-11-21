@@ -252,6 +252,110 @@ def _safe_filename(text: str, max_len: int = 60) -> str:
     return cleaned[:max_len] or "briefing"
 
 
+def _yaml_escape(text: str) -> str:
+    return (text or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").strip()
+
+
+def render_study_note_markdown(
+    date_slug: str,
+    theme: ThemeSlot,
+    decision: CurationDecision,
+    note: DeepDiveStudyNote,
+    docs: list[FetchedDocument],
+    web_article_url: str = "",
+) -> str:
+    """DB 색인·RAG·Obsidian 검색에 최적화된 YAML frontmatter 포함 마크다운 요약 노트를 생성합니다 (LLM 추가 호출 없음)."""
+    mode_label = "1편 충실 요약" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 요약"
+    lines = [
+        "---",
+        f'date: "{date_slug}"',
+        f'theme_id: "{theme.theme_id}"',
+        f'theme: "{_yaml_escape(theme.label_kr)}"',
+        f'sub_subject: "{_yaml_escape(decision.sub_subject_kr)}"',
+        f'mode: "{mode_label}"',
+        f'title: "{_yaml_escape(note.episode_title_kr)}"',
+    ]
+    if web_article_url:
+        lines.append(f'web_url: "{_yaml_escape(web_article_url)}"')
+    lines.append("sources:")
+    for d in docs:
+        lines.append(f'  - "{_yaml_escape(d.candidate.title)} ({_yaml_escape(d.candidate.source_name)})"')
+    lines.extend(
+        [
+            "---",
+            "",
+            f"# {note.episode_title_kr}",
+            "",
+            f"> {note.subtitle_kr}",
+            "",
+            f"- **날짜**: {date_slug}",
+            f"- **분야**: {theme.emoji} {theme.label_kr} · {decision.sub_subject_kr} ({mode_label})",
+        ]
+    )
+    if web_article_url:
+        lines.append(f"- **웹 리더**: {web_article_url}")
+
+    lines.extend(["", "## ⚡ 핵심 요약", ""])
+    for bullet in note.tldr_bullets:
+        lines.append(f"- {bullet}")
+
+    lines.extend(["", "## 1. 개요 및 문제의식", "", note.overview_and_purpose_kr])
+    lines.extend(["", "## 2. 연구 방법 및 근거 구조", "", note.methodology_and_evidence_kr])
+
+    lines.extend(["", "## 3. 본문 핵심 내용", ""])
+    for idx, sec in enumerate(note.body_sections, start=1):
+        lines.append(f"### {idx}. {sec.heading_kr}")
+        lines.append("")
+        lines.append(sec.content_kr)
+        lines.append("")
+
+    if note.summary_table:
+        lines.extend(["## 4. 주요 수치·내용 요약표", "", "| 항목 | 원문 핵심 내용 |", "| :--- | :--- |"])
+        for row in note.summary_table:
+            item = row.item.replace("|", "\\|").replace("\n", " ")
+            detail = row.detail_kr.replace("|", "\\|").replace("\n", " ")
+            lines.append(f"| {item} | {detail} |")
+        lines.append("")
+
+    if note.key_quotes:
+        lines.extend(["## 5. 원문 핵심 문장 발췌", ""])
+        for q in note.key_quotes:
+            lines.append(f"> “{q.quote_original}”")
+            lines.append(">")
+            lines.append(f"> {q.translation_kr}")
+            lines.append(f"> — *{q.source_label}*")
+            lines.append("")
+
+    if note.author_stated_limitations_kr:
+        lines.extend(["## 6. 원문이 밝힌 한계 및 주의점", ""])
+        for lim in note.author_stated_limitations_kr:
+            lines.append(f"- {lim}")
+        lines.append("")
+
+    if note.author_conclusions_kr:
+        lines.extend(["## 7. 원문의 결론 및 제언", ""])
+        for conc in note.author_conclusions_kr:
+            lines.append(f"- {conc}")
+        lines.append("")
+
+    if note.chapters:
+        lines.extend(["## 8. 오디오 챕터 구성", ""])
+        for ch in note.chapters:
+            lines.append(f"{ch.chapter_number}. **{ch.title_kr}**: {ch.focus_kr}")
+        lines.append("")
+
+    lines.extend(["## 📚 원문 출처", ""])
+    for d in docs:
+        pub_part = f", {d.candidate.published}" if d.candidate.published else ""
+        pdf_part = f" · [PDF]({d.candidate.pdf_url})" if d.candidate.pdf_url else ""
+        lines.append(
+            f"- **{d.candidate.title}** ({d.candidate.source_name}{pub_part}) — "
+            f"[원문 보기]({d.candidate.url}){pdf_part}"
+        )
+
+    return "\n".join(lines).strip() + "\n"
+
+
 def archive_to_google_drive(
     date_slug: str,
     theme: ThemeSlot,
@@ -260,15 +364,16 @@ def archive_to_google_drive(
     docs: list[FetchedDocument],
     doc_html: str,
     web_article_url: str = "",
+    script_markdown: str = "",
 ) -> DriveArchiveResult:
     """
     3단 Google Drive 아카이빙 실행:
     1) Deep-Dive-Briefing/<5대 핵심 분야>/[YYYY-MM-DD] <title>/ 폴더 생성
        (예: Deep-Dive-Briefing/🤖 AI·기술·사회/[2026-11-21] 계산 윤리학.../)
-    2) 구조화 브리핑 노트를 PDF 파일([YYYY-MM-DD] <제목>.pdf)로 변환·저장
-       (HTML → 임시 Google Doc 렌더링 → PDF 내보내기 → 실제 .pdf 저장 후 임시 Doc 삭제)
-    3) 원문 PDF(있을 경우) + full_text.txt 업로드
-    4) Master_Index Google Sheet에 1행 추가
+    2) 구조화 브리핑 노트를 PDF([YYYY-MM-DD] <제목>.pdf) + 마크다운([YYYY-MM-DD] <제목>.md) 동시 저장
+    3) 오디오 대본 전문 마크다운([YYYY-MM-DD] <제목>_대본.md) 저장 (대본이 있을 경우)
+    4) 원문 PDF(있을 경우) + full_text.txt 업로드
+    5) Master_Index Google Sheet에 1행 추가
     """
     headers = _get_auth_headers()
 
@@ -328,6 +433,36 @@ def archive_to_google_drive(
         _delete_drive_file(headers, temp_doc_id)
     except Exception as exc:
         print(f"      [WARN] 요약 노트 PDF 변환 실패 -> Google Doc으로 유지합니다: {exc}")
+
+    # 1-b) 요약 노트 마크다운(.md) 및 오디오 대본 전문(_대본.md) 업로드 (DB 검색/색인용, 추가 토큰 0)
+    summary_md = render_study_note_markdown(
+        date_slug=date_slug,
+        theme=theme,
+        decision=decision,
+        note=note,
+        docs=docs,
+        web_article_url=web_article_url,
+    )
+    _upload_multipart_file(
+        headers=headers,
+        metadata={
+            "name": f"[{date_slug}] {safe_title}.md",
+            "parents": [day_folder_id],
+        },
+        content_bytes=summary_md.encode("utf-8"),
+        content_mime="text/markdown; charset=UTF-8",
+    )
+
+    if script_markdown.strip():
+        _upload_multipart_file(
+            headers=headers,
+            metadata={
+                "name": f"[{date_slug}] {safe_title}_대본.md",
+                "parents": [day_folder_id],
+            },
+            content_bytes=script_markdown.encode("utf-8"),
+            content_mime="text/markdown; charset=UTF-8",
+        )
 
     # 2) 원문 PDF 및 추출 텍스트(full_text.txt) 저장
     pdf_count = 0

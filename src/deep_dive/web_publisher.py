@@ -52,8 +52,18 @@ def _cdata(text: str) -> str:
 
 
 def _slugify(text: str) -> str:
-    cleaned = re.sub(r"[^a-zA-Z0-9가-힣]+", "-", text).strip("-")
-    return cleaned[:48] or "episode"
+    cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", (text or "").lower()).strip("-")
+    return cleaned[:42].strip("-")
+
+
+def _ascii_post_slug(date_slug: str, theme_id: str, docs: list[FetchedDocument]) -> str:
+    """YouTube 팟캐스트·RSS 리다이렉트에서 절대 깨지지 않는 순수 ASCII 파일 슬러그를 생성합니다."""
+    title_slug = ""
+    if docs and docs[0].candidate.title:
+        title_slug = _slugify(docs[0].candidate.title)
+    if title_slug:
+        return f"{date_slug}_{theme_id}_{title_slug}"
+    return f"{date_slug}_{theme_id}"
 
 
 def load_covered_urls_from_pages(deep_dir: Path) -> set[str]:
@@ -81,10 +91,13 @@ def render_study_note_body_html(
     theme: ThemeSlot,
     decision: CurationDecision,
     article_url: str | None = None,
-    drive_doc_url: str | None = None,
+    archive_url: str | None = None,
+    drive_doc_url: str | None = None,  # 공개 쇼노트·웹 리더에는 비공개 Drive 링크를 노출하지 않음(하위 호환용 유지)
     usage_footer_html: str | None = None,
+    plain_url_links: bool = False,
 ) -> str:
-    """웹 리더·Google Doc·팟캐스트 쇼노트에서 공통 활용 가능한 원문 충실 요약 HTML 본문을 생성합니다."""
+    """웹 리더·PDF·팟캐스트 쇼노트에서 공통 활용 가능한 원문 충실 요약 HTML 본문을 생성합니다."""
+    del drive_doc_url  # 외부 공유 대비: 비공개 Google Drive 링크는 공개 HTML/RSS에 포함하지 않음
     esc = html.escape
 
     tldr_items = "".join(f"<li>{esc(b)}</li>" for b in note.tldr_bullets)
@@ -134,10 +147,25 @@ def render_study_note_body_html(
 
     ext_links: list[str] = []
     if article_url:
-        ext_links.append(f"<a href='{esc(article_url, quote=True)}'>📖 웹 리더에서 읽기</a>")
-    if drive_doc_url:
-        ext_links.append(f"<a href='{esc(drive_doc_url, quote=True)}'>📁 Google Drive 노트 열기</a>")
-    ext_bar = f"<p class='ext-links'>{' · '.join(ext_links)}</p>" if ext_links else ""
+        if plain_url_links:
+            ext_links.append(
+                f"📖 웹 리더에서 읽기: <a href='{esc(article_url, quote=True)}'>{esc(article_url)}</a>"
+            )
+        else:
+            ext_links.append(f"<a href='{esc(article_url, quote=True)}'>📖 웹 리더에서 읽기</a>")
+    if archive_url:
+        if plain_url_links:
+            ext_links.append(
+                f"🗂️ 전체 아카이브: <a href='{esc(archive_url, quote=True)}'>{esc(archive_url)}</a>"
+            )
+        else:
+            ext_links.append(f"<a href='{esc(archive_url, quote=True)}'>🗂️ 전체 아카이브</a>")
+    if plain_url_links and ext_links:
+        ext_bar = f"<p class='ext-links'>{'<br/>'.join(ext_links)}</p>"
+    elif ext_links:
+        ext_bar = f"<p class='ext-links'>{' · '.join(ext_links)}</p>"
+    else:
+        ext_bar = ""
 
     mode_badge = "1편 충실 요약" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 요약"
     footer = f"\n{usage_footer_html}" if usage_footer_html else ""
@@ -571,8 +599,7 @@ def publish_deep_dive(
 
     now_kst = datetime.now(KST)
     time_slug = now_kst.strftime("%H%M%S")
-    title_slug = _slugify(note.episode_title_kr)
-    slug = f"{date_slug}_{theme.theme_id}_{title_slug}"
+    slug = _ascii_post_slug(date_slug, theme.theme_id, docs)
     guid = f"deep-dive-{date_slug}-{theme.theme_id}-{time_slug}"
 
     episode_title = (
@@ -582,6 +609,7 @@ def publish_deep_dive(
     )
 
     clean_base = base_url.rstrip("/")
+    archive_url = f"{clean_base}/"
     article_filename = f"{slug}.html"
     article_url = f"{clean_base}/posts/{article_filename}"
 
@@ -596,20 +624,33 @@ def publish_deep_dive(
         mp3_size = target_mp3.stat().st_size
         mp3_url = f"{clean_base}/episodes/{mp3_filename}"
 
-    body_html = render_study_note_body_html(
+    article_body_html = render_study_note_body_html(
+        note=note,
+        docs=docs,
+        theme=theme,
+        decision=decision,
+        article_url=None,
+        archive_url=None,
+        drive_doc_url=None,
+        usage_footer_html=usage_footer_html,
+        plain_url_links=False,
+    )
+    rss_body_html = render_study_note_body_html(
         note=note,
         docs=docs,
         theme=theme,
         decision=decision,
         article_url=article_url,
-        drive_doc_url=drive_doc_url,
+        archive_url=archive_url,
+        drive_doc_url=None,
         usage_footer_html=usage_footer_html,
+        plain_url_links=True,
     )
 
     article_html = _render_article_page_html(
         episode_title=episode_title,
         date_label=now_kst.strftime("%Y년 %m월 %d일 (%a) KST"),
-        body_html=body_html,
+        body_html=article_body_html,
         mp3_rel_path=f"../episodes/{mp3_filename}" if mp3_filename else None,
         duration_seconds=duration_seconds,
         script=script,
@@ -649,7 +690,7 @@ def publish_deep_dive(
         "duration_seconds": int(duration_seconds),
         "source_urls": [d.candidate.url for d in docs],
         "summary_plain": f"{note.subtitle_kr} — " + " / ".join(note.tldr_bullets[:2]),
-        "description_html": body_html,
+        "description_html": rss_body_html,
     }
 
     def _is_replaced_entry(ep: dict[str, Any]) -> bool:

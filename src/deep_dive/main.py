@@ -486,6 +486,7 @@ def main() -> int:
                 article_url=published.article_url if published else None,
                 usage_footer_html=usage_footer_html,
             )
+            script_md = format_script_markdown(script, note) if script is not None else ""
             drive_result = archive_to_google_drive(
                 date_slug=date_slug,
                 theme=display_theme,
@@ -494,27 +495,15 @@ def main() -> int:
                 docs=selected_docs,
                 doc_html=doc_html,
                 web_article_url=published.article_url if published else "",
+                script_markdown=script_md,
             )
             print(f"   -> Google Drive 아카이빙 완료: {drive_result.folder_url}")
-            print(f"      Doc: {drive_result.doc_url} | PDF {drive_result.uploaded_pdf_count}건")
+            print(
+                f"      요약 PDF + 마크다운(.md"
+                + (" + _대본.md" if script_md else "")
+                + f") | 원문 PDF {drive_result.uploaded_pdf_count}건"
+            )
             print(f"      Master Sheet: {drive_result.sheet_url}")
-
-            # Drive 링크를 웹 리더 페이지에도 반영
-            if args.podcast_dir is not None and args.podcast_base_url:
-                published = publish_deep_dive(
-                    deep_dir=args.podcast_dir,
-                    base_url=args.podcast_base_url,
-                    date_slug=date_slug,
-                    theme=display_theme,
-                    decision=decision,
-                    note=note,
-                    docs=selected_docs,
-                    script=script,
-                    mp3_path=mp3_path,
-                    duration_seconds=duration_seconds,
-                    drive_doc_url=drive_result.doc_url,
-                    usage_footer_html=usage_footer_html,
-                )
         except Exception as exc:
             print(f"   [WARN] Google Drive 아카이빙 실패 (파이프라인은 계속 진행): {exc}")
     elif not args.skip_drive:
