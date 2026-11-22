@@ -454,25 +454,28 @@ def generate_longform_script(
 
 def format_script_markdown(script: DeepDiveScript, note: DeepDiveStudyNote) -> str:
     """다중 화자 대화 대본을 읽기 좋은 마크다운 문서로 포맷합니다."""
+    def _esc(text: str) -> str:
+        return (text or "").replace("~", r"\~")
+
     labels = script.speaker_label_map()
     cast_line = " · ".join(f"{sp.name_kr}({sp.role_title_kr})" for sp in script.cast.speakers)
     lines = [
-        f"# {script.episode_title}",
-        f"> {note.subtitle_kr}",
+        f"# {_esc(script.episode_title)}",
+        f"> {_esc(note.subtitle_kr)}",
         f"- **대화 구성**: {script.cast.format_type} — {cast_line}",
         f"- **분량**: 총 {len(script.chapters)}개 챕터 · {script.total_turns}턴 · 약 {script.total_chars:,}자 (예상 {round(script.total_chars / DEFAULT_CHARS_PER_MINUTE)}분)",
         "",
         "## 오프닝",
     ]
     for t in script.opening_turns:
-        lines.append(f"**{labels.get(t.speaker_id, t.speaker_id)}**: {t.text}\n")
+        lines.append(f"**{labels.get(t.speaker_id, t.speaker_id)}**: {_esc(t.text)}\n")
 
     for idx, (title, turns) in enumerate(script.chapters, start=1):
-        lines.append(f"## Chapter {idx}. {title}")
+        lines.append(f"## Chapter {idx}. {_esc(title)}")
         for t in turns:
-            lines.append(f"**{labels.get(t.speaker_id, t.speaker_id)}**: {t.text}\n")
+            lines.append(f"**{labels.get(t.speaker_id, t.speaker_id)}**: {_esc(t.text)}\n")
 
     lines.append("## 클로징")
     for t in script.closing_turns:
-        lines.append(f"**{labels.get(t.speaker_id, t.speaker_id)}**: {t.text}\n")
+        lines.append(f"**{labels.get(t.speaker_id, t.speaker_id)}**: {_esc(t.text)}\n")
     return "\n".join(lines)

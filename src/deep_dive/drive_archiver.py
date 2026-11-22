@@ -256,6 +256,23 @@ def _yaml_escape(text: str) -> str:
     return (text or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").strip()
 
 
+_URL_TOKEN_RE = re.compile(r"https?://[^\s)>]+")
+
+
+def _escape_md_tildes(text: str) -> str:
+    """마크다운 본문에서 '~'가 취소선(~~)으로 오인식되지 않도록 URL을 제외하고 '\\~'로 이스케이프합니다."""
+    if "~" not in (text or ""):
+        return text or ""
+    parts: list[str] = []
+    last = 0
+    for m in _URL_TOKEN_RE.finditer(text):
+        parts.append(text[last : m.start()].replace("~", r"\~"))
+        parts.append(m.group(0))
+        last = m.end()
+    parts.append(text[last:].replace("~", r"\~"))
+    return "".join(parts)
+
+
 def render_study_note_markdown(
     date_slug: str,
     theme: ThemeSlot,
@@ -284,12 +301,12 @@ def render_study_note_markdown(
         [
             "---",
             "",
-            f"# {note.episode_title_kr}",
+            f"# {_escape_md_tildes(note.episode_title_kr)}",
             "",
-            f"> {note.subtitle_kr}",
+            f"> {_escape_md_tildes(note.subtitle_kr)}",
             "",
             f"- **날짜**: {date_slug}",
-            f"- **분야**: {theme.emoji} {theme.label_kr} · {decision.sub_subject_kr} ({mode_label})",
+            f"- **분야**: {theme.emoji} {theme.label_kr} · {_escape_md_tildes(decision.sub_subject_kr)} ({mode_label})",
         ]
     )
     if web_article_url:
@@ -297,51 +314,53 @@ def render_study_note_markdown(
 
     lines.extend(["", "## ⚡ 핵심 요약", ""])
     for bullet in note.tldr_bullets:
-        lines.append(f"- {bullet}")
+        lines.append(f"- {_escape_md_tildes(bullet)}")
 
-    lines.extend(["", "## 1. 개요 및 문제의식", "", note.overview_and_purpose_kr])
-    lines.extend(["", "## 2. 연구 방법 및 근거 구조", "", note.methodology_and_evidence_kr])
+    lines.extend(["", "## 1. 개요 및 문제의식", "", _escape_md_tildes(note.overview_and_purpose_kr)])
+    lines.extend(["", "## 2. 연구 방법 및 근거 구조", "", _escape_md_tildes(note.methodology_and_evidence_kr)])
 
     lines.extend(["", "## 3. 본문 핵심 내용", ""])
     for idx, sec in enumerate(note.body_sections, start=1):
-        lines.append(f"### {idx}. {sec.heading_kr}")
+        lines.append(f"### {idx}. {_escape_md_tildes(sec.heading_kr)}")
         lines.append("")
-        lines.append(sec.content_kr)
+        lines.append(_escape_md_tildes(sec.content_kr))
         lines.append("")
 
     if note.summary_table:
         lines.extend(["## 4. 주요 수치·내용 요약표", "", "| 항목 | 원문 핵심 내용 |", "| :--- | :--- |"])
         for row in note.summary_table:
-            item = row.item.replace("|", "\\|").replace("\n", " ")
-            detail = row.detail_kr.replace("|", "\\|").replace("\n", " ")
+            item = _escape_md_tildes(row.item.replace("|", "\\|").replace("\n", " "))
+            detail = _escape_md_tildes(row.detail_kr.replace("|", "\\|").replace("\n", " "))
             lines.append(f"| {item} | {detail} |")
         lines.append("")
 
     if note.key_quotes:
         lines.extend(["## 5. 원문 핵심 문장 발췌", ""])
         for q in note.key_quotes:
-            lines.append(f"> “{q.quote_original}”")
+            lines.append(f"> “{_escape_md_tildes(q.quote_original)}”")
             lines.append(">")
-            lines.append(f"> {q.translation_kr}")
-            lines.append(f"> — *{q.source_label}*")
+            lines.append(f"> {_escape_md_tildes(q.translation_kr)}")
+            lines.append(f"> — *{_escape_md_tildes(q.source_label)}*")
             lines.append("")
 
     if note.author_stated_limitations_kr:
         lines.extend(["## 6. 원문이 밝힌 한계 및 주의점", ""])
         for lim in note.author_stated_limitations_kr:
-            lines.append(f"- {lim}")
+            lines.append(f"- {_escape_md_tildes(lim)}")
         lines.append("")
 
     if note.author_conclusions_kr:
         lines.extend(["## 7. 원문의 결론 및 제언", ""])
         for conc in note.author_conclusions_kr:
-            lines.append(f"- {conc}")
+            lines.append(f"- {_escape_md_tildes(conc)}")
         lines.append("")
 
     if note.chapters:
         lines.extend(["## 8. 오디오 챕터 구성", ""])
         for ch in note.chapters:
-            lines.append(f"{ch.chapter_number}. **{ch.title_kr}**: {ch.focus_kr}")
+            lines.append(
+                f"{ch.chapter_number}. **{_escape_md_tildes(ch.title_kr)}**: {_escape_md_tildes(ch.focus_kr)}"
+            )
         lines.append("")
 
     lines.extend(["## 📚 원문 출처", ""])
@@ -349,7 +368,7 @@ def render_study_note_markdown(
         pub_part = f", {d.candidate.published}" if d.candidate.published else ""
         pdf_part = f" · [PDF]({d.candidate.pdf_url})" if d.candidate.pdf_url else ""
         lines.append(
-            f"- **{d.candidate.title}** ({d.candidate.source_name}{pub_part}) — "
+            f"- **{_escape_md_tildes(d.candidate.title)}** ({_escape_md_tildes(d.candidate.source_name)}{pub_part}) — "
             f"[원문 보기]({d.candidate.url}){pdf_part}"
         )
 

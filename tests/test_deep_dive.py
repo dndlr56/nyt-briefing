@@ -920,6 +920,10 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertIn("| 지표 | 수치 95% |", md)
         self.assertIn("Ethics can be formalized.", md)
 
+        from deep_dive.drive_archiver import _escape_md_tildes
+        escaped = _escape_md_tildes("약 10~20% 및 2024~2026년 참고 https://example.com/~user/paper")
+        self.assertEqual(escaped, r"약 10\~20% 및 2024\~2026년 참고 https://example.com/~user/paper")
+
     def test_curl_cffi_fallback_and_unpaywall_lookup(self) -> None:
         from unittest import mock
         from deep_dive.sources import (
