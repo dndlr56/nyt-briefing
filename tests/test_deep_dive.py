@@ -920,6 +920,61 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertIn("| 지표 | 수치 95% |", md)
         self.assertIn("Ethics can be formalized.", md)
 
+    def test_curl_cffi_fallback_and_unpaywall_lookup(self) -> None:
+        from unittest import mock
+        from deep_dive.sources import (
+            _download_pdf,
+            _extract_html_article_and_pdf_link,
+            _fetch_unpaywall_oa_urls,
+        )
+
+        # 1) requests가 403으로 실패할 때 _download_pdf가 curl_cffi 폴백으로 PDF 바이트를 회수하는지 검증
+        with mock.patch("deep_dive.sources.requests.get", side_effect=RuntimeError("403 Forbidden")):
+            with mock.patch(
+                "deep_dive.sources._fetch_via_curl_cffi",
+                return_value=(200, {"content-type": "application/pdf"}, b"%PDF-1.4 mock content"),
+            ):
+                pdf_bytes = _download_pdf("https://ora.ox.ac.uk/mock.pdf")
+        self.assertIsNotNone(pdf_bytes)
+        assert pdf_bytes is not None
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+
+        # 2) requests가 403으로 실패할 때 _extract_html_article_and_pdf_link가 curl_cffi 폴백으로 본문을 추출하는지 검증
+        long_para = " ".join(["Cognitive science benefits from diverse linguistic samples."] * 15)
+        mock_html = f"<html><body><article><h1>Title</h1><p>{long_para}</p></article></body></html>".encode("utf-8")
+        with mock.patch("deep_dive.sources.requests.get", side_effect=RuntimeError("403 Forbidden")):
+            with mock.patch(
+                "deep_dive.sources._fetch_via_curl_cffi",
+                return_value=(200, {"content-type": "text/html; charset=utf-8"}, mock_html),
+            ):
+                text, _ = _extract_html_article_and_pdf_link("https://dl.acm.org/doi/10.1145/3634685")
+        self.assertIn("diverse linguistic samples", text)
+
+        # 3) Unpaywall API 응답에서 오픈 리포지토리 PDF 우선순위 정렬 및 PMC ID 추출 검증
+        fake_upw = mock.MagicMock()
+        fake_upw.status_code = 200
+        fake_upw.raise_for_status.return_value = None
+        fake_upw.json.return_value = {
+            "best_oa_location": {
+                "url_for_pdf": "https://www.cell.com/article/S1364/pdf",
+                "url": "https://www.cell.com/article/S1364",
+            },
+            "oa_locations": [
+                {
+                    "url_for_pdf": "https://www.cell.com/article/S1364/pdf",
+                },
+                {
+                    "url_for_pdf": "https://europepmc.org/articles/PMC1122334?pdf=render",
+                    "url_for_landing_page": "https://europepmc.org/articles/PMC1122334",
+                },
+            ],
+        }
+        with mock.patch("deep_dive.sources.requests.get", return_value=fake_upw):
+            pdfs, pmc = _fetch_unpaywall_oa_urls("https://doi.org/10.1016/j.tics.2022.09.001")
+        self.assertEqual(pmc, "PMC1122334")
+        self.assertIn("europepmc.org", pdfs[0])
+        self.assertIn("cell.com", pdfs[1])
+
 
 if __name__ == "__main__":
     unittest.main()

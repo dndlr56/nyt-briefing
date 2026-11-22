@@ -37,8 +37,17 @@ HTTP_HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "application/xml, application/rss+xml, text/html, application/pdf;q=0.9, */*;q=0.8",
 }
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 OPENALEX_API_URL = "https://api.openalex.org/works"
+UNPAYWALL_API_URL = "https://api.unpaywall.org/v2/{doi}"
 EUROPE_PMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 EUROPE_PMC_FULLTEXT_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmc_id}/fullTextXML"
 SEMANTIC_SCHOLAR_SEARCH_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
@@ -994,24 +1003,115 @@ def extract_text_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 65) -> str:
     return "\n\n".join(pages_text).strip()
 
 
-def _download_pdf(url: str, timeout: int = 45) -> bytes | None:
-    resp = requests.get(url, headers=HTTP_HEADERS, timeout=timeout, stream=True)
-    resp.raise_for_status()
-    content_type = (resp.headers.get("Content-Type") or "").lower()
+def _fetch_via_curl_cffi(url: str, timeout: int = 45) -> tuple[int, dict[str, str], bytes] | None:
+    """Chrome TLS 지문을 모방해 봇 차단(403)을 우회하는 폴백 HTTP GET을 수행합니다."""
+    try:
+        from curl_cffi import requests as cffi_requests  # type: ignore[import-not-found]
+    except ImportError:
+        return None
 
-    chunks: list[bytes] = []
-    total = 0
-    for chunk in resp.iter_content(chunk_size=65536):
-        if not chunk:
+    for impersonate in ("chrome", "chrome124"):
+        try:
+            resp = cffi_requests.get(
+                url,
+                impersonate=impersonate,
+                headers=BROWSER_HEADERS,
+                timeout=timeout,
+                allow_redirects=True,
+            )
+            hdrs = {str(k).lower(): str(v) for k, v in (resp.headers or {}).items()}
+            return int(resp.status_code), hdrs, bytes(resp.content or b"")
+        except Exception:
             continue
-        total += len(chunk)
-        if total > MAX_PDF_BYTES:
-            return None
-        chunks.append(chunk)
+    return None
 
-    raw = b"".join(chunks)
-    if raw.startswith(b"%PDF") or "application/pdf" in content_type:
-        return raw
+
+def _fetch_unpaywall_oa_urls(doi: str) -> tuple[list[str], str]:
+    """
+    Unpaywall 무료 공식 API(키 불필요)로 DOI의 합법 OA PDF 미러 목록과 발견된 PMC ID를 조회합니다.
+    OpenAlex가 놓친 저자 홈페이지·대학 리포지토리·Europe PMC PDF를 추가로 회수할 때 사용합니다.
+    """
+    clean_doi = _normalize_doi(doi)
+    if not clean_doi:
+        return [], ""
+
+    email = (os.getenv("PODCAST_OWNER_EMAIL") or "").strip() or "deepdive-briefing@users.noreply.github.com"
+    try:
+        resp = requests.get(
+            UNPAYWALL_API_URL.format(doi=clean_doi),
+            params={"email": email},
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=15,
+        )
+        if resp.status_code == 404:
+            return [], ""
+        resp.raise_for_status()
+        data = resp.json() or {}
+    except Exception:
+        return [], ""
+
+    locations: list[dict] = []
+    best_oa = data.get("best_oa_location")
+    if isinstance(best_oa, dict):
+        locations.append(best_oa)
+    for loc in data.get("oa_locations") or []:
+        if isinstance(loc, dict):
+            locations.append(loc)
+
+    seen: set[str] = set()
+    pdfs: list[str] = []
+    discovered_pmc = ""
+
+    for loc in locations:
+        for key in ("url_for_pdf", "url", "url_for_landing_page"):
+            u = str(loc.get(key) or "").strip()
+            if not u:
+                continue
+            if not discovered_pmc and "pmc" in u.lower():
+                m = re.search(r"PMC\d+", u, re.IGNORECASE)
+                if m:
+                    discovered_pmc = m.group(0).upper()
+            if key == "url_for_pdf" and u not in seen:
+                seen.add(u)
+                pdfs.append(u)
+
+    return sorted(pdfs, key=_oa_pdf_priority), discovered_pmc
+
+
+def _download_pdf(url: str, timeout: int = 45) -> bytes | None:
+    first_exc: Exception | None = None
+    try:
+        resp = requests.get(url, headers=HTTP_HEADERS, timeout=timeout, stream=True)
+        resp.raise_for_status()
+        content_type = (resp.headers.get("Content-Type") or "").lower()
+
+        chunks: list[bytes] = []
+        total = 0
+        for chunk in resp.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > MAX_PDF_BYTES:
+                return None
+            chunks.append(chunk)
+
+        raw = b"".join(chunks)
+        if raw.startswith(b"%PDF") or "application/pdf" in content_type:
+            return raw
+    except Exception as exc:
+        first_exc = exc
+
+    # requests가 403 등 봇 차단에 걸리거나 PDF가 아닌 응답을 받은 경우 Chrome TLS 모방으로 1회 재시도
+    cffi_res = _fetch_via_curl_cffi(url, timeout=timeout)
+    if cffi_res is not None:
+        status, hdrs, raw = cffi_res
+        if 200 <= status < 300 and len(raw) <= MAX_PDF_BYTES:
+            ctype = hdrs.get("content-type", "").lower()
+            if raw.startswith(b"%PDF") or "application/pdf" in ctype:
+                return raw
+
+    if first_exc is not None:
+        raise first_exc
     return None
 
 
@@ -1113,15 +1213,41 @@ def _fetch_core_fulltext_fallback(candidate: SourceCandidate) -> tuple[str, byte
 
 def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
     """웹페이지에서 본문 텍스트와 (존재 시) PDF 다운로드 링크를 추출합니다."""
-    resp = requests.get(url, headers=HTTP_HEADERS, timeout=30)
-    resp.raise_for_status()
-    content_type = (resp.headers.get("Content-Type") or "").lower()
-    if "application/pdf" in content_type or resp.content.startswith(b"%PDF"):
-        return "", url
-    if resp.encoding is None or resp.encoding.lower() == "iso-8859-1":
-        resp.encoding = resp.apparent_encoding or "utf-8"
+    html_bytes = b""
+    content_type = ""
+    encoding_hint: str | None = None
+    first_exc: Exception | None = None
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    try:
+        resp = requests.get(url, headers=HTTP_HEADERS, timeout=30)
+        resp.raise_for_status()
+        content_type = (resp.headers.get("Content-Type") or "").lower()
+        html_bytes = resp.content or b""
+        if resp.encoding and resp.encoding.lower() != "iso-8859-1":
+            encoding_hint = resp.encoding
+        else:
+            encoding_hint = resp.apparent_encoding or "utf-8"
+    except Exception as exc:
+        first_exc = exc
+
+    if not html_bytes:
+        cffi_res = _fetch_via_curl_cffi(url, timeout=30)
+        if cffi_res is not None:
+            status, hdrs, raw = cffi_res
+            if 200 <= status < 300 and raw:
+                html_bytes = raw
+                content_type = hdrs.get("content-type", "").lower()
+
+    if not html_bytes:
+        if first_exc is not None:
+            raise first_exc
+        return "", ""
+
+    if "application/pdf" in content_type or html_bytes.startswith(b"%PDF"):
+        return "", url
+
+    decoded_html = html_bytes.decode(encoding_hint or "utf-8", errors="replace")
+    soup = BeautifulSoup(decoded_html, "html.parser")
 
     discovered_pdf = ""
     meta_pdf = soup.find("meta", attrs={"name": "citation_pdf_url"})
@@ -1219,6 +1345,34 @@ def fetch_full_document(
                     break
         except Exception as exc:
             print(f"      [WARN] PDF 다운로드/파싱 실패 ({pdf_url}): {exc}")
+
+    # 2-b) Unpaywall 무료 API로 추가 합법 OA 미러(PMC/기관 리포지토리 PDF) 탐색
+    if not full_text and candidate.doi:
+        upw_pdfs, upw_pmc = _fetch_unpaywall_oa_urls(candidate.doi)
+        if upw_pmc and upw_pmc != candidate.pmc_id:
+            try:
+                xml_text = _fetch_pmc_fulltext_xml(upw_pmc)
+                if _meets_min_length(xml_text, min_chars):
+                    full_text = xml_text
+                    text_source = "pmc_xml"
+            except Exception:
+                pass
+        if not full_text:
+            for upw_pdf in upw_pdfs:
+                if upw_pdf in pdf_candidates:
+                    continue
+                pdf_candidates.append(upw_pdf)
+                try:
+                    downloaded = _download_pdf(upw_pdf)
+                    if downloaded:
+                        pdf_bytes = downloaded
+                        pdf_text = extract_text_from_pdf_bytes(downloaded)
+                        if _meets_min_length(pdf_text, min_chars):
+                            full_text = pdf_text
+                            text_source = "pdf"
+                            break
+                except Exception as exc:
+                    print(f"      [WARN] Unpaywall PDF 다운로드/파싱 실패 ({upw_pdf}): {exc}")
 
     # 3) HTML 전문 추출
     if not full_text and candidate.url:
