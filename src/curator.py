@@ -116,7 +116,7 @@ def select_articles(
         or os.getenv("GEMINI_MODEL")
         or DEFAULT_SELECTION_MODEL
     )
-    client = genai.Client(http_options={"api_version": "v1beta"})
+    client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
 
     pool = candidates[:85]
     by_id = {c.article_id: c for c in pool}
@@ -171,7 +171,7 @@ def select_articles(
                 if attempt >= 2:
                     paid_key = try_switch_to_paid_key()
                     if paid_key:
-                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta"})
+                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
                         continue
                 wait_sec = 20
             else:
@@ -215,7 +215,7 @@ def summarize_full_articles(
         or os.getenv("GEMINI_MODEL")
         or DEFAULT_SUMMARY_MODEL
     )
-    client = genai.Client(http_options={"api_version": "v1beta"})
+    client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
 
     blocks: list[str] = []
     for idx, art in enumerate(articles, start=1):
@@ -264,7 +264,7 @@ def summarize_full_articles(
                 if attempt >= 2:
                     paid_key = try_switch_to_paid_key()
                     if paid_key:
-                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta"})
+                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
                         continue
                 wait_sec = 20
             else:

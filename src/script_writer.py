@@ -104,7 +104,7 @@ def write_roundup_script(
         or os.getenv("GEMINI_MODEL")
         or DEFAULT_SCRIPT_MODEL
     )
-    client = genai.Client(http_options={"api_version": "v1beta"})
+    client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
 
     today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일 (%a)")
     today_title_date = datetime.now(KST).strftime("%Y.%m.%d")
@@ -161,7 +161,7 @@ def write_roundup_script(
                 if attempt >= 2:
                     paid_key = try_switch_to_paid_key()
                     if paid_key:
-                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta"})
+                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
                         continue
                 wait_sec = 20
             else:
