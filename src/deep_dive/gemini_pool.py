@@ -168,10 +168,14 @@ class GeminiClientPool:
         """
         last_exc: Exception | None = None
         rpm_waited_on_free = False
-        transient_503_on_free = False
+        free_503_waits = [5, 15, 30]
+        free_503_attempts = 0
+        override_tier_once: str | None = None
 
-        for attempt in range(1, max_retries + 2):
-            tier = self.active_tier_for(model)
+        max_total_attempts = max(max_retries + 2, 6)
+        for attempt in range(1, max_total_attempts):
+            tier = override_tier_once or self.active_tier_for(model)
+            override_tier_once = None
             client = self._get_client(tier)
             call_kwargs = dict(create_kwargs)
             call_kwargs.setdefault("timeout", timeout)
@@ -200,6 +204,7 @@ class GeminiClientPool:
                     "503" in err_lower
                     or "unavailable" in err_lower
                     or "overloaded" in err_lower
+                    or "internalservererror" in exc_name_lower
                 )
 
                 if tier == "free" and is_quota and self.has_paid_fallback:
@@ -225,18 +230,20 @@ class GeminiClientPool:
                     continue
 
                 if tier == "free" and is_503 and self.has_paid_fallback:
-                    if transient_503_on_free:
-                        self.switch_group_to_paid(
-                            model,
-                            reason=f"무료 티어 503/과부하 반복 ({type(exc).__name__}, {elapsed:.1f}s)",
+                    if free_503_attempts < len(free_503_waits):
+                        wait_s = free_503_waits[free_503_attempts]
+                        free_503_attempts += 1
+                        print(
+                            f"      [WARN] {stage} 무료 티어 일시 과부하 ({type(exc).__name__}, {elapsed:.1f}s) -> "
+                            f"{wait_s}초 후 재시도 ({free_503_attempts}/{len(free_503_waits)})..."
                         )
+                        time.sleep(wait_s)
                         continue
-                    transient_503_on_free = True
-                    print(
-                        f"      [WARN] {stage} 무료 티어 일시 과부하 ({type(exc).__name__}, {elapsed:.1f}s) -> "
-                        "5초 후 1회 재시도 (재발 시 유료 전환)..."
-                    )
-                    time.sleep(5)
+                    # 3회 백오프 후에도 무료 서버 과부하가 지속되면 이번 호출 1회만 유료로 처리하고 다음 단계는 다시 무료 우선
+                    msg = f"[{_model_group(model)}] {stage} 무료 티어 503 지속 -> 이번 호출만 유료 1회 우회"
+                    self.failover_events.append(msg)
+                    print(f"      [FAILOVER-ONCE] {msg}")
+                    override_tier_once = "paid"
                     continue
 
                 if attempt <= max_retries:

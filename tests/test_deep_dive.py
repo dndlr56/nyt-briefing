@@ -979,6 +979,57 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertIn("europepmc.org", pdfs[0])
         self.assertIn("cell.com", pdfs[1])
 
+    def test_morning_briefing_dedup_and_503_single_call_failover(self) -> None:
+        import json
+        from types import SimpleNamespace
+        from unittest import mock
+        from deep_dive.gemini_pool import GeminiClientPool
+        from main import _load_recent_covered_urls
+
+        # 1) 모닝 뉴스 브리핑 최근 에피소드 URL 추출 검증
+        with tempfile.TemporaryDirectory() as tmp:
+            pdir = Path(tmp)
+            (pdir / "episodes").mkdir(parents=True, exist_ok=True)
+            (pdir / "episodes" / "metadata.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "title": "Ep 1",
+                            "description_html": '<a href="https://www.theguardian.com/technology/2026/nov/21/anthropic-riemann/">원문</a>',
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            covered = _load_recent_covered_urls(pdir, max_episodes=3)
+            self.assertIn("https://www.theguardian.com/technology/2026/nov/21/anthropic-riemann", covered)
+
+        # 2) Deep Dive 503 과부하 시 3회 백오프 후 이번 호출만 유료 1회 우회, 다음 호출은 다시 무료 유지
+        pool = GeminiClientPool(free_api_key="free", paid_api_key="paid", mode="auto")
+
+        class _Fake503:
+            def __init__(self, fail_always: bool) -> None:
+                self.fail_always = fail_always
+                self.calls = 0
+
+            def create(self, **kwargs: object) -> object:
+                self.calls += 1
+                if self.fail_always:
+                    raise RuntimeError("503 UNAVAILABLE: overloaded")
+                return SimpleNamespace(output_text="ok", usage=None)
+
+        pool._free_client = SimpleNamespace(interactions=_Fake503(fail_always=True))  # type: ignore[assignment]
+        pool._paid_client = SimpleNamespace(interactions=_Fake503(fail_always=False))  # type: ignore[assignment]
+
+        with mock.patch("deep_dive.gemini_pool.time.sleep"):
+            _, tier_used = pool.create_interaction(
+                model="gemini-4-hydrogen", stage="문헌 선별", input="hi"
+            )
+        self.assertEqual(tier_used, "paid")
+        self.assertEqual(pool._free_client.interactions.calls, 4)  # 초기 1회 + 백오프 3회
+        # 다음 호출은 여전히 free 티어 우선 유지
+        self.assertEqual(pool.active_tier_for("gemini-4-hydrogen"), "free")
+
 
 if __name__ == "__main__":
     unittest.main()

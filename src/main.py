@@ -66,6 +66,33 @@ def _fetch_combined_candidates(hours: int) -> list[ArticleCandidate]:
     return guardian_candidates[:60] + nyt_candidates[:25]
 
 
+def _load_recent_covered_urls(podcast_dir: Path, max_episodes: int = 3) -> set[str]:
+    """최근 발행된 팟캐스트 에피소드(episodes/metadata.json)에 포함된 원문 URL을 추출합니다."""
+    import json
+    import re
+
+    meta_path = podcast_dir / "episodes" / "metadata.json"
+    if not meta_path.exists():
+        return set()
+    try:
+        episodes = json.loads(meta_path.read_text(encoding="utf-8"))
+        if not isinstance(episodes, list):
+            return set()
+    except (OSError, json.JSONDecodeError):
+        return set()
+
+    urls: set[str] = set()
+    for ep in episodes[:max_episodes]:
+        if not isinstance(ep, dict):
+            continue
+        desc = ep.get("description_html", "") or ""
+        for u in re.findall(r"href=['\"](https?://[^'\"]+)['\"]", desc):
+            cleaned = u.strip().rstrip("/")
+            if cleaned:
+                urls.add(cleaned)
+    return urls
+
+
 def main() -> int:
     load_dotenv()
 
@@ -163,6 +190,19 @@ def main() -> int:
     if not candidates:
         print("[ERROR] No candidate articles fetched.", file=sys.stderr)
         return 1
+
+    if args.podcast_dir is not None:
+        covered_urls = _load_recent_covered_urls(args.podcast_dir, max_episodes=3)
+        if covered_urls:
+            before_cnt = len(candidates)
+            filtered = [
+                c for c in candidates if c.url.strip().rstrip("/") not in covered_urls
+            ]
+            if len(filtered) >= 12:
+                candidates = filtered
+                removed_cnt = before_cnt - len(candidates)
+                if removed_cnt > 0:
+                    print(f"      Excluded {removed_cnt} recently covered article(s) from candidate pool.")
 
     usage_tracker = RunUsageTracker()
 
