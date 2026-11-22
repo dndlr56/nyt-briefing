@@ -260,16 +260,16 @@ _URL_TOKEN_RE = re.compile(r"https?://[^\s)>]+")
 
 
 def _escape_md_tildes(text: str) -> str:
-    """마크다운 본문에서 '~'가 취소선(~~)으로 오인식되지 않도록 URL을 제외하고 '\\~'로 이스케이프합니다."""
+    """마크다운·Google Docs 열람 시 '~'가 취소선(~~)으로 오인식되지 않도록 URL을 제외하고 유니코드 물결표('∼')로 치환합니다."""
     if "~" not in (text or ""):
         return text or ""
     parts: list[str] = []
     last = 0
     for m in _URL_TOKEN_RE.finditer(text):
-        parts.append(text[last : m.start()].replace("~", r"\~"))
+        parts.append(text[last : m.start()].replace("~", "∼"))
         parts.append(m.group(0))
         last = m.end()
-    parts.append(text[last:].replace("~", r"\~"))
+    parts.append(text[last:].replace("~", "∼"))
     return "".join(parts)
 
 

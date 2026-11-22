@@ -455,7 +455,7 @@ def generate_longform_script(
 def format_script_markdown(script: DeepDiveScript, note: DeepDiveStudyNote) -> str:
     """다중 화자 대화 대본을 읽기 좋은 마크다운 문서로 포맷합니다."""
     def _esc(text: str) -> str:
-        return (text or "").replace("~", r"\~")
+        return (text or "").replace("~", "∼")
 
     labels = script.speaker_label_map()
     cast_line = " · ".join(f"{sp.name_kr}({sp.role_title_kr})" for sp in script.cast.speakers)
