@@ -603,7 +603,7 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertEqual(sum(len(b) for b in batches_30m), 7)
 
         batches_50m = _build_section_batches(chapter_count=6, target_minutes=50)
-        self.assertEqual(len(batches_50m), 4)
+        self.assertEqual(len(batches_50m), 3)
         self.assertEqual(sum(len(b) for b in batches_50m), 8)
 
         short_doc = FetchedDocument(

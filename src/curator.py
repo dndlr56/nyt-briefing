@@ -14,8 +14,8 @@ from usage_tracker import RunUsageTracker, is_rate_limit_error, try_switch_to_pa
 
 
 class SelectedArticleRef(BaseModel):
-    article_id: str = Field(
-        description="입력 후보 목록의 정확한 article_id (절대 변형하지 말고 그대로 복사)"
+    candidate_index: int = Field(
+        description="입력 후보 목록의 1-based 정수 번호 (예: 1, 2, 3)"
     )
     category_kr: str = Field(
         description="한국어 카테고리 라벨 (예: '테크·AI', '경제·투자', '글로벌 기업', '인프라·에너지', '건강·과학', '글로벌 시사')"
@@ -30,12 +30,35 @@ class SelectionResult(BaseModel):
     )
 
 
+class CompactSummaryItem(BaseModel):
+    article_index: int = Field(
+        description="입력 기사 목록의 1-based 정수 번호"
+    )
+    title_kr: str = Field(description="자연스럽고 명확한 한국어 번역 제목")
+    summary_bullets: List[str] = Field(
+        min_length=2,
+        max_length=3,
+        description="읽기 편하게 정리한 핵심 요약 2~3문장 (사실·배경·시사점 중심)",
+    )
+
+
+class CompactSummaryResult(BaseModel):
+    morning_intro_kr: str = Field(
+        description="오늘 아침 글로벌 뉴스의 핵심 흐름을 1~2문장으로 짚어주는 인사말"
+    )
+    articles: List[CompactSummaryItem] = Field(
+        min_length=10,
+        max_length=12,
+        description="입력 기사 순서대로 정리한 10~12개의 글로벌 주요 기사 요약",
+    )
+
+
 class CuratedArticle(BaseModel):
     category_kr: str = Field(
         description="한국어 카테고리 라벨 (예: '테크·AI', '경제·투자', '글로벌 기업', '인프라·에너지', '건강·과학', '글로벌 시사')"
     )
     source: str = Field(
-        description="기사 출처 (예: 'The Guardian' 또는 'NYT')"
+        description="기사 출처 (예: 'The Guardian' 또는 'BBC')"
     )
     title_kr: str = Field(description="자연스럽고 명확한 한국어 번역 제목")
     title_en: str = Field(description="원문 영어 헤드라인 (수정 없이 그대로)")
@@ -115,22 +138,21 @@ def select_articles(
     client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
 
     pool = candidates[:85]
-    by_id = {c.article_id: c for c in pool}
 
     lines: list[str] = []
     for idx, art in enumerate(pool, start=1):
         pub_str = art.published_at.strftime("%Y-%m-%d %H:%M UTC")
         wc_str = f"Words: {art.wordcount} (Full-Text 가능)" if art.source == "The Guardian" else "HTML Full-Text 가능"
         lines.append(
-            f"[{idx}] article_id: {art.article_id}\n"
-            f"Source: {art.source} | Section: {art.section} | Published: {pub_str} | {wc_str}\n"
+            f"[{idx}] Source: {art.source} | Section: {art.section} | Published: {pub_str} | {wc_str}\n"
             f"Title: {art.title}\n"
             f"Summary: {art.trail_text or '(요약 없음)'}\n"
         )
 
     prompt = (
         "아래는 최근 수집된 The Guardian · BBC · CNBC · NPR 글로벌 기사 후보 목록입니다.\n"
-        "독자 프로필에 맞춰 오늘 아침 15~18분 브리핑으로 다룰 11개(10~12개) 기사를 매체 균형 있게 선별해 JSON으로 반환해 주세요.\n\n"
+        "독자 프로필에 맞춰 오늘 아침 15~18분 브리핑으로 다룰 11개(10~12개) 기사를 매체 균형 있게 선별해 "
+        "`candidate_index`(1-based 정수 번호)와 `category_kr`을 JSON으로 반환해 주세요.\n\n"
         + "\n".join(lines)
     )
 
@@ -146,7 +168,7 @@ def select_articles(
                 response_format=SelectionResult.model_json_schema(),
                 generation_config={
                     "thinking_level": "low",
-                    "max_output_tokens": 8192,
+                    "max_output_tokens": 4096,
                 },
                 store=False,
             )
@@ -182,16 +204,15 @@ def select_articles(
         raise RuntimeError(f"1단계 기사 선별 실패: {last_exc}")
 
     selected_pairs: list[tuple[ArticleCandidate, str]] = []
-    seen: set[str] = set()
+    seen_indices: set[int] = set()
 
     for ref in result.selected:
-        candidate = by_id.get(ref.article_id)
-        if candidate and candidate.article_id not in seen:
-            seen.add(candidate.article_id)
-            selected_pairs.append((candidate, ref.category_kr))
+        if 1 <= ref.candidate_index <= len(pool) and ref.candidate_index not in seen_indices:
+            seen_indices.add(ref.candidate_index)
+            selected_pairs.append((pool[ref.candidate_index - 1], ref.category_kr))
 
     if not selected_pairs:
-        raise RuntimeError("선별된 article_id가 후보 목록과 일치하지 않습니다.")
+        raise RuntimeError("선별된 candidate_index가 후보 목록 범위를 벗어났습니다.")
 
     return selected_pairs
 
@@ -215,17 +236,16 @@ def summarize_full_articles(
 
     blocks: list[str] = []
     for idx, art in enumerate(articles, start=1):
-        body_label = "Full Text" if art.source == "The Guardian" else "RSS Summary"
+        body_label = "Full Text" if len(art.body_text) > len(art.trail_text) + 120 else "Summary"
         blocks.append(
             f"[{idx}] 카테고리: {art.category_kr} | 출처: {art.source} ({art.section})\n"
             f"Title: {art.title}\n"
-            f"URL: {art.url}\n"
             f"{body_label}:\n{art.body_text}\n"
         )
 
     prompt = (
         f"아래는 1단계에서 엄선된 {len(articles)}개의 글로벌 기사입니다.\n"
-        "각 기사를 눈으로 읽기 편한 한국어 브리핑 요약(2~3문장)으로 정리해 JSON으로 작성해 주세요.\n\n"
+        "각 기사를 눈으로 읽기 편한 한국어 브리핑 요약(2~3문장)으로 정리해 `article_index`(1-based)와 함께 JSON으로 작성해 주세요.\n\n"
         + "\n".join(blocks)
     )
 
@@ -237,10 +257,10 @@ def summarize_full_articles(
                 system_instruction=SUMMARY_SYSTEM_INSTRUCTION,
                 input=prompt,
                 response_mime_type="application/json",
-                response_format=DailyBriefing.model_json_schema(),
+                response_format=CompactSummaryResult.model_json_schema(),
                 generation_config={
                     "thinking_level": "low",
-                    "max_output_tokens": 16384,
+                    "max_output_tokens": 12288,
                 },
                 store=False,
             )
@@ -251,7 +271,27 @@ def summarize_full_articles(
             if not raw_json:
                 last_exc = RuntimeError("2단계 기사 요약 중 Gemini API로부터 빈 응답을 받았습니다.")
             else:
-                return DailyBriefing.model_validate_json(raw_json)
+                compact = CompactSummaryResult.model_validate_json(raw_json)
+                curated_items: list[CuratedArticle] = []
+                seen_idx: set[int] = set()
+                for item in compact.articles:
+                    if 1 <= item.article_index <= len(articles) and item.article_index not in seen_idx:
+                        seen_idx.add(item.article_index)
+                        src_art = articles[item.article_index - 1]
+                        curated_items.append(
+                            CuratedArticle(
+                                category_kr=src_art.category_kr,
+                                source=src_art.source,
+                                title_kr=item.title_kr,
+                                title_en=src_art.title,
+                                summary_bullets=item.summary_bullets,
+                                url=src_art.url,
+                            )
+                        )
+                return DailyBriefing(
+                    morning_intro_kr=compact.morning_intro_kr,
+                    articles=curated_items,
+                )
         except (ValidationError, Exception) as exc:
             last_exc = exc
 

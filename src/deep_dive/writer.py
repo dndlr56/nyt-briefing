@@ -248,18 +248,12 @@ def _build_section_batches(
     target_minutes: int,
 ) -> list[list[str]]:
     """
-    호출 수와 입력 토큰을 줄이면서도 목표 분량(25~60분)이 과도하게 압축되지 않도록 섹션을 2~4개 파트로 묶습니다.
-    - <=24분: 2파트
-    - 25~44분: 3파트 (파트당 2~3섹션 -> 분량 충실 확보 + Stage 1 포함 총 4회 호출)
-    - 45~60분: 4파트
+    호출 수와 입력 토큰을 줄이면서도 목표 분량이 과도하게 압축되지 않도록 섹션을 2~3개 파트로 묶습니다.
+    - <=29분: 2파트
+    - >=30분: 3파트 (closing이 단독 파트로 떨어져 원문을 불필요하게 재전송하지 않도록 균등 분할)
     """
     all_ids = ["opening", *[f"ch_{i}" for i in range(1, chapter_count + 1)], "closing"]
-    if target_minutes <= 24:
-        num_batches = 2
-    elif target_minutes <= 44:
-        num_batches = 3
-    else:
-        num_batches = 4
+    num_batches = 2 if target_minutes <= 29 else 3
     if len(all_ids) <= num_batches:
         return [[sid] for sid in all_ids]
 
