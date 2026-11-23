@@ -1106,6 +1106,60 @@ class DeepDivePipelineTests(unittest.TestCase):
             body = fetch_html_article_body("https://www.cnbc.com/2026/11/22/ai-chip.html")
         self.assertIn("Semiconductor supply chains", body)
 
+    def test_explicit_context_cache_and_safe_fallback(self) -> None:
+        from types import SimpleNamespace
+        from deep_dive.gemini_pool import GeminiClientPool
+
+        pool = GeminiClientPool(free_api_key="free", paid_api_key="paid", mode="auto")
+
+        # 1) 캐시 생성이 실패(무료 티어 제한 등)해도 예외 없이 (None, None) 반환
+        class _FailCaches:
+            def create(self, **kwargs: object) -> object:
+                raise RuntimeError("403 PERMISSION_DENIED: caching disabled on free tier")
+
+            def delete(self, **kwargs: object) -> None:
+                pass
+
+        pool._free_client = SimpleNamespace(caches=_FailCaches(), interactions=None)  # type: ignore[assignment]
+        c_name, c_tier = pool.create_context_cache(
+            model="gemini-4-hydrogen", system_instruction="sys", contents="doc"
+        )
+        self.assertIsNone(c_name)
+        self.assertIsNone(c_tier)
+
+        # 2) 캐시 호출이 400/404 오류를 내면 자동으로 fallback_input + fallback_system_instruction으로 재시도 성공
+        seen_calls: list[dict[str, object]] = []
+
+        class _CacheFallbackInteractions:
+            def create(self, **kwargs: object) -> object:
+                seen_calls.append(dict(kwargs))
+                if "cached_content" in kwargs:
+                    raise RuntimeError("400 INVALID_ARGUMENT: cached_content expired")
+                return SimpleNamespace(output_text="ok", usage=None)
+
+        pool._free_client = SimpleNamespace(
+            caches=_FailCaches(), interactions=_CacheFallbackInteractions()
+        )  # type: ignore[assignment]
+
+        res, tier = pool.create_interaction(
+            model="gemini-4-hydrogen",
+            stage="대본 Part 1/3",
+            input="short_part_prompt",
+            system_instruction="sys_inst",
+            cached_content="cachedContents/abc123",
+            cached_tier="free",
+            fallback_input="full_doc_plus_part_prompt",
+            fallback_system_instruction="sys_inst",
+        )
+        self.assertEqual(tier, "free")
+        self.assertEqual(res.output_text, "ok")
+        self.assertEqual(len(seen_calls), 2)
+        self.assertIn("cached_content", seen_calls[0])
+        self.assertNotIn("system_instruction", seen_calls[0])
+        self.assertNotIn("cached_content", seen_calls[1])
+        self.assertEqual(seen_calls[1]["input"], "full_doc_plus_part_prompt")
+        self.assertEqual(seen_calls[1]["system_instruction"], "sys_inst")
+
 
 if __name__ == "__main__":
     unittest.main()

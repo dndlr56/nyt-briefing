@@ -150,6 +150,49 @@ class GeminiClientPool:
         print(f"      [FAILOVER] {msg}")
         return True
 
+    def create_context_cache(
+        self,
+        *,
+        model: str,
+        system_instruction: str,
+        contents: str,
+        ttl_seconds: int = 900,
+        display_name: str = "",
+    ) -> tuple[str | None, str | None]:
+        """
+        대용량 공유 컨텍스트를 명시적 Context Cache에 올립니다.
+        무료 티어 제한·미지원 등으로 실패해도 예외를 던지지 않고 (None, None)을 반환해
+        기존 일반 호출 방식으로 안전하게 폴백합니다.
+        """
+        tier = self.active_tier_for(model)
+        client = self._get_client(tier)
+        try:
+            config: dict[str, Any] = {
+                "contents": contents,
+                "system_instruction": system_instruction,
+                "ttl": f"{int(ttl_seconds)}s",
+            }
+            if display_name:
+                config["display_name"] = display_name[:64]
+            cache_obj = client.caches.create(model=model, config=config)
+            cache_name = getattr(cache_obj, "name", None)
+            if cache_name:
+                print(f"      [Cache] 명시적 컨텍스트 캐시 생성 완료 ({tier}, ttl={ttl_seconds}s)")
+                return str(cache_name), tier
+        except Exception as exc:
+            print(f"      [Cache] 명시적 캐시 생략 -> 일반 호출로 진행 ({type(exc).__name__}: {str(exc)[:120]})")
+        return None, None
+
+    def delete_context_cache(self, cache_name: str | None, tier: str | None) -> None:
+        """사용이 끝난 명시적 컨텍스트 캐시를 정리합니다 (실패 시 무시)."""
+        if not cache_name or not tier:
+            return
+        try:
+            client = self._get_client(tier)
+            client.caches.delete(name=cache_name)
+        except Exception:
+            pass
+
     def create_interaction(
         self,
         *,
@@ -158,12 +201,17 @@ class GeminiClientPool:
         usage_tracker: RunUsageTracker | None = None,
         max_retries: int = 3,
         timeout: float = 180.0,
+        cached_content: str | None = None,
+        cached_tier: str | None = None,
+        fallback_input: Any = None,
+        fallback_system_instruction: str | None = None,
         **create_kwargs: Any,
     ) -> tuple[Any, str]:
         """
         client.interactions.create(...)를 호출하며:
         - SDK 내부 암묵적 재시도를 비활성화하고 각 호출에 기본 180초 타임아웃을 적용해 hang을 방지합니다.
         - 무료 티어 한도 도달, 타임아웃, 또는 반복 503 시 유료 프로젝트로 자동 전환합니다.
+        - cached_content 지정 시 동일 티어에서만 사용하고, 티어 전환 또는 캐시 오류 시 자동으로 일반 입력으로 폴백합니다.
         반환: (interaction, actual_tier)
         """
         last_exc: Exception | None = None
@@ -171,6 +219,7 @@ class GeminiClientPool:
         free_503_waits = [5, 15, 30]
         free_503_attempts = 0
         override_tier_once: str | None = None
+        disable_cache = False
 
         max_total_attempts = max(max_retries + 2, 6)
         for attempt in range(1, max_total_attempts):
@@ -179,6 +228,24 @@ class GeminiClientPool:
             client = self._get_client(tier)
             call_kwargs = dict(create_kwargs)
             call_kwargs.setdefault("timeout", timeout)
+
+            use_cache = bool(
+                cached_content
+                and cached_tier
+                and tier == cached_tier
+                and not disable_cache
+            )
+            if use_cache:
+                call_kwargs["cached_content"] = cached_content
+                # system_instruction이 캐시 내부에 포함되어 있으므로 중복 전달 금지
+                call_kwargs.pop("system_instruction", None)
+            elif cached_content:
+                call_kwargs.pop("cached_content", None)
+                if fallback_input is not None:
+                    call_kwargs["input"] = fallback_input
+                if fallback_system_instruction is not None:
+                    call_kwargs["system_instruction"] = fallback_system_instruction
+
             started_at = time.monotonic()
             try:
                 interaction = client.interactions.create(model=model, **call_kwargs)
@@ -192,6 +259,19 @@ class GeminiClientPool:
                 elapsed = time.monotonic() - started_at
                 err_lower = str(exc).lower()
                 exc_name_lower = type(exc).__name__.lower()
+
+                # 캐시 만료·권한·파라미터 충돌 시 즉시 캐시를 끄고 일반 입력으로 안전 재시도
+                if use_cache and any(
+                    tok in err_lower
+                    for tok in ("cachedcontent", "cached_content", "cache", "invalid_argument", "400", "404", "403")
+                ):
+                    disable_cache = True
+                    print(
+                        f"      [Cache] {stage} 캐시 호출 실패 -> 일반 입력으로 즉시 폴백 "
+                        f"({type(exc).__name__})"
+                    )
+                    continue
+
                 is_quota = _is_quota_or_rate_error(exc)
                 is_timeout = (
                     "timeout" in err_lower

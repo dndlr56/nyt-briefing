@@ -332,99 +332,117 @@ def generate_longform_script(
     sections_map: dict[str, list[DialogueTurn]] = {}
     prev_tail = ""
 
-    for batch_idx, sec_ids in enumerate(batches, start=1):
-        if batch_idx > 1:
-            wait_sec = (
-                inter_call_sleep
-                if inter_call_sleep is not None
-                else (22.0 if pool.is_free_tier_for(selected_model) else 1.5)
-            )
-            if wait_sec > 0:
-                print(
-                    f"      [Script] Pacing ({pool.active_tier_for(selected_model)}): "
-                    f"waiting {wait_sec:.0f}s before Part {batch_idx}/{len(batches)}..."
-                )
-                time.sleep(wait_sec)
-
-        spec_lines: list[str] = []
-        part_target_chars = 0
-        for sid in sec_ids:
-            if sid == "opening":
-                part_target_chars += opening_target
-                spec_lines.append(
-                    f"• section_id='opening' (오프닝): 목표 약 {opening_target - 80}~{opening_target + 100}자, 2~3턴. "
-                    "불필요한 인사말·상황극 없이 오늘 다룰 원문의 출처, 핵심 주제, 전체 구성만 담백하고 간결하게 소개."
-                )
-            elif sid == "closing":
-                part_target_chars += closing_target
-                spec_lines.append(
-                    f"• section_id='closing' (클로징): 목표 약 {closing_target - 80}~{closing_target + 100}자, 2~3턴. "
-                    "원문의 최종 결론과 핵심 제언을 차분하게 정리하고 간결하게 마무리."
-                )
-            else:
-                ch = chapter_by_id[sid]
-                min_c = int(per_chapter_target * 0.85)
-                max_c = int(per_chapter_target * 1.15)
-                t_min = max(4, min_c // 320)
-                t_max = max(t_min + 3, max_c // 200)
-                part_target_chars += per_chapter_target
-                pts = " / ".join(ch.key_points)
-                spec_lines.append(
-                    f"• section_id='{sid}' (Chapter {ch.chapter_number}. {ch.title_kr}): "
-                    f"목표 약 {min_c}~{max_c}자, {t_min}~{t_max}턴.\n"
-                    f"  - 핵심 흐름: {ch.focus_kr}\n"
-                    f"  - 반드시 포함할 원문 근거·수치: {pts}"
-                )
-
-        tail_block = (
-            f"\n직전 파트의 마지막 대화(자연스럽게 이어가고 반복 금지):\n{prev_tail}\n"
-            if prev_tail
-            else ""
-        )
-        part_prompt = (
-            f"{shared_prefix}\n"
-            f"=== 지금 작성할 파트 ({batch_idx}/{len(batches)}) ===\n"
-            f"아래 {len(sec_ids)}개 섹션을 순서대로 빠짐없이 작성해 JSON(`sections`)으로 반환하세요 "
-            f"(파트 합계 약 {int(part_target_chars * 0.85):,}~{int(part_target_chars * 1.15):,}자).\n"
-            + "\n".join(spec_lines)
-            + tail_block
-            + "\n다시 강조: 어색한 상황극·가상 직함 소개·과장된 리액션·불필요한 영어 병기·원문에 없는 AI 추측을 모두 배제하고, "
-            "담백한 진행 질문과 충실한 원문 해설로 대화 턴을 작성하세요."
-        )
-
-        print(
-            f"      [Script] Part {batch_idx}/{len(batches)} ({', '.join(sec_ids)}) 생성 중 "
-            f"(목표 ~{part_target_chars:,}자, thinking={chapter_thinking}, "
-            f"tier={pool.active_tier_for(selected_model)})..."
-        )
-        raw_part = _call_json_interaction(
-            pool=pool,
+    cache_name: str | None = None
+    cache_tier: str | None = None
+    if len(batches) >= 2:
+        cache_name, cache_tier = pool.create_context_cache(
             model=selected_model,
             system_instruction=DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION,
-            prompt=part_prompt,
-            schema=PartDialogueOutput.model_json_schema(),
-            max_output_tokens=20480,
-            thinking_level=chapter_thinking,
-            stage=f"대본 Part {batch_idx}/{len(batches)}",
-            usage_tracker=usage_tracker,
+            contents=shared_prefix,
+            ttl_seconds=900,
+            display_name=f"deep-dive-{theme.theme_id}",
         )
-        parsed = PartDialogueOutput.model_validate_json(raw_part)
 
-        # section_id 매칭 (모델이 식별자를 약간 다르게 썼을 경우 순서 기반 폴백)
-        by_id = {s.section_id.strip().lower(): s.turns for s in parsed.sections}
-        for pos, expected_id in enumerate(sec_ids):
-            raw_turns = by_id.get(expected_id.lower())
-            if raw_turns is None and pos < len(parsed.sections):
-                raw_turns = parsed.sections[pos].turns
-            if raw_turns:
-                sections_map[expected_id] = _normalize_speaker_ids(raw_turns, valid_speaker_ids)
+    try:
+        for batch_idx, sec_ids in enumerate(batches, start=1):
+            if batch_idx > 1:
+                wait_sec = (
+                    inter_call_sleep
+                    if inter_call_sleep is not None
+                    else (22.0 if pool.is_free_tier_for(selected_model) else 1.5)
+                )
+                if wait_sec > 0:
+                    print(
+                        f"      [Script] Pacing ({pool.active_tier_for(selected_model)}): "
+                        f"waiting {wait_sec:.0f}s before Part {batch_idx}/{len(batches)}..."
+                    )
+                    time.sleep(wait_sec)
 
-        last_sec_turns = sections_map.get(sec_ids[-1], [])
-        if last_sec_turns:
-            prev_tail = "\n".join(
-                f"{name_map.get(t.speaker_id, t.speaker_id)}: {t.text}"
-                for t in last_sec_turns[-2:]
-            )[-450:]
+            spec_lines: list[str] = []
+            part_target_chars = 0
+            for sid in sec_ids:
+                if sid == "opening":
+                    part_target_chars += opening_target
+                    spec_lines.append(
+                        f"• section_id='opening' (오프닝): 목표 약 {opening_target - 80}~{opening_target + 100}자, 2~3턴. "
+                        "불필요한 인사말·상황극 없이 오늘 다룰 원문의 출처, 핵심 주제, 전체 구성만 담백하고 간결하게 소개."
+                    )
+                elif sid == "closing":
+                    part_target_chars += closing_target
+                    spec_lines.append(
+                        f"• section_id='closing' (클로징): 목표 약 {closing_target - 80}~{closing_target + 100}자, 2~3턴. "
+                        "원문의 최종 결론과 핵심 제언을 차분하게 정리하고 간결하게 마무리."
+                    )
+                else:
+                    ch = chapter_by_id[sid]
+                    min_c = int(per_chapter_target * 0.85)
+                    max_c = int(per_chapter_target * 1.15)
+                    t_min = max(4, min_c // 320)
+                    t_max = max(t_min + 3, max_c // 200)
+                    part_target_chars += per_chapter_target
+                    pts = " / ".join(ch.key_points)
+                    spec_lines.append(
+                        f"• section_id='{sid}' (Chapter {ch.chapter_number}. {ch.title_kr}): "
+                        f"목표 약 {min_c}~{max_c}자, {t_min}~{t_max}턴.\n"
+                        f"  - 핵심 흐름: {ch.focus_kr}\n"
+                        f"  - 반드시 포함할 원문 근거·수치: {pts}"
+                    )
+
+            tail_block = (
+                f"\n직전 파트의 마지막 대화(자연스럽게 이어가고 반복 금지):\n{prev_tail}\n"
+                if prev_tail
+                else ""
+            )
+            part_only_prompt = (
+                f"=== 지금 작성할 파트 ({batch_idx}/{len(batches)}) ===\n"
+                f"아래 {len(sec_ids)}개 섹션을 순서대로 빠짐없이 작성해 JSON(`sections`)으로 반환하세요 "
+                f"(파트 합계 약 {int(part_target_chars * 0.85):,}~{int(part_target_chars * 1.15):,}자).\n"
+                + "\n".join(spec_lines)
+                + tail_block
+                + "\n다시 강조: 어색한 상황극·가상 직함 소개·과장된 리액션·불필요한 영어 병기·원문에 없는 AI 추측을 모두 배제하고, "
+                "담백한 진행 질문과 충실한 원문 해설로 대화 턴을 작성하세요."
+            )
+            full_part_prompt = f"{shared_prefix}\n{part_only_prompt}"
+
+            print(
+                f"      [Script] Part {batch_idx}/{len(batches)} ({', '.join(sec_ids)}) 생성 중 "
+                f"(목표 ~{part_target_chars:,}자, thinking={chapter_thinking}, "
+                f"tier={pool.active_tier_for(selected_model)}"
+                f"{', cache=ON' if cache_name else ''})..."
+            )
+            raw_part = _call_json_interaction(
+                pool=pool,
+                model=selected_model,
+                system_instruction=DIALOGUE_SCRIPT_SYSTEM_INSTRUCTION,
+                prompt=part_only_prompt if cache_name else full_part_prompt,
+                schema=PartDialogueOutput.model_json_schema(),
+                max_output_tokens=20480,
+                thinking_level=chapter_thinking,
+                stage=f"대본 Part {batch_idx}/{len(batches)}",
+                usage_tracker=usage_tracker,
+                cached_content=cache_name,
+                cached_tier=cache_tier,
+                fallback_prompt=full_part_prompt,
+            )
+            parsed = PartDialogueOutput.model_validate_json(raw_part)
+
+            # section_id 매칭 (모델이 식별자를 약간 다르게 썼을 경우 순서 기반 폴백)
+            by_id = {s.section_id.strip().lower(): s.turns for s in parsed.sections}
+            for pos, expected_id in enumerate(sec_ids):
+                raw_turns = by_id.get(expected_id.lower())
+                if raw_turns is None and pos < len(parsed.sections):
+                    raw_turns = parsed.sections[pos].turns
+                if raw_turns:
+                    sections_map[expected_id] = _normalize_speaker_ids(raw_turns, valid_speaker_ids)
+
+            last_sec_turns = sections_map.get(sec_ids[-1], [])
+            if last_sec_turns:
+                prev_tail = "\n".join(
+                    f"{name_map.get(t.speaker_id, t.speaker_id)}: {t.text}"
+                    for t in last_sec_turns[-2:]
+                )[-450:]
+    finally:
+        pool.delete_context_cache(cache_name, cache_tier)
 
     opening_turns = sections_map.get("opening", [])
     closing_turns = sections_map.get("closing", [])
