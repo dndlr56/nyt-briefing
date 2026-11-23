@@ -1030,6 +1030,82 @@ class DeepDivePipelineTests(unittest.TestCase):
         # 다음 호출은 여전히 free 티어 우선 유지
         self.assertEqual(pool.active_tier_for("gemini-4-hydrogen"), "free")
 
+    def test_multi_outlet_rss_and_conservative_cross_dedup(self) -> None:
+        from datetime import datetime, timezone
+        from email.utils import format_datetime
+        from unittest import mock
+        from guardian_fetcher import ArticleCandidate
+        from main import _deduplicate_cross_outlet_candidates
+        from rss_news_fetcher import fetch_html_article_body, fetch_multi_outlet_candidates
+
+        now = datetime.now(timezone.utc)
+        cands = [
+            ArticleCandidate(
+                article_id="g:1",
+                section="Economy",
+                title="Federal Reserve cuts interest rates by quarter point amid cooling inflation",
+                trail_text="",
+                url="https://guardian.example/fed",
+                published_at=now,
+                wordcount=900,
+                source="The Guardian",
+            ),
+            # 명백한 동시간대 동일 속보 (BBC) -> 제거되어야 함
+            ArticleCandidate(
+                article_id="bbc:1",
+                section="Business",
+                title="Federal Reserve cuts interest rates by quarter point as inflation cools",
+                trail_text="",
+                url="https://bbc.example/fed",
+                published_at=now,
+                wordcount=600,
+                source="BBC",
+            ),
+            # 다른 각도/별개 기사 (CNBC) -> 보존되어야 함
+            ArticleCandidate(
+                article_id="cnbc:1",
+                section="Finance",
+                title="Nvidia shares surge after quarterly data center revenue beats Wall Street estimates",
+                trail_text="",
+                url="https://cnbc.example/nvda",
+                published_at=now,
+                wordcount=700,
+                source="CNBC",
+            ),
+        ]
+        deduped = _deduplicate_cross_outlet_candidates(cands)
+        self.assertEqual([c.article_id for c in deduped], ["g:1", "cnbc:1"])
+
+        # RSS 파싱 및 HTML 본문 추출 검증
+        pub_rfc = format_datetime(now)
+        rss_xml = (
+            f'<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
+            f"<item><title>AI chip demand surges</title>"
+            f"<link>https://www.cnbc.com/2026/11/22/ai-chip.html</link>"
+            f"<description>Chipmakers report record orders.</description>"
+            f"<pubDate>{pub_rfc}</pubDate></item>"
+            f"</channel></rss>"
+        ).encode("utf-8")
+        fake_rss = mock.MagicMock()
+        fake_rss.content = rss_xml
+        fake_rss.raise_for_status.return_value = None
+
+        with mock.patch("rss_news_fetcher.requests.get", return_value=fake_rss):
+            fetched = fetch_multi_outlet_candidates(hours=24, max_per_outlet={"BBC": 2, "CNBC": 2, "NPR": 2})
+        self.assertTrue(any(c.title == "AI chip demand surges" for c in fetched))
+
+        fake_html = mock.MagicMock()
+        fake_html.text = (
+            "<html><body><article><p>"
+            + ("Semiconductor supply chains are shifting rapidly across Asia and the US. " * 3)
+            + "</p></article></body></html>"
+        )
+        fake_html.encoding = "utf-8"
+        fake_html.raise_for_status.return_value = None
+        with mock.patch("rss_news_fetcher.requests.get", return_value=fake_html):
+            body = fetch_html_article_body("https://www.cnbc.com/2026/11/22/ai-chip.html")
+        self.assertIn("Semiconductor supply chains", body)
+
 
 if __name__ == "__main__":
     unittest.main()

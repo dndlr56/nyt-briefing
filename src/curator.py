@@ -62,7 +62,7 @@ class DailyBriefing(BaseModel):
 
 
 SELECTION_SYSTEM_INSTRUCTION = """당신은 한국인 독자(초보 주식 투자자, 로스쿨 진학 예정, 글로벌 트렌드·경제·테크·건강 관심)를 위한 **글로벌 모닝 뉴스 브리핑** 수석 에디터입니다.
-제공된 The Guardian(전문 제공, 메인)과 NYT(미국·글로벌 보완) 기사 후보 목록에서 **11개(최소 10개, 최대 12개)** 기사를 엄선하세요.
+제공된 **The Guardian · BBC · CNBC · NPR** (4개 매체 모두 전문 확보 가능) 기사 후보 목록에서 **11개(최소 10개, 최대 12개)** 기사를 엄선하세요.
 
 [강력 선호 주제 — 최우선 선정]
 1. **빅테크·AI 산업 동향**: 엔비디아, OpenAI, Anthropic, 애플, MS, 구글 등 AI 경쟁, 신기술, 규제, 산업 판도 변화
@@ -73,16 +73,15 @@ SELECTION_SYSTEM_INSTRUCTION = """당신은 한국인 독자(초보 주식 투�
 
 [엄격 제외 대상 — 노이즈 필터]
 - **영국·유럽·미국 내부의 지엽적 정쟁**: 정당 간 공방, 이민·행정 스캔들, 지방 의회/총리실 내부 다툼, 정치인 간 소송
-- **영국 로컬 연예·방송·노조·문화계 소식** (예: BBC 내부 인사, 현지 배우/방송 노조 협상 등)
+- **영국/미국 로컬 연예·방송·노조·문화계 소식** (예: 방송사 내부 인사, 현지 배우/노조 협상 등)
 - **평범한 국제기구 사회 통계·캠페인, 역사 가십, 단순 흥미 위주 단신, 스포츠, 리뷰, 퀴즈**
 - 한국 국내 뉴스는 다른 채널로 듣고 있으므로 글로벌 이슈에만 집중하세요.
 
-[소스 배분 및 정렬 규칙]
-1. 기사 전문(Full Text)을 읽을 수 있는 **The Guardian 기사를 메인(최소 8~10개)**으로 우선 선정하세요.
-2. 미국 빅테크·월가·글로벌 핵심 이슈 중 Guardian 목록에 빠졌거나 NYT가 훨씬 중요하게 다룬 주제가 있다면 **NYT 기사로 최대 2~3개 보완**하세요.
-3. 서로 다른 매체가 같은 사건을 다룬 경우 중복 선정하지 말고 더 충실한 기사(전문이 있는 Guardian 우선) 1건만 고르세요.
-4. `article_id`는 입력 목록에 적힌 값을 **한 글자도 바꾸지 말고 그대로** 복사하세요.
-5. 배치 순서: [테크·AI / 경제·투자 / 글로벌 기업]을 앞쪽(1~6번), [인프라·에너지 / 글로벌 시사 / 건강·과학]을 뒤쪽(7~12번)에 배치하세요.
+[소스 배분 및 중복 방지 규칙]
+1. **매체 간 균형**: 단일 매체가 전체의 과반(6개 이상)을 독식하지 않도록 **The Guardian(유럽·글로벌), BBC(지정학·속보), CNBC(미국 시장·거시·테크), NPR(미국 정책·과학)**을 고르게 배분하세요.
+2. **오늘 후보 풀 내 1사건 1기사 원칙**: 서로 다른 매체가 오늘 동시간대에 본질적으로 같은 사건을 보도한 경우, 중복 선정하지 말고 가장 분석이 깊고 팩트가 풍부한 **단 1편**만 고르세요. (단, 다른 사건이나 뚜렷한 별개 논점의 기사는 제외하지 마세요.)
+3. `article_id`는 입력 목록에 적힌 값을 **한 글자도 바꾸지 말고 그대로** 복사하세요.
+4. 배치 순서: [테크·AI / 경제·투자 / 글로벌 기업]을 앞쪽(1~6번), [인프라·에너지 / 글로벌 시사 / 건강·과학]을 뒤쪽(7~12번)에 배치하세요.
 """
 
 
@@ -106,7 +105,7 @@ def select_articles(
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
 ) -> list[tuple[ArticleCandidate, str]]:
-    """1단계: Guardian(메인) + NYT(보완) 후보 목록에서 10~12개 글로벌 기사를 선별합니다."""
+    """1단계: Guardian + BBC + CNBC + NPR 후보 목록에서 10~12개 글로벌 기사를 선별합니다."""
     if not candidates:
         raise ValueError("선별할 기사 후보가 없습니다.")
 
@@ -124,7 +123,7 @@ def select_articles(
     lines: list[str] = []
     for idx, art in enumerate(pool, start=1):
         pub_str = art.published_at.strftime("%Y-%m-%d %H:%M UTC")
-        wc_str = f"Words: {art.wordcount} (Full-Text 가능)" if art.source == "The Guardian" else "NYT RSS 보완"
+        wc_str = f"Words: {art.wordcount} (Full-Text 가능)" if art.source == "The Guardian" else "HTML Full-Text 가능"
         lines.append(
             f"[{idx}] article_id: {art.article_id}\n"
             f"Source: {art.source} | Section: {art.section} | Published: {pub_str} | {wc_str}\n"
@@ -133,8 +132,8 @@ def select_articles(
         )
 
     prompt = (
-        "아래는 최근 수집된 The Guardian(메인) 및 NYT(보완) 글로벌 기사 후보 목록입니다.\n"
-        "독자 프로필에 맞춰 오늘 아침 15~18분 브리핑으로 다룰 11개(10~12개) 기사를 선별해 JSON으로 반환해 주세요.\n\n"
+        "아래는 최근 수집된 The Guardian · BBC · CNBC · NPR 글로벌 기사 후보 목록입니다.\n"
+        "독자 프로필에 맞춰 오늘 아침 15~18분 브리핑으로 다룰 11개(10~12개) 기사를 매체 균형 있게 선별해 JSON으로 반환해 주세요.\n\n"
         + "\n".join(lines)
     )
 

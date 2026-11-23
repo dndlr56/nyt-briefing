@@ -112,7 +112,7 @@ def write_roundup_script(
     article_blocks: list[str] = []
     for idx, art in enumerate(articles, start=1):
         byline_str = f" | 기자: {art.byline}" if art.byline else ""
-        body_label = "본문 전문" if art.source == "The Guardian" else "RSS 요약(보완)"
+        body_label = "본문 전문" if len(art.body_text) > len(art.trail_text) + 120 else "요약"
         article_blocks.append(
             f"=== 기사 {idx} [{art.category_kr} | {art.source} / {art.section}{byline_str}] ===\n"
             f"제목: {art.title}\n"

@@ -176,6 +176,12 @@ def fetch_article_full_texts(
 
     for candidate, category_kr in selected_items:
         if candidate.source != "The Guardian":
+            from rss_news_fetcher import fetch_html_article_body
+
+            extracted_body = fetch_html_article_body(
+                candidate.url, max_body_chars=max_body_chars, timeout=timeout
+            )
+            body_text = extracted_body or candidate.trail_text or candidate.title
             full_articles.append(
                 FullArticle(
                     article_id=candidate.article_id,
@@ -184,10 +190,10 @@ def fetch_article_full_texts(
                     title=candidate.title,
                     trail_text=candidate.trail_text,
                     byline="",
-                    body_text=candidate.trail_text or candidate.title,
+                    body_text=body_text,
                     url=candidate.url,
                     published_at=candidate.published_at,
-                    wordcount=candidate.wordcount,
+                    wordcount=len(body_text.split()),
                     source=candidate.source,
                 )
             )

@@ -16,8 +16,8 @@ from guardian_fetcher import (
     fetch_article_full_texts,
     fetch_guardian_candidates,
 )
-from nyt_fetcher import fetch_recent_articles as fetch_nyt_articles
 from podcast_feed import publish_podcast_episode
+from rss_news_fetcher import fetch_multi_outlet_candidates
 from script_writer import (
     build_daily_briefing_from_script,
     format_script_preview,
@@ -33,37 +33,75 @@ from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
-NYT_SUPPLEMENT_SECTIONS = {"Business", "Economy", "Technology", "World", "Science", "Health"}
+_DEDUP_STOPWORDS = {
+    "the", "a", "an", "and", "or", "for", "of", "to", "in", "on", "at", "by", "with",
+    "from", "as", "is", "are", "was", "were", "be", "been", "being", "it", "its",
+    "that", "this", "after", "over", "into", "about", "new", "says", "say", "said",
+    "how", "why", "what", "when", "who", "will", "amid", "up", "out", "more", "than",
+}
+
+
+def _title_keywords(title: str) -> set[str]:
+    import re
+
+    tokens = re.findall(r"[a-z0-9]+", (title or "").lower())
+    return {t for t in tokens if len(t) >= 3 and t not in _DEDUP_STOPWORDS}
+
+
+def _deduplicate_cross_outlet_candidates(
+    candidates: list[ArticleCandidate],
+) -> list[ArticleCandidate]:
+    """
+    서로 다른 매체가 오늘 동시간대에 명백히 같은 단일 속보를 보도한 경우만 보수적으로 정리합니다.
+    (핵심 키워드 >= 4개 겹치고 Jaccard 유사도 >= 0.55 이상일 때만 중복으로 판단해
+     다른 각도/후속 보도가 억울하게 제거되지 않도록 합니다.)
+    """
+    kept: list[ArticleCandidate] = []
+    kept_kws: list[set[str]] = []
+
+    for cand in candidates:
+        kws = _title_keywords(cand.title)
+        is_dup = False
+        if len(kws) >= 4:
+            for prev, prev_kws in zip(kept, kept_kws):
+                if prev.source == cand.source:
+                    continue
+                inter = kws & prev_kws
+                union = kws | prev_kws
+                if len(inter) >= 4 and union and (len(inter) / len(union)) >= 0.55:
+                    is_dup = True
+                    break
+        if not is_dup:
+            kept.append(cand)
+            kept_kws.append(kws)
+    return kept
 
 
 def _fetch_combined_candidates(hours: int) -> list[ArticleCandidate]:
-    """The Guardian(전문 가능, 메인)과 NYT RSS(미국·글로벌 보완) 후보를 합칩니다."""
-    guardian_candidates = fetch_guardian_candidates(hours=hours)
+    """The Guardian(API) + BBC·CNBC·NPR(공식 RSS) 4개 전문 매체 후보를 균형 있게 수집합니다."""
+    guardian_candidates = fetch_guardian_candidates(hours=hours)[:32]
     print(f"      Guardian candidates: {len(guardian_candidates)}")
 
-    nyt_candidates: list[ArticleCandidate] = []
+    rss_candidates: list[ArticleCandidate] = []
     try:
-        nyt_raw = fetch_nyt_articles(hours=hours, max_per_feed=8)
-        filtered = [a for a in nyt_raw if a.section in NYT_SUPPLEMENT_SECTIONS][:20]
-        for idx, art in enumerate(filtered, start=1):
-            nyt_candidates.append(
-                ArticleCandidate(
-                    article_id=f"nyt:{idx}",
-                    section=art.section,
-                    title=art.title,
-                    trail_text=art.description,
-                    url=art.url,
-                    published_at=art.published_at,
-                    wordcount=0,
-                    source="NYT",
-                )
-            )
-        print(f"      NYT supplement candidates: {len(nyt_candidates)}")
+        rss_candidates = fetch_multi_outlet_candidates(
+            hours=hours,
+            max_per_outlet={"BBC": 20, "CNBC": 18, "NPR": 15},
+        )
+        counts: dict[str, int] = {}
+        for c in rss_candidates:
+            counts[c.source] = counts.get(c.source, 0) + 1
+        summary = ", ".join(f"{k}: {v}" for k, v in counts.items()) or "0"
+        print(f"      BBC/CNBC/NPR candidates: {len(rss_candidates)} ({summary})")
     except Exception as exc:
-        print(f"[WARN] NYT supplement fetch skipped due to error: {exc}")
+        print(f"[WARN] Multi-outlet RSS fetch skipped due to error: {exc}")
 
-    # Guardian(전문 조회 가능)을 앞쪽에 최대 60개, NYT 보완을 뒤쪽에 최대 25개 배치
-    return guardian_candidates[:60] + nyt_candidates[:25]
+    combined = guardian_candidates + rss_candidates
+    deduped = _deduplicate_cross_outlet_candidates(combined)
+    removed = len(combined) - len(deduped)
+    if removed > 0:
+        print(f"      Cross-outlet breaking-news dedup: removed {removed} exact duplicate(s).")
+    return deduped
 
 
 def _load_recent_covered_urls(podcast_dir: Path, max_episodes: int = 3) -> set[str]:
@@ -208,12 +246,11 @@ def main() -> int:
 
     print("[2/5] Stage 1 — Selecting top 10~12 global stories with Gemini...")
     selected_pairs = select_articles(candidates, usage_tracker=usage_tracker)
-    guardian_cnt = sum(1 for c, _ in selected_pairs if c.source == "The Guardian")
-    nyt_cnt = sum(1 for c, _ in selected_pairs if c.source == "NYT")
-    print(
-        f"      Selected {len(selected_pairs)} stories "
-        f"(Guardian: {guardian_cnt}, NYT supplement: {nyt_cnt})."
-    )
+    src_counts: dict[str, int] = {}
+    for c, _ in selected_pairs:
+        src_counts[c.source] = src_counts.get(c.source, 0) + 1
+    src_summary = ", ".join(f"{k}: {v}" for k, v in src_counts.items())
+    print(f"      Selected {len(selected_pairs)} stories ({src_summary}).")
 
     print("[3/5] Stage 2 — Loading full texts for Guardian stories & NYT summaries...")
     full_articles = fetch_article_full_texts(selected_pairs)
