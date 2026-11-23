@@ -117,13 +117,33 @@ def is_rate_limit_error(exc: Exception) -> bool:
     )
 
 
-def try_switch_to_paid_key() -> str | None:
-    """무료 티어 한도 소진 시 유료 API 키(GEMINI_PAID_API_KEY)로 전환하고 새 키를 반환합니다."""
+def is_transient_server_error(exc: Exception) -> bool:
+    """Gemini API 503 / 일시 과부하 오류인지 판별합니다."""
+    msg = str(exc).lower()
+    name = type(exc).__name__.lower()
+    return (
+        "503" in msg
+        or "unavailable" in msg
+        or "overloaded" in msg
+        or "high demand" in msg
+        or "internalservererror" in name
+    )
+
+
+def get_paid_api_key_if_available() -> str | None:
+    """무료 티어 실행 중 유료 폴백 키(GEMINI_PAID_API_KEY)가 있으면 반환합니다 (단발성 우회용)."""
     current_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
     paid_key = (os.getenv("GEMINI_PAID_API_KEY") or "").strip()
     current_key = (os.getenv("GEMINI_API_KEY") or "").strip()
-
     if current_tier != "free" or not paid_key or paid_key == current_key:
+        return None
+    return paid_key
+
+
+def try_switch_to_paid_key() -> str | None:
+    """무료 티어 한도 소진 시 유료 API 키(GEMINI_PAID_API_KEY)로 전환하고 새 키를 반환합니다."""
+    paid_key = get_paid_api_key_if_available()
+    if not paid_key:
         return None
 
     os.environ["GEMINI_API_KEY"] = paid_key

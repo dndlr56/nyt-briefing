@@ -12,7 +12,13 @@ from pydantic import BaseModel, Field, ValidationError
 
 from curator import CuratedArticle, DailyBriefing
 from guardian_fetcher import FullArticle
-from usage_tracker import RunUsageTracker, is_rate_limit_error, try_switch_to_paid_key
+from usage_tracker import (
+    RunUsageTracker,
+    get_paid_api_key_if_available,
+    is_rate_limit_error,
+    is_transient_server_error,
+    try_switch_to_paid_key,
+)
 
 
 KST = timezone(timedelta(hours=9))
@@ -133,7 +139,9 @@ def write_roundup_script(
     )
 
     last_exc: Exception | None = None
-    for attempt in range(1, 5):
+    free_503_waits = [5, 15, 30]
+    free_503_attempts = 0
+    for attempt in range(1, 7):
         try:
             interaction = client.interactions.create(
                 model=selected_model,
@@ -158,7 +166,7 @@ def write_roundup_script(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 4:
+        if attempt < 6:
             if is_rate_limit_error(last_exc):
                 if attempt >= 2:
                     paid_key = try_switch_to_paid_key()
@@ -166,10 +174,27 @@ def write_roundup_script(
                         client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
                         continue
                 wait_sec = 20
+            elif is_transient_server_error(last_exc):
+                if free_503_attempts < len(free_503_waits):
+                    wait_sec = free_503_waits[free_503_attempts]
+                    free_503_attempts += 1
+                    print(
+                        f"      [WARN] Script generation 무료 티어 503 과부하 ({free_503_attempts}/{len(free_503_waits)}) -> "
+                        f"{wait_sec}초 후 재시도..."
+                    )
+                    time.sleep(wait_sec)
+                    continue
+                paid_key = get_paid_api_key_if_available()
+                if paid_key:
+                    os.environ["GEMINI_FALLBACK_USED"] = "1"
+                    print("      [FAILOVER-ONCE] Script generation 무료 티어 503 지속 -> 이번 호출만 유료 1회 우회")
+                    client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
+                    continue
+                wait_sec = 15
             else:
                 wait_sec = 3 * attempt
             print(
-                f"      [WARN] Script generation failed (attempt {attempt}/4): {last_exc}. "
+                f"      [WARN] Script generation failed (attempt {attempt}/5): {last_exc}. "
                 f"Retrying in {wait_sec}s..."
             )
             time.sleep(wait_sec)
