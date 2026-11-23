@@ -16,6 +16,7 @@ on:
           - podcast_and_telegram_text
           - telegram_text_and_audio
           - telegram_audio_only
+          - text_only_test
       api_tier:
         description: 'Gemini API 키 선택 (free: GEMINI_FREE_API_KEY 무료 티어 / paid: 기존 GEMINI_API_KEY)'
         required: true
@@ -180,6 +181,8 @@ jobs:
               --tts-model "$TTS_MODEL" \
               --voice "$VOICE" \
               --output-dir output
+          elif [ "$MODE" = "text_only_test" ]; then
+            python src/main.py
           else
             python src/main.py \
               --audio-only \
