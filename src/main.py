@@ -79,14 +79,14 @@ def _deduplicate_cross_outlet_candidates(
 
 def _fetch_combined_candidates(hours: int) -> list[ArticleCandidate]:
     """The Guardian(API) + BBC·CNBC·NPR(공식 RSS) 4개 전문 매체 후보를 균형 있게 수집합니다."""
-    guardian_candidates = fetch_guardian_candidates(hours=hours)[:32]
+    guardian_candidates = fetch_guardian_candidates(hours=hours)[:22]
     print(f"      Guardian candidates: {len(guardian_candidates)}")
 
     rss_candidates: list[ArticleCandidate] = []
     try:
         rss_candidates = fetch_multi_outlet_candidates(
             hours=hours,
-            max_per_outlet={"BBC": 20, "CNBC": 18, "NPR": 15},
+            max_per_outlet={"BBC": 20, "CNBC": 20, "NPR": 20},
         )
         counts: dict[str, int] = {}
         for c in rss_candidates:

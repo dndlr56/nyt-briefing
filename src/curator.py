@@ -20,9 +20,6 @@ class SelectedArticleRef(BaseModel):
     category_kr: str = Field(
         description="한국어 카테고리 라벨 (예: '테크·AI', '경제·투자', '글로벌 기업', '인프라·에너지', '건강·과학', '글로벌 시사')"
     )
-    selection_reason_kr: str = Field(
-        description="이 기사를 선정한 핵심 이유 1문장"
-    )
 
 
 class SelectionResult(BaseModel):

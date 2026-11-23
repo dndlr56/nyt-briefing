@@ -165,7 +165,7 @@ def fetch_guardian_candidates(
 
 def fetch_article_full_texts(
     selected_items: list[tuple[ArticleCandidate, str]],
-    max_body_chars: int = 8000,
+    max_body_chars: int = 5000,
     api_key: str | None = None,
     timeout: int = 20,
 ) -> list[FullArticle]:
