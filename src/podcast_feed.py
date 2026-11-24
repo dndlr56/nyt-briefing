@@ -18,8 +18,8 @@ from curator import DailyBriefing
 KST = timezone(timedelta(hours=9))
 DEFAULT_PODCAST_TITLE = "글로벌 모닝 브리핑"
 DEFAULT_PODCAST_DESCRIPTION = (
-    "매일 아침 7시(KST), The Guardian 전문과 NYT 주요 기사 중 "
-    "빅테크·AI·글로벌 경제·기업·인프라·건강 핵심 뉴스 10~12건을 엄선해 들려드리는 개인 모닝 브리핑입니다."
+    "매일 아침 7시(KST), The Guardian, BBC, CNBC, NPR 전문에서 "
+    "빅테크, AI, 글로벌 경제, 기업, 인프라, 건강 핵심 뉴스 10~12건을 엄선해 전하는 일간 오디오 브리핑입니다."
 )
 DEFAULT_PODCAST_AUTHOR = "Global Morning Briefing"
 DEFAULT_COVER_PATH = Path(__file__).resolve().parent.parent / "assets" / "cover.jpg"
@@ -181,53 +181,168 @@ def _render_index_html(
     podcast_title: str = DEFAULT_PODCAST_TITLE,
     podcast_description: str = DEFAULT_PODCAST_DESCRIPTION,
 ) -> str:
-    """브라우저에서 RSS 주소 확인 및 바로 듣기를 지원하는 간단한 인덱스 페이지."""
+    """글로벌 모닝 브리핑 에디토리얼 웹 아카이브 페이지."""
+    from deep_dive.web_publisher import (
+        SHARED_EDITORIAL_CSS,
+        SHARED_FONTS_HEAD,
+        SHARED_UI_SCRIPT,
+        THEME_INIT_SCRIPT,
+    )
+
+    esc = html.escape
     clean_base = base_url.rstrip("/")
     feed_url = f"{clean_base}/feed.xml"
 
     cards: list[str] = []
-    for ep in episodes[:15]:
-        mp3_rel = f"episodes/{html.escape(ep['mp3_filename'], quote=True)}"
-        dur = _format_itunes_duration(ep["duration_seconds"])
+    for idx, ep in enumerate(episodes[:20]):
+        mp3_rel = f"episodes/{esc(ep['mp3_filename'], quote=True)}"
+        dur = _format_itunes_duration(ep.get("duration_seconds", 0))
+        raw_ds = (ep.get("date_slug") or "").strip()
+        if len(raw_ds) == 8 and raw_ds.isdigit():
+            date_str = f"{raw_ds[:4]}.{raw_ds[4:6]}.{raw_ds[6:]}"
+        else:
+            date_str = raw_ds.replace("-", ".") or ep.get("pub_date_rfc2822", "")[:16]
+        featured_cls = " featured" if idx == 0 else ""
+        latest_tag = "<span class='latest-tag'>오늘의 브리핑</span>" if idx == 0 else ""
+        open_attr = " open" if idx == 0 else ""
+        summary_plain = ep.get("summary_plain", "")
+        search_blob = f"{ep.get('title', '')} {summary_plain}".lower()
+
         cards.append(
-            "<article class='card'>"
-            f"<h2>{html.escape(ep['title'])}</h2>"
-            f"<p class='meta'>{html.escape(ep['pub_date_rfc2822'])} · {dur}</p>"
+            f"<article class='card{featured_cls}' data-search='{esc(search_blob, quote=True)}'>"
+            f"<div class='card-top'>{latest_tag}<span class='meta-date'>{esc(date_str)}</span><span class='meta-info'>재생 시간 {esc(dur)}</span></div>"
+            f"<h2>{esc(ep['title'])}</h2>"
+            "<div class='audio-deck'>"
+            "<div class='audio-deck-top'>"
+            "<span class='audio-title'>1인 앵커 해설 오디오</span>"
+            "<div class='speed-group' role='group' aria-label='재생 배속'>"
+            "<button type='button' class='speed-btn active' data-speed='1'>1.0x</button>"
+            "<button type='button' class='speed-btn' data-speed='1.25'>1.25x</button>"
+            "<button type='button' class='speed-btn' data-speed='1.5'>1.5x</button>"
+            "<button type='button' class='speed-btn' data-speed='1.75'>1.75x</button>"
+            "</div></div>"
             f"<audio controls preload='none' src='{mp3_rel}'></audio>"
-            f"<details><summary>기사 요약 및 원문 링크 보기</summary>"
+            "</div>"
+            f"<details class='notes-drawer'{open_attr}>"
+            "<summary>선별 기사 요약 및 원문 링크</summary>"
             f"<div class='notes'>{ep.get('description_html', '')}</div>"
             "</details>"
             "</article>"
         )
 
-    cards_html = "\n".join(cards) if cards else "<p>아직 등록된 에피소드가 없습니다.</p>"
+    cards_html = "\n".join(cards) if cards else "<p class='empty-state'>아직 등록된 모닝 브리핑이 없습니다.</p>"
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{html.escape(podcast_title)}</title>
-  <link rel="alternate" type="application/rss+xml" title="{html.escape(podcast_title)}" href="feed.xml" />
+  <title>{esc(podcast_title)}</title>
+  <link rel="alternate" type="application/rss+xml" title="{esc(podcast_title)}" href="feed.xml" />
+  {SHARED_FONTS_HEAD}
+  {THEME_INIT_SCRIPT}
   <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; color: #1f2937; line-height: 1.6; }}
-    h1 {{ margin-bottom: 0.25rem; }}
-    .rss-box {{ background: #f3f4f6; padding: 0.9rem 1rem; border-radius: 8px; margin: 1rem 0 2rem; word-break: break-all; }}
-    .card {{ border: 1px solid #e5e7eb; border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }}
-    .card h2 {{ margin: 0 0 0.25rem; font-size: 1.1rem; }}
-    .meta {{ color: #6b7280; font-size: 0.85rem; margin: 0 0 0.75rem; }}
-    audio {{ width: 100%; margin-bottom: 0.6rem; }}
-    details summary {{ cursor: pointer; color: #2563eb; font-size: 0.92rem; }}
-    .notes {{ margin-top: 0.75rem; font-size: 0.92rem; }}
+    {SHARED_EDITORIAL_CSS}
+    .page-wrap {{ max-width: 900px; margin: 0 auto; padding: 2.25rem 1.25rem 4.5rem; }}
+    .hero {{ margin-bottom: 1.65rem; padding-bottom: 1.3rem; border-bottom: 1px solid var(--border); }}
+    .hero h1 {{ margin: 0 0 0.45rem; font-size: clamp(1.6rem, 3vw, 2.05rem); letter-spacing: -0.025em; }}
+    .hero-desc {{ margin: 0 0 0.95rem; color: var(--ink-secondary); font-size: 0.96rem; max-width: 66ch; }}
+    .feed-bar {{ display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; font-size: 0.84rem; color: var(--ink-muted); }}
+    .search-input {{
+      width: 100%; margin-bottom: 1.35rem; padding: 0.62rem 0.9rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--surface-sheet); color: var(--ink-primary);
+      font-family: inherit; font-size: 0.92rem;
+    }}
+    .card {{
+      background: var(--surface-sheet); border: 1px solid var(--border);
+      border-radius: 11px; padding: 1.35rem 1.5rem; margin-bottom: 1rem;
+    }}
+    .card.featured {{ border-color: var(--accent); border-width: 1.5px; }}
+    .card.hidden {{ display: none; }}
+    .card-top {{ display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem; margin-bottom: 0.45rem; font-size: 0.82rem; color: var(--ink-muted); }}
+    .latest-tag {{
+      background: var(--accent); color: #FFFFFF; font-size: 0.73rem;
+      font-weight: 700; padding: 0.16rem 0.5rem; border-radius: 4px;
+    }}
+    :root[data-color-mode="dark"] .latest-tag {{ color: #0B1018; }}
+    .meta-date {{ font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-secondary); }}
+    .card h2 {{ margin: 0 0 0.85rem; font-size: 1.18rem; letter-spacing: -0.015em; }}
+    .audio-deck {{
+      background: var(--surface-subtle); border: 1px solid var(--border);
+      border-radius: 9px; padding: 0.75rem 0.95rem; margin-bottom: 0.85rem;
+    }}
+    .audio-deck-top {{ display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }}
+    .audio-title {{ font-size: 0.82rem; font-weight: 600; color: var(--ink-secondary); }}
+    .speed-group {{ display: inline-flex; gap: 0.25rem; }}
+    .speed-btn {{
+      border: 1px solid var(--border); background: var(--surface-sheet); color: var(--ink-muted);
+      font-family: inherit; font-size: 0.74rem; font-weight: 600; padding: 0.16rem 0.45rem; border-radius: 5px; cursor: pointer;
+    }}
+    .speed-btn.active {{ background: var(--accent); border-color: var(--accent); color: #FFFFFF; }}
+    :root[data-color-mode="dark"] .speed-btn.active {{ color: #0B1018; }}
+    audio {{ width: 100%; height: 36px; display: block; }}
+    .notes-drawer {{ border-top: 1px solid var(--border); padding-top: 0.75rem; }}
+    .notes-drawer summary {{
+      cursor: pointer; font-weight: 600; font-size: 0.9rem; color: var(--accent);
+      list-style: none; display: flex; justify-content: space-between; align-items: center;
+    }}
+    .notes-drawer summary::-webkit-details-marker {{ display: none; }}
+    .notes-drawer summary::after {{ content: "펼치기"; font-size: 0.78rem; }}
+    .notes-drawer[open] summary::after {{ content: "접기"; }}
+    .notes {{ margin-top: 0.9rem; font-size: 0.93rem; line-height: 1.72; color: var(--ink-primary); }}
+    .notes hr {{ border: none; border-top: 1px solid var(--border); margin: 0.9rem 0; }}
+    .notes ul {{ padding-left: 1.2rem; margin: 0.4rem 0 0.65rem; }}
+    .notes li {{ margin-bottom: 0.3rem; }}
+    .empty-state {{
+      text-align: center; padding: 2.5rem 1rem; color: var(--ink-muted);
+      background: var(--surface-sheet); border: 1px dashed var(--border); border-radius: 10px;
+    }}
   </style>
 </head>
 <body>
-  <h1>🎧 {html.escape(podcast_title)}</h1>
-  <p>{html.escape(podcast_description)}</p>
-  <div class="rss-box">
-    <strong>AntennaPod RSS 구독 주소:</strong><br/>
-    <a href="{html.escape(feed_url, quote=True)}">{html.escape(feed_url)}</a>
-  </div>
-  {cards_html}
+  <header class="masthead">
+    <div class="masthead-inner">
+      <nav class="channel-tabs" aria-label="브리핑 채널 전환">
+        <a class="channel-tab active" href="index.html">글로벌 모닝 뉴스</a>
+        <a class="channel-tab" href="deep/index.html">Deep Dive 심층 연구</a>
+      </nav>
+      <div class="masthead-tools">
+        <button type="button" class="tool-btn" data-copy-rss="{esc(feed_url, quote=True)}">통합 RSS 복사</button>
+        <button type="button" class="tool-btn" id="color-mode-btn">화면 테마 전환</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-wrap">
+    <section class="hero">
+      <h1>{esc(podcast_title)}</h1>
+      <p class="hero-desc">{esc(podcast_description)}</p>
+      <div class="feed-bar">
+        <span>매일 오전 07:00 KST 발행</span>
+        <span>AntennaPod 통합 구독 RSS (뉴스 + Deep Dive): <a href="{esc(feed_url, quote=True)}">{esc(feed_url)}</a></span>
+      </div>
+    </section>
+
+    <input type="search" id="news-search" class="search-input" placeholder="날짜, 기업명, 키워드로 지난 뉴스 브리핑 검색" aria-label="모닝 브리핑 검색" />
+    <section id="news-cards">{cards_html}</section>
+  </main>
+
+  {SHARED_UI_SCRIPT}
+  <script>
+  (function(){{
+    var input = document.getElementById('news-search');
+    var cards = document.querySelectorAll('#news-cards .card');
+    if (input) {{
+      input.addEventListener('input', function(){{
+        var q = input.value.trim().toLowerCase();
+        cards.forEach(function(c){{
+          var hay = (c.getAttribute('data-search') || '') + ' ' + c.textContent.toLowerCase();
+          c.classList.toggle('hidden', Boolean(q) && hay.indexOf(q) === -1);
+        }});
+      }});
+    }}
+  }})();
+  </script>
 </body>
 </html>
 """

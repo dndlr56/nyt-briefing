@@ -15,6 +15,11 @@ CoreThemeId = Literal[
     "econ_geopolitics",
     "law_cases",
 ]
+DocumentLensType = Literal[
+    "empirical_or_review",
+    "law_and_cases",
+    "policy_or_essay",
+]
 SpeakerId = Literal["S1", "S2", "S3"]
 DialogueFormatType = Literal[
     "host_and_expert",
@@ -22,6 +27,44 @@ DialogueFormatType = Literal[
     "host_and_two_panelists",
     "three_panelists",
 ]
+
+
+SECTION_HEADINGS_BY_LENS: dict[str, dict[str, str]] = {
+    "empirical_or_review": {
+        "sec1": "1. 핵심 문제의식 및 테제",
+        "sec2": "2. 연구 설계 및 검증 구조",
+        "sec3": "3. 본문 핵심 분석 및 메커니즘",
+        "sec4": "4. 주요 수치·내용 요약표",
+        "sec5": "5. 원문 핵심 문장 발췌",
+        "sec6": "6. 원문이 밝힌 한계 및 경계 조건",
+        "sec7": "7. 결론 및 연구·실천적 함의",
+    },
+    "law_and_cases": {
+        "sec1": "1. 사안의 배경 및 핵심 쟁점",
+        "sec2": "2. 관련 법리 및 판단 기준",
+        "sec3": "3. 핵심 논거 및 사안 포섭",
+        "sec4": "4. 쟁점·판단 구조 요약표",
+        "sec5": "5. 원문 핵심 판시·문장 발췌",
+        "sec6": "6. 반대의견·한계 및 구별 포인트",
+        "sec7": "7. 판시 결론 및 실무·법리적 함의",
+    },
+    "policy_or_essay": {
+        "sec1": "1. 문제 제기 및 핵심 테제",
+        "sec2": "2. 분석 프레임워크 및 근거 구조",
+        "sec3": "3. 본문 핵심 논증",
+        "sec4": "4. 주요 지표·쟁점 요약표",
+        "sec5": "5. 원문 핵심 문장 발췌",
+        "sec6": "6. 트레이드오프·반론 및 한계",
+        "sec7": "7. 결론 및 정책·전략적 제언",
+    },
+}
+
+
+def resolve_section_headings(doc_lens: str | None) -> dict[str, str]:
+    """문헌 분석 렌즈(doc_lens)에 맞는 섹션 제목 사전을 반환합니다."""
+    return SECTION_HEADINGS_BY_LENS.get(
+        (doc_lens or "").strip(), SECTION_HEADINGS_BY_LENS["empirical_or_review"]
+    )
 
 
 @dataclass
@@ -119,12 +162,12 @@ class CurationDecision(BaseModel):
 
 class SummarySection(BaseModel):
     heading_kr: str = Field(
-        description="원문의 주요 장·절 또는 핵심 논점을 반영한 자연스러운 한국어 소제목 (불필요한 영문 병기 금지)"
+        description="원문의 핵심 논점이나 작동 메커니즘이 바로 드러나는 구체적 한국어 소제목 (예: '단순 반복 읽기의 한계와 유창성 착각' — '배경 설명' 같은 추상적 제목이나 불필요한 영문 병기 금지)"
     )
     content_kr: str = Field(
         description=(
-            "원문 해당 부분의 논지, 구체적 수치, 근거, 사례를 충실하게 번역·요약한 자연스러운 한국어 본문 "
-            "(4~8문장, AI 자의적 추측·확대해석 금지)"
+            "원문 해당 부분의 핵심 주장, 작동 메커니즘(왜·어떻게), 구체적 수치·표본·사례, 트레이드오프를 충실히 정리한 자연스러운 한국어 본문. "
+            "총 5~9문장으로 작성하되, 가독성을 위해 논리 흐름이 전환되는 지점에서 줄바꿈(\\n\\n)으로 2개 문단으로 나누어 작성할 것 (통문단 벽치기 및 AI 임의 추론 금지)"
         )
     )
 
@@ -198,22 +241,43 @@ class DeepDiveStudyNote(BaseModel):
             "'law_cases'(대한민국 법학·판례·법조 칼럼)"
         )
     )
+    doc_lens: DocumentLensType = Field(
+        default="empirical_or_review",
+        description=(
+            "문헌 성격에 맞춘 분석 렌즈: "
+            "'empirical_or_review'(학술 논문·리뷰·메타분석), "
+            "'law_and_cases'(판례·법학 논문·법조 칼럼), "
+            "'policy_or_essay'(정책·경제 보고서·심층 에세이)"
+        ),
+    )
     episode_title_kr: str = Field(
         description="원문 주제를 정확하고 깔끔하게 전달하는 자연스러운 한국어 제목 (날짜 접두사·불필요한 영문 병기 제외)"
     )
     subtitle_kr: str = Field(
         description="원문의 핵심 결론 또는 범위를 1문장으로 정리한 부제"
     )
+    tags: list[str] = Field(
+        default_factory=list,
+        max_length=5,
+        description="아카이브 검색·알렉산드리아 도서관 연동용 핵심 키워드 태그 2~5개 (예: ['ai-alignment', 'rlhf', '거버넌스'])",
+    )
     tldr_bullets: list[str] = Field(
         min_length=3,
         max_length=4,
-        description="원문의 가장 중요한 결론·수치·핵심 사실 3~4개 (자연스러운 한국어, 텔레그램 요약 겸용)",
+        description="원문의 핵심 문제의식, 검증 방법/근거, 구체적 수치·결론, 핵심 함의를 압축한 3~4개 요약 문장 (공허한 수식어 배제, 텔레그램 요약 겸용)",
     )
     overview_and_purpose_kr: str = Field(
-        description="원문이 제기하는 문제의식, 작성 목적, 배경을 본문에 충실하게 요약 (3~5문장)"
+        description=(
+            "문헌이 겨냥하는 기존 통념/한계(또는 사건 배경·쟁점)와 저자/법원의 핵심 테제를 바로 제시하는 도입부 (4~6문장, 필요 시 \\n\\n으로 2문단 분리, '이 논문은 ~을 다룬다' 식 서두 금지)"
+        )
     )
     methodology_and_evidence_kr: str = Field(
-        description="원문이 사용한 연구 방법론, 분석 대상·데이터, 또는 법원의 판단 기준·법리 구조를 충실히 정리 (4~7문장)"
+        description=(
+            "문헌 성격(doc_lens)에 맞춰 작성: "
+            "[논문·리뷰] 표본·데이터셋·실험/식별 설계 및 왜 이 근거를 신뢰할 수 있는지 / "
+            "[판례·법리] 관련 조문·선례 지형과 법원의 심사 기준·논거 구조 / "
+            "[보고서·에세이] 저자의 분석 프레임워크와 핵심 실증·역사적 논거 구조 (4~7문장, 필요 시 \\n\\n으로 2문단 분리)"
+        )
     )
     body_sections: list[SummarySection] = Field(
         min_length=3,
@@ -229,7 +293,7 @@ class DeepDiveStudyNote(BaseModel):
         min_length=1,
         max_length=4,
         description=(
-            "원문(저자·보고서·반대의견 등)이 직접 밝힌 방법론적 한계, 불확실성, 주의점 1~4개. "
+            "원문(저자·보고서·반대의견 등)이 직접 밝힌 방법론적 한계, 트레이드오프, 예외/경계 조건(어떤 전제가 달라지면 결론이 바뀔 수 있는지), 또는 판례상 구별 포인트 1~4개. "
             "원문에 없는 AI의 임의 비평은 쓰지 말 것."
         ),
     )

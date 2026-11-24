@@ -40,7 +40,7 @@ def build_deep_dive_telegram_message(
         if published.mp3_url:
             links.append(f"🎧 <a href=\"{esc(published.feed_url, quote=True)}\">팟캐스트 RSS</a>")
     if drive_result is not None:
-        links.append(f"📄 <a href=\"{esc(drive_result.doc_url, quote=True)}\">요약 PDF</a>")
+        links.append(f"📝 <a href=\"{esc(drive_result.doc_url, quote=True)}\">요약 노트(.md)</a>")
         links.append(f"📁 <a href=\"{esc(drive_result.folder_url, quote=True)}\">Drive 폴더</a>")
     links_line = " | ".join(links)
 

@@ -1,4 +1,4 @@
-"""Google Drive 3단 아카이빙 (Master_Index Sheet + 일별 Google Doc + 원문 PDF/TXT).
+"""Google Drive 마크다운 중심 아카이빙 (Master_Index Sheet + 요약/대본 Markdown + 원문 PDF/TXT).
 
 외부 무거운 SDK 없이 `google-auth` + `requests`로 Drive v3 / Sheets v4 REST API를 직접 호출합니다.
 개인 Google Drive 업로드를 위해 OAuth2 Refresh Token 환경변수를 사용합니다:
@@ -20,7 +20,12 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
 import requests
 
-from deep_dive.models import CurationDecision, DeepDiveStudyNote, FetchedDocument
+from deep_dive.models import (
+    CurationDecision,
+    DeepDiveStudyNote,
+    FetchedDocument,
+    resolve_section_headings,
+)
 from deep_dive.themes import ThemeSlot
 
 
@@ -44,8 +49,8 @@ MASTER_HEADERS = [
     "원문 출처 / 저자",
     "원문 URL",
     "웹 리더 링크",
-    "Google Doc 링크",
-    "Drive 폴더(PDF) 링크",
+    "요약 노트(.md) 링크",
+    "Drive 폴더 링크",
     "내 메모 / 별점",
 ]
 
@@ -226,27 +231,6 @@ def _safe_folder_name(date_slug: str, title: str) -> str:
     return f"[{date_slug}] {slug or 'briefing'}"
 
 
-def _export_google_doc_as_pdf(headers: dict[str, str], doc_id: str) -> bytes:
-    """Google Drive API로 Google Doc을 깔끔한 A4 PDF 바이트로 내보냅니다."""
-    resp = requests.get(
-        f"{DRIVE_API_BASE}/files/{doc_id}/export",
-        headers=headers,
-        params={"mimeType": "application/pdf"},
-        timeout=60,
-    )
-    resp.raise_for_status()
-    return resp.content
-
-
-def _delete_drive_file(headers: dict[str, str], file_id: str) -> None:
-    """임시 변환용 Google Doc을 정리합니다."""
-    requests.delete(
-        f"{DRIVE_API_BASE}/files/{file_id}",
-        headers=headers,
-        timeout=25,
-    )
-
-
 def _safe_filename(text: str, max_len: int = 60) -> str:
     cleaned = re.sub(r'[\\/:*?"<>|]+', "", text).strip()
     return cleaned[:max_len] or "briefing"
@@ -281,19 +265,50 @@ def render_study_note_markdown(
     docs: list[FetchedDocument],
     web_article_url: str = "",
 ) -> str:
-    """DB 색인·RAG·Obsidian 검색에 최적화된 YAML frontmatter 포함 마크다운 요약 노트를 생성합니다 (LLM 추가 호출 없음)."""
+    """알렉산드리아 도서관(Alexandria)·Obsidian·RAG 검색과 100% 호환되는 YAML frontmatter 포함 마크다운 연구 노트를 생성합니다."""
     mode_label = "1편 충실 요약" if decision.mode == "single_deep_dive" else f"{len(docs)}편 종합 요약"
+    doc_lens = getattr(note, "doc_lens", "empirical_or_review") or "empirical_or_review"
+    headings = resolve_section_headings(doc_lens)
+    note_type = "legal" if doc_lens == "law_and_cases" else "paper"
+    primary_url = docs[0].candidate.url if docs else ""
+    primary_author = (
+        docs[0].candidate.authors or docs[0].candidate.source_name
+        if docs
+        else "Deep Dive"
+    )
+
+    raw_tags = list(getattr(note, "tags", []) or [])
+    if not raw_tags:
+        raw_tags = [theme.theme_id]
+        for tok in re.split(r"[·,/() ]+", decision.sub_subject_kr):
+            cleaned_tok = tok.strip()
+            if len(cleaned_tok) >= 2 and cleaned_tok not in raw_tags:
+                raw_tags.append(cleaned_tok)
+                if len(raw_tags) >= 4:
+                    break
+
     lines = [
         "---",
+        f'title: "{_yaml_escape(note.episode_title_kr)}"',
         f'date: "{date_slug}"',
+        'folder: "docs"',
+        f'type: "{note_type}"',
+        'mode: "digest"',
+        f'doc_lens: "{_yaml_escape(doc_lens)}"',
         f'theme_id: "{theme.theme_id}"',
         f'theme: "{_yaml_escape(theme.label_kr)}"',
         f'sub_subject: "{_yaml_escape(decision.sub_subject_kr)}"',
-        f'mode: "{mode_label}"',
-        f'title: "{_yaml_escape(note.episode_title_kr)}"',
+        f'briefing_mode: "{mode_label}"',
+        f'author: "{_yaml_escape(primary_author)}"',
     ]
+    if primary_url:
+        lines.append(f'source_url: "{_yaml_escape(primary_url)}"')
     if web_article_url:
         lines.append(f'web_url: "{_yaml_escape(web_article_url)}"')
+    lines.append("tags:")
+    for tg in raw_tags[:5]:
+        lines.append(f'  - "{_yaml_escape(tg)}"')
+    lines.append(f'summary: "{_yaml_escape(note.subtitle_kr)}"')
     lines.append("sources:")
     for d in docs:
         lines.append(f'  - "{_yaml_escape(d.candidate.title)} ({_yaml_escape(d.candidate.source_name)})"')
@@ -316,10 +331,10 @@ def render_study_note_markdown(
     for bullet in note.tldr_bullets:
         lines.append(f"- {_escape_md_tildes(bullet)}")
 
-    lines.extend(["", "## 1. 개요 및 문제의식", "", _escape_md_tildes(note.overview_and_purpose_kr)])
-    lines.extend(["", "## 2. 연구 방법 및 근거 구조", "", _escape_md_tildes(note.methodology_and_evidence_kr)])
+    lines.extend(["", f"## {headings['sec1']}", "", _escape_md_tildes(note.overview_and_purpose_kr)])
+    lines.extend(["", f"## {headings['sec2']}", "", _escape_md_tildes(note.methodology_and_evidence_kr)])
 
-    lines.extend(["", "## 3. 본문 핵심 내용", ""])
+    lines.extend(["", f"## {headings['sec3']}", ""])
     for idx, sec in enumerate(note.body_sections, start=1):
         lines.append(f"### {idx}. {_escape_md_tildes(sec.heading_kr)}")
         lines.append("")
@@ -327,7 +342,7 @@ def render_study_note_markdown(
         lines.append("")
 
     if note.summary_table:
-        lines.extend(["## 4. 주요 수치·내용 요약표", "", "| 항목 | 원문 핵심 내용 |", "| :--- | :--- |"])
+        lines.extend([f"## {headings['sec4']}", "", "| 항목 | 원문 핵심 내용 |", "| :--- | :--- |"])
         for row in note.summary_table:
             item = _escape_md_tildes(row.item.replace("|", "\\|").replace("\n", " "))
             detail = _escape_md_tildes(row.detail_kr.replace("|", "\\|").replace("\n", " "))
@@ -335,7 +350,7 @@ def render_study_note_markdown(
         lines.append("")
 
     if note.key_quotes:
-        lines.extend(["## 5. 원문 핵심 문장 발췌", ""])
+        lines.extend([f"## {headings['sec5']}", ""])
         for q in note.key_quotes:
             lines.append(f"> “{_escape_md_tildes(q.quote_original)}”")
             lines.append(">")
@@ -344,13 +359,13 @@ def render_study_note_markdown(
             lines.append("")
 
     if note.author_stated_limitations_kr:
-        lines.extend(["## 6. 원문이 밝힌 한계 및 주의점", ""])
+        lines.extend([f"## {headings['sec6']}", ""])
         for lim in note.author_stated_limitations_kr:
             lines.append(f"- {_escape_md_tildes(lim)}")
         lines.append("")
 
     if note.author_conclusions_kr:
-        lines.extend(["## 7. 원문의 결론 및 제언", ""])
+        lines.extend([f"## {headings['sec7']}", ""])
         for conc in note.author_conclusions_kr:
             lines.append(f"- {_escape_md_tildes(conc)}")
         lines.append("")
@@ -381,19 +396,19 @@ def archive_to_google_drive(
     decision: CurationDecision,
     note: DeepDiveStudyNote,
     docs: list[FetchedDocument],
-    doc_html: str,
+    doc_html: str = "",
     web_article_url: str = "",
     script_markdown: str = "",
 ) -> DriveArchiveResult:
     """
-    3단 Google Drive 아카이빙 실행:
+    마크다운 중심 Google Drive 아카이빙 실행 (불필요한 임시 Google Doc 경유 자동 PDF 생성 제거):
     1) Deep-Dive-Briefing/<5대 핵심 분야>/[YYYY-MM-DD] <title>/ 폴더 생성
-       (예: Deep-Dive-Briefing/🤖 AI·기술·사회/[2026-11-21] 계산 윤리학.../)
-    2) 구조화 브리핑 노트를 PDF([YYYY-MM-DD] <제목>.pdf) + 마크다운([YYYY-MM-DD] <제목>.md) 동시 저장
+    2) 알렉산드리아 호환 요약 노트 마크다운([YYYY-MM-DD] <제목>.md) 저장
     3) 오디오 대본 전문 마크다운([YYYY-MM-DD] <제목>_대본.md) 저장 (대본이 있을 경우)
     4) 원문 PDF(있을 경우) + full_text.txt 업로드
     5) Master_Index Google Sheet에 1행 추가
     """
+    del doc_html  # 하위 호환 시그니처 유지 (자동 요약 PDF 생성 제거)
     headers = _get_auth_headers()
 
     root_id = (os.getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID") or "").strip()
@@ -405,55 +420,9 @@ def archive_to_google_drive(
 
     day_folder_name = _safe_folder_name(date_slug, note.episode_title_kr)
     day_folder_id = _find_or_create_folder(headers, day_folder_name, parent_id=category_id)
-
-    # 1) 브리핑 노트 PDF 생성 (Google Docs 렌더링 엔진으로 한글·표·인용문을 깔끔한 PDF로 변환)
-    wrapped_html = (
-        "<!DOCTYPE html><html lang='ko'><head><meta charset='UTF-8'>"
-        "<style>"
-        "body { font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; line-height: 1.65; color: #1f2937; font-size: 10.5pt; }"
-        "h1 { font-size: 17pt; margin-bottom: 6pt; color: #111827; }"
-        "h2 { font-size: 13pt; margin-top: 16pt; margin-bottom: 6pt; border-bottom: 1px solid #d1d5db; padding-bottom: 3pt; color: #1e3a8a; }"
-        "h3 { font-size: 11pt; margin-top: 11pt; margin-bottom: 4pt; color: #111827; }"
-        "table { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 9.5pt; }"
-        "th, td { border: 1px solid #d1d5db; padding: 5pt 7pt; text-align: left; vertical-align: top; }"
-        "th { background: #f3f4f6; width: 25%; }"
-        "blockquote { background: #f9fafb; border-left: 3px solid #6b7280; margin: 8pt 0; padding: 6pt 10pt; }"
-        "ul, ol { margin: 4pt 0 8pt 16pt; }"
-        "</style></head>"
-        f"<body><h1>{note.episode_title_kr}</h1>{doc_html}</body></html>"
-    )
     safe_title = _safe_filename(note.episode_title_kr)
-    temp_doc_id = _upload_multipart_file(
-        headers=headers,
-        metadata={
-            "name": f"_tmp_{date_slug}_{safe_title}",
-            "mimeType": "application/vnd.google-apps.document",
-            "parents": [day_folder_id],
-        },
-        content_bytes=wrapped_html.encode("utf-8"),
-        content_mime="text/html; charset=UTF-8",
-    )
 
-    doc_id = temp_doc_id
-    doc_url = f"https://docs.google.com/document/d/{temp_doc_id}/edit"
-    try:
-        summary_pdf_bytes = _export_google_doc_as_pdf(headers, temp_doc_id)
-        summary_pdf_id = _upload_multipart_file(
-            headers=headers,
-            metadata={
-                "name": f"[{date_slug}] {safe_title}.pdf",
-                "parents": [day_folder_id],
-            },
-            content_bytes=summary_pdf_bytes,
-            content_mime="application/pdf",
-        )
-        doc_id = summary_pdf_id
-        doc_url = f"https://drive.google.com/file/d/{summary_pdf_id}/view"
-        _delete_drive_file(headers, temp_doc_id)
-    except Exception as exc:
-        print(f"      [WARN] 요약 노트 PDF 변환 실패 -> Google Doc으로 유지합니다: {exc}")
-
-    # 1-b) 요약 노트 마크다운(.md) 및 오디오 대본 전문(_대본.md) 업로드 (DB 검색/색인용, 추가 토큰 0)
+    # 1) 요약 노트 마크다운(.md) 및 오디오 대본 전문(_대본.md) 업로드
     summary_md = render_study_note_markdown(
         date_slug=date_slug,
         theme=theme,
@@ -462,7 +431,7 @@ def archive_to_google_drive(
         docs=docs,
         web_article_url=web_article_url,
     )
-    _upload_multipart_file(
+    doc_id = _upload_multipart_file(
         headers=headers,
         metadata={
             "name": f"[{date_slug}] {safe_title}.md",
@@ -471,6 +440,7 @@ def archive_to_google_drive(
         content_bytes=summary_md.encode("utf-8"),
         content_mime="text/markdown; charset=UTF-8",
     )
+    doc_url = f"https://drive.google.com/file/d/{doc_id}/view"
 
     if script_markdown.strip():
         _upload_multipart_file(

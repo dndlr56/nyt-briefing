@@ -35,7 +35,7 @@
   - 문헌 선별(`gemini-3.5-flash-lite`) → Stage 1 원문 충실 요약 노트·분류·캐스팅(`gemini-4-hydrogen`, `thinking=high`) → Stage 2 2인 대화형 장문 대본(`gemini-4-hydrogen`, `thinking=low`, 분량에 따라 25~45분 자동 조절·최대 60분).
   - `api_tier=auto` 기본값으로 `GEMINI_FREE_API_KEY`를 우선 사용하고, 일일 할당량 소진 시 실행 중간에 `GEMINI_API_KEY`(유료)로 자동 전환합니다.
 - **2인 네이티브 대화형 TTS**: `gemini-3.8-flash-tts` 기반 2인 멀티스피커 합성을 기본으로 하며, Cloud TTS Chirp3-HD 병렬 합성 및 `edge_tts` 폴백을 지원합니다.
-- **Google Drive 아카이빙 *(선택)*** ([`src/deep_dive/drive_archiver.py`](src/deep_dive/drive_archiver.py)): `Deep-Dive-Briefing/<5대 핵심 분야>/[YYYY-MM-DD] <제목>/` 폴더에 요약 노트(PDF·Markdown), 대화 대본(Markdown), 원문 PDF·`full_text.txt`를 저장하고 `Master_Index` Google Sheet를 자동 업데이트합니다.
+- **Google Drive 아카이빙 *(선택)*** ([`src/deep_dive/drive_archiver.py`](src/deep_dive/drive_archiver.py)): `Deep-Dive-Briefing/<5대 핵심 분야>/[YYYY-MM-DD] <제목>/` 폴더에 알렉산드리아 호환 요약 노트(Markdown), 대화 대본(Markdown), 원문 PDF·`full_text.txt`를 저장하고 `Master_Index` Google Sheet를 자동 업데이트합니다.
 
 > 자세한 설정과 벤치마크 가이드는 [`docs/DEEP_DIVE_SETUP.md`](docs/DEEP_DIVE_SETUP.md)를 참고하세요.
 

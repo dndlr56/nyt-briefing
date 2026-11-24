@@ -36,7 +36,6 @@ from deep_dive.themes import CORE_THEME_IDS, THEME_SLOTS, resolve_theme_slot
 from deep_dive.web_publisher import (
     load_covered_urls_from_pages,
     publish_deep_dive,
-    render_study_note_body_html,
 )
 from deep_dive.writer import (
     DEFAULT_NOTE_MODEL,
@@ -478,14 +477,6 @@ def main() -> int:
 
     if not args.skip_drive and is_drive_configured():
         try:
-            doc_html = render_study_note_body_html(
-                note=note,
-                docs=selected_docs,
-                theme=display_theme,
-                decision=decision,
-                article_url=published.article_url if published else None,
-                usage_footer_html=usage_footer_html,
-            )
             script_md = format_script_markdown(script, note) if script is not None else ""
             drive_result = archive_to_google_drive(
                 date_slug=date_slug,
@@ -493,13 +484,12 @@ def main() -> int:
                 decision=decision,
                 note=note,
                 docs=selected_docs,
-                doc_html=doc_html,
                 web_article_url=published.article_url if published else "",
                 script_markdown=script_md,
             )
             print(f"   -> Google Drive 아카이빙 완료: {drive_result.folder_url}")
             print(
-                f"      요약 PDF + 마크다운(.md"
+                f"      마크다운 노트(.md"
                 + (" + _대본.md" if script_md else "")
                 + f") | 원문 PDF {drive_result.uploaded_pdf_count}건"
             )

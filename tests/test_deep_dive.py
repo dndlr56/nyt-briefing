@@ -293,6 +293,79 @@ class DeepDivePipelineTests(unittest.TestCase):
             self.assertIn("2인 대화", tg_msg)
             self.assertIn(pub.article_url, tg_msg)
 
+    def test_doc_lens_headings_and_markdown_only_drive_archiving(self) -> None:
+        from unittest import mock
+        from deep_dive.drive_archiver import archive_to_google_drive, render_study_note_markdown
+        from deep_dive.models import resolve_section_headings
+
+        law_headings = resolve_section_headings("law_and_cases")
+        self.assertIn("쟁점", law_headings["sec1"])
+        self.assertIn("법리", law_headings["sec2"])
+
+        law_note = _sample_note().model_copy(
+            update={"primary_theme_id": "law_cases", "doc_lens": "law_and_cases", "tags": ["판례", "민법"]}
+        )
+        law_theme = resolve_theme_slot("law_cases")
+        decision = CurationDecision(
+            mode="single_deep_dive",
+            unifying_angle_kr="대법원 판시 법리 분석",
+            sub_subject_kr="민사판례",
+            picks=[CuratedPick(candidate_index=1, why_selected_kr="전원합의체")],
+        )
+        doc = FetchedDocument(
+            candidate=SourceCandidate(
+                title="대법원 2026다99999 판결",
+                url="https://example.kr/scourt/99999",
+                source_name="대한민국 대법원",
+                theme_id="law_cases",
+            ),
+            full_text="판결문 전문 " * 100,
+            text_source="html",
+        )
+        md = render_study_note_markdown(
+            date_slug="2026-11-27",
+            theme=law_theme,
+            decision=decision,
+            note=law_note,
+            docs=[doc],
+        )
+        self.assertIn('doc_lens: "law_and_cases"', md)
+        self.assertIn('type: "legal"', md)
+        self.assertIn("## 1. 사안의 배경 및 핵심 쟁점", md)
+        self.assertIn("## 2. 관련 법리 및 판단 기준", md)
+
+        # Drive 업로드 시 임시 Google Doc이나 요약 PDF를 만들지 않고 .md + _대본.md + full_text.txt만 업로드하는지 검증
+        uploaded_mimes: list[tuple[str, str]] = []
+
+        def _fake_upload(headers: dict, metadata: dict, content_bytes: bytes, content_mime: str) -> str:
+            uploaded_mimes.append((str(metadata.get("name")), content_mime))
+            return f"file_{len(uploaded_mimes)}"
+
+        with (
+            mock.patch("deep_dive.drive_archiver._get_auth_headers", return_value={"Authorization": "Bearer x"}),
+            mock.patch("deep_dive.drive_archiver._find_or_create_folder", side_effect=["root1", "cat1", "day1"]),
+            mock.patch("deep_dive.drive_archiver._upload_multipart_file", side_effect=_fake_upload),
+            mock.patch("deep_dive.drive_archiver._find_or_create_master_sheet", return_value="sheet1"),
+            mock.patch("deep_dive.drive_archiver._append_master_sheet_row") as mock_append,
+        ):
+            res = archive_to_google_drive(
+                date_slug="2026-11-27",
+                theme=law_theme,
+                decision=decision,
+                note=law_note,
+                docs=[doc],
+                script_markdown="# 대본 전문",
+            )
+
+        self.assertEqual(len(uploaded_mimes), 3)  # 요약.md, _대본.md, full_text.txt (요약 PDF 없음!)
+        self.assertTrue(uploaded_mimes[0][0].endswith(".md"))
+        self.assertTrue(uploaded_mimes[1][0].endswith("_대본.md"))
+        self.assertEqual(uploaded_mimes[2][0], "full_text.txt")
+        self.assertFalse(any(m == "application/pdf" for _, m in uploaded_mimes))
+        self.assertFalse(any("google-apps.document" in m for _, m in uploaded_mimes))
+        self.assertEqual(res.doc_url, "https://drive.google.com/file/d/file_1/view")
+        mock_append.assert_called_once()
+
     def test_drive_configured_default_false(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             self.assertFalse(is_drive_configured())
