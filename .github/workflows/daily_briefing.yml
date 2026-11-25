@@ -2,8 +2,8 @@ name: NYT Morning Briefing
 
 on:
   schedule:
-    # 매일 한국시간(KST, UTC+9) 오전 7시 00분 = UTC 22시 00분
-    - cron: '0 22 * * *'
+    # 매일 한국시간(KST, UTC+9) 오전 7시 05분 = UTC 22시 05분 (정각 :00 스케줄러 혼잡 회피)
+    - cron: '5 22 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -18,11 +18,12 @@ on:
           - telegram_audio_only
           - text_only_test
       api_tier:
-        description: 'Gemini API 키 선택 (free: GEMINI_FREE_API_KEY 무료 티어 / paid: 기존 GEMINI_API_KEY)'
+        description: 'Gemini API 모드 (auto=무료 우선 후 한도·503 시 유료 우회 / free=무료 전용 $0 / paid=유료 전용)'
         required: true
-        default: 'free'
+        default: 'auto'
         type: choice
         options:
+          - auto
           - free
           - paid
       tts_provider:
@@ -64,6 +65,10 @@ on:
           - ko-KR-Chirp3-HD-Charon
           - ko-KR-Neural2-C
           - ko-KR-HyunsuMultilingualNeural
+
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
 
 jobs:
   send-briefing:
@@ -126,7 +131,7 @@ jobs:
           PAGES_BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: |
           MODE="podcast_only"
-          API_TIER="free"
+          API_TIER="auto"
           TTS_PROVIDER="gemini_tts"
           TTS_MODEL="gemini-3.8-flash-lite-tts"
           VOICE="auto_rotate"
@@ -139,18 +144,16 @@ jobs:
             VOICE="${{ inputs.voice }}"
           fi
 
-          if [ "$API_TIER" = "free" ] && [ -n "$GEMINI_FREE_API_KEY" ]; then
-            export GEMINI_API_KEY="$GEMINI_FREE_API_KEY"
-            export GEMINI_API_TIER="free"
-            echo "[INFO] Using GEMINI_FREE_API_KEY (Free Tier $0)"
-          else
+          export GEMINI_API_TIER="$API_TIER"
+          if [ "$API_TIER" = "paid" ]; then
             export GEMINI_API_KEY="$GEMINI_PAID_API_KEY"
-            export GEMINI_API_TIER="paid"
-            if [ "$API_TIER" = "free" ]; then
-              echo "[WARN] GEMINI_FREE_API_KEY secret not set yet; falling back to GEMINI_API_KEY (Paid Tier)."
-            else
-              echo "[INFO] Using GEMINI_API_KEY (Paid Tier)"
-            fi
+            echo "[INFO] Gemini API mode: paid (GEMINI_PAID_API_KEY)"
+          elif [ "$API_TIER" = "free" ]; then
+            export GEMINI_API_KEY="$GEMINI_FREE_API_KEY"
+            echo '[INFO] Gemini API mode: free-only (GEMINI_FREE_API_KEY, $0)'
+          else
+            export GEMINI_API_KEY="${GEMINI_FREE_API_KEY:-$GEMINI_PAID_API_KEY}"
+            echo "[INFO] Gemini API mode: auto (Free first -> automatic Paid failover on quota/503)"
           fi
 
           if [ "$MODE" = "podcast_and_telegram_text" ]; then

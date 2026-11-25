@@ -10,7 +10,8 @@ import sys
 from dotenv import load_dotenv
 
 from audio_generator import generate_audio_briefing
-from curator import select_articles, summarize_full_articles
+from curator import DEFAULT_SELECTION_MODEL, select_articles, summarize_full_articles
+from deep_dive.gemini_pool import GeminiClientPool
 from guardian_fetcher import (
     ArticleCandidate,
     fetch_article_full_texts,
@@ -242,10 +243,19 @@ def main() -> int:
                 if removed_cnt > 0:
                     print(f"      Excluded {removed_cnt} recently covered article(s) from candidate pool.")
 
-    usage_tracker = RunUsageTracker()
+    gemini_pool = GeminiClientPool()
+    initial_tier = gemini_pool.active_tier_for(DEFAULT_SELECTION_MODEL)
+    usage_tracker = RunUsageTracker(api_tier=initial_tier)
+    print(
+        f"      API mode: {gemini_pool.mode} "
+        f"(free_key={'Y' if gemini_pool.has_free_key else 'N'}, "
+        f"paid_fallback={'Y' if gemini_pool.has_paid_fallback else 'N'})"
+    )
 
     print("[2/5] Stage 1 — Selecting top 10~12 global stories with Gemini...")
-    selected_pairs = select_articles(candidates, usage_tracker=usage_tracker)
+    selected_pairs = select_articles(
+        candidates, usage_tracker=usage_tracker, gemini_pool=gemini_pool
+    )
     src_counts: dict[str, int] = {}
     for c, _ in selected_pairs:
         src_counts[c.source] = src_counts.get(c.source, 0) + 1
@@ -270,7 +280,9 @@ def main() -> int:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
         print("[4/5] Writing show-notes summary & 15~18 min briefing script (single pass)...")
-        script = write_roundup_script(full_articles, usage_tracker=usage_tracker)
+        script = write_roundup_script(
+            full_articles, usage_tracker=usage_tracker, gemini_pool=gemini_pool
+        )
         if need_text_summary:
             briefing = build_daily_briefing_from_script(script, full_articles)
             messages = build_messages(briefing)
@@ -293,6 +305,8 @@ def main() -> int:
             tts_provider=args.tts_provider,
             voice=args.voice,
             tts_model=args.tts_model,
+            gemini_pool=gemini_pool,
+            usage_tracker=usage_tracker,
         )
         size_mb = generated_audio.file_size_bytes / (1024 * 1024)
         print(
@@ -305,6 +319,7 @@ def main() -> int:
             voice=generated_audio.voice,
             chars=total_chars,
             model=generated_audio.model,
+            tier=gemini_pool.active_tier_for(generated_audio.model),
         )
         print(usage_tracker.format_console_summary())
 
@@ -323,7 +338,9 @@ def main() -> int:
     else:
         if need_text_summary:
             print("[4/5] Writing reading-friendly summary (text-only mode)...")
-            briefing = summarize_full_articles(full_articles, usage_tracker=usage_tracker)
+            briefing = summarize_full_articles(
+                full_articles, usage_tracker=usage_tracker, gemini_pool=gemini_pool
+            )
             messages = build_messages(briefing)
             print(f"      Prepared {len(messages)} reading-friendly message(s).")
         print(usage_tracker.format_console_summary())

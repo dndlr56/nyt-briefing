@@ -6,17 +6,11 @@ import os
 import time
 from typing import List
 
-from google import genai
 from pydantic import BaseModel, Field, ValidationError
 
+from deep_dive.gemini_pool import GeminiClientPool
 from guardian_fetcher import ArticleCandidate, FullArticle
-from usage_tracker import (
-    RunUsageTracker,
-    get_paid_api_key_if_available,
-    is_rate_limit_error,
-    is_transient_server_error,
-    try_switch_to_paid_key,
-)
+from usage_tracker import RunUsageTracker
 
 
 class SelectedArticleRef(BaseModel):
@@ -106,7 +100,7 @@ SELECTION_SYSTEM_INSTRUCTION = """당신은 지적 호기심이 넓고 깊이 �
 [소스 배분 및 중복 방지 규칙]
 1. **매체 간 균형**: 단일 매체가 전체의 과반(6개 이상)을 독식하지 않도록 **The Guardian(유럽·글로벌), BBC(지정학·속보), CNBC(미국 시장·거시·테크), NPR(미국 정책·과학)**을 고르게 배분하세요.
 2. **오늘 후보 풀 내 1사건 1기사 원칙**: 서로 다른 매체가 오늘 동시간대에 본질적으로 같은 사건을 보도한 경우, 중복 선정하지 말고 가장 분석이 깊고 팩트가 풍부한 **단 1편**만 고르세요. (단, 다른 사건이나 뚜렷한 별개 논점의 기사는 제외하지 마세요.)
-3. `article_id`는 입력 목록에 적힌 값을 **한 글자도 바꾸지 말고 그대로** 복사하세요.
+3. `candidate_index`는 입력 목록의 1-based 정수 번호만 사용하세요.
 4. 배치 순서: [테크·AI / 경제·투자 / 글로벌 기업]을 앞쪽(1~6번), [인프라·에너지 / 글로벌 시사 / 건강·과학]을 뒤쪽(7~12번)에 배치하세요.
 """
 
@@ -123,6 +117,7 @@ SUMMARY_SYSTEM_INSTRUCTION = """당신은 한국인 독자를 위한 글로벌 �
 
 
 DEFAULT_SELECTION_MODEL = "gemini-4-hydrogen"
+DEFAULT_SELECTION_FREE_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_SUMMARY_MODEL = "gemini-4-hydrogen"
 
 
@@ -130,6 +125,7 @@ def select_articles(
     candidates: list[ArticleCandidate],
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
+    gemini_pool: GeminiClientPool | None = None,
 ) -> list[tuple[ArticleCandidate, str]]:
     """1단계: Guardian + BBC + CNBC + NPR 후보 목록에서 10~12개 글로벌 기사를 선별합니다."""
     if not candidates:
@@ -141,7 +137,10 @@ def select_articles(
         or os.getenv("GEMINI_MODEL")
         or DEFAULT_SELECTION_MODEL
     )
-    client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
+    free_alt_model = os.getenv(
+        "GEMINI_SELECTION_FREE_FALLBACK_MODEL", DEFAULT_SELECTION_FREE_FALLBACK_MODEL
+    ).strip()
+    client_pool = gemini_pool or GeminiClientPool()
 
     pool = candidates[:85]
 
@@ -149,10 +148,13 @@ def select_articles(
     for idx, art in enumerate(pool, start=1):
         pub_str = art.published_at.strftime("%Y-%m-%d %H:%M UTC")
         wc_str = f"Words: {art.wordcount} (Full-Text 가능)" if art.source == "The Guardian" else "HTML Full-Text 가능"
+        summary_snippet = (art.trail_text or "(요약 없음)").strip()
+        if len(summary_snippet) > 280:
+            summary_snippet = summary_snippet[:277].rstrip() + "..."
         lines.append(
             f"[{idx}] Source: {art.source} | Section: {art.section} | Published: {pub_str} | {wc_str}\n"
             f"Title: {art.title}\n"
-            f"Summary: {art.trail_text or '(요약 없음)'}\n"
+            f"Summary: {summary_snippet}\n"
         )
 
     prompt = (
@@ -164,12 +166,13 @@ def select_articles(
 
     last_exc: Exception | None = None
     result: SelectionResult | None = None
-    free_503_waits = [5, 15, 30]
-    free_503_attempts = 0
-    for attempt in range(1, 7):
+    for attempt in range(1, 3):
         try:
-            interaction = client.interactions.create(
+            interaction, _ = client_pool.create_interaction(
                 model=selected_model,
+                stage="기사 선별",
+                usage_tracker=usage_tracker,
+                free_fallback_model=free_alt_model or None,
                 system_instruction=SELECTION_SYSTEM_INSTRUCTION,
                 input=prompt,
                 response_mime_type="application/json",
@@ -180,8 +183,6 @@ def select_articles(
                 },
                 store=False,
             )
-            if usage_tracker is not None:
-                usage_tracker.add_interaction(interaction, stage="기사 선별", model=selected_model)
 
             raw_json = interaction.output_text
             if not raw_json:
@@ -192,38 +193,9 @@ def select_articles(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 6:
-            if is_rate_limit_error(last_exc):
-                if attempt >= 2:
-                    paid_key = try_switch_to_paid_key()
-                    if paid_key:
-                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
-                        continue
-                wait_sec = 20
-            elif is_transient_server_error(last_exc):
-                if free_503_attempts < len(free_503_waits):
-                    wait_sec = free_503_waits[free_503_attempts]
-                    free_503_attempts += 1
-                    print(
-                        f"      [WARN] Stage 1 무료 티어 503 과부하 ({free_503_attempts}/{len(free_503_waits)}) -> "
-                        f"{wait_sec}초 후 재시도..."
-                    )
-                    time.sleep(wait_sec)
-                    continue
-                paid_key = get_paid_api_key_if_available()
-                if paid_key:
-                    os.environ["GEMINI_FALLBACK_USED"] = "1"
-                    print("      [FAILOVER-ONCE] Stage 1 무료 티어 503 지속 -> 이번 호출만 유료 1회 우회")
-                    client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
-                    continue
-                wait_sec = 15
-            else:
-                wait_sec = 3 * attempt
-            print(
-                f"      [WARN] Stage 1 failed (attempt {attempt}/5): {last_exc}. "
-                f"Retrying in {wait_sec}s..."
-            )
-            time.sleep(wait_sec)
+        if attempt < 2:
+            print(f"      [WARN] Stage 1 JSON validation failed ({last_exc}). Retrying...")
+            time.sleep(3)
 
     if result is None:
         raise RuntimeError(f"1단계 기사 선별 실패: {last_exc}")
@@ -246,6 +218,7 @@ def summarize_full_articles(
     articles: list[FullArticle],
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
+    gemini_pool: GeminiClientPool | None = None,
 ) -> DailyBriefing:
     """2단계(텍스트 전용 모드): 선별된 10~12개 기사를 읽기 편한 요약으로 정리합니다."""
     if not articles:
@@ -257,7 +230,7 @@ def summarize_full_articles(
         or os.getenv("GEMINI_MODEL")
         or DEFAULT_SUMMARY_MODEL
     )
-    client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
+    client_pool = gemini_pool or GeminiClientPool()
 
     blocks: list[str] = []
     for idx, art in enumerate(articles, start=1):
@@ -275,10 +248,12 @@ def summarize_full_articles(
     )
 
     last_exc: Exception | None = None
-    for attempt in range(1, 5):
+    for attempt in range(1, 3):
         try:
-            interaction = client.interactions.create(
+            interaction, _ = client_pool.create_interaction(
                 model=selected_model,
+                stage="텍스트 요약",
+                usage_tracker=usage_tracker,
                 system_instruction=SUMMARY_SYSTEM_INSTRUCTION,
                 input=prompt,
                 response_mime_type="application/json",
@@ -289,8 +264,6 @@ def summarize_full_articles(
                 },
                 store=False,
             )
-            if usage_tracker is not None:
-                usage_tracker.add_interaction(interaction, stage="텍스트 요약", model=selected_model)
 
             raw_json = interaction.output_text
             if not raw_json:
@@ -320,20 +293,8 @@ def summarize_full_articles(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 4:
-            if is_rate_limit_error(last_exc):
-                if attempt >= 2:
-                    paid_key = try_switch_to_paid_key()
-                    if paid_key:
-                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
-                        continue
-                wait_sec = 20
-            else:
-                wait_sec = 3 * attempt
-            print(
-                f"      [WARN] Stage 2 summary failed (attempt {attempt}/4): {last_exc}. "
-                f"Retrying in {wait_sec}s..."
-            )
-            time.sleep(wait_sec)
+        if attempt < 2:
+            print(f"      [WARN] Stage 2 summary JSON validation failed ({last_exc}). Retrying...")
+            time.sleep(3)
 
     raise RuntimeError(f"2단계 기사 요약 실패: {last_exc}")

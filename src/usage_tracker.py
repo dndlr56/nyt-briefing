@@ -156,6 +156,15 @@ def try_switch_to_paid_key() -> str | None:
     return paid_key
 
 
+def _default_api_tier() -> str:
+    raw = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
+    if raw in ("free", "paid"):
+        return raw
+    if raw == "auto":
+        return "free" if (os.getenv("GEMINI_FREE_API_KEY") or "").strip() else "paid"
+    return "paid"
+
+
 @dataclass
 class RunUsageTracker:
     calls: list[GeminiCallUsage] = field(default_factory=list)
@@ -164,15 +173,15 @@ class RunUsageTracker:
     tts_model: str | None = None
     tts_chars: int = 0
     tts_tier: str = ""
-    api_tier: str = field(
-        default_factory=lambda: (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
-    )
+    api_tier: str = field(default_factory=_default_api_tier)
     fallback_to_paid: bool = field(
         default_factory=lambda: os.getenv("GEMINI_FALLBACK_USED") == "1"
     )
 
     def refresh_tier_from_env(self) -> None:
-        self.api_tier = (os.getenv("GEMINI_API_TIER") or self.api_tier).strip().lower()
+        env_tier = (os.getenv("GEMINI_API_TIER") or "").strip().lower()
+        if env_tier in ("free", "paid"):
+            self.api_tier = env_tier
         if os.getenv("GEMINI_FALLBACK_USED") == "1":
             self.fallback_to_paid = True
 
@@ -286,12 +295,14 @@ class RunUsageTracker:
                 if paid_tts == 0:
                     return f"무료 티어 $0 (유료 환산 ${equiv_tts:.4f})"
                 if any(self._effective_call_tier(c) == "free" for c in tts_calls):
-                    return f"무료+유료 전환 (실청구 ${paid_tts:.4f} / 전체 환산 ${equiv_tts:.4f})"
-                return f"유료 약 ${paid_tts:.4f}"
+                    return f"무료+유료 혼합 (유료분 추정 ${paid_tts:.4f} / 전체 환산 ${equiv_tts:.4f})"
+                return f"유료 추정 약 ${paid_tts:.4f}"
+            eff_tier = self.tts_tier or self.api_tier
+            if eff_tier == "free":
+                return "무료 티어 $0"
             if self.fallback_to_paid:
                 return "무료 한도 초과 → 유료 티어 자동 전환"
-            eff_tier = self.tts_tier or self.api_tier
-            return "무료 티어 $0" if eff_tier == "free" else "유료 과금"
+            return "유료 과금"
         return "유료 과금"
 
     def format_console_summary(self) -> str:
@@ -305,7 +316,7 @@ class RunUsageTracker:
         if self.is_mixed_tier:
             tier_label = "free->paid"
             cost_summary = (
-                f"PAID ${paid_usd:.4f} (~{paid_krw:,} KRW) "
+                f"PAID est. ${paid_usd:.4f} (~{paid_krw:,} KRW) "
                 f"[free {self.free_call_count} + paid {self.paid_call_count} calls, "
                 f"full equiv. ${total_equiv_usd:.4f}]"
             )
@@ -376,20 +387,22 @@ class RunUsageTracker:
             )
             if self.is_mixed_tier:
                 items.append(
-                    f"• 예상 API 비용: 무료 {self.free_call_count}회($0) + 유료 전환 {self.paid_call_count}회 "
-                    f"실청구 약 ${paid_usd:.4f} (약 {paid_krw:,}원 · 전체 유료 환산 ${total_equiv_usd:.4f})"
+                    f"• 예상 API 비용: 무료 {self.free_call_count}회($0) + 유료 우회 {self.paid_call_count}회 "
+                    f"약 ${paid_usd:.4f} (약 {paid_krw:,}원 추정 · 전체 유료 환산 ${total_equiv_usd:.4f})"
                 )
             elif self.is_free_tier:
                 items.append(
-                    f"• 예상 API 비용: 무료 티어 $0 (유료 환산 약 ${total_equiv_usd:.4f} · 약 {total_equiv_krw:,}원)"
+                    f"• 예상 API 비용: 무료 티어 $0 (유료 단가 환산 시 약 ${total_equiv_usd:.4f} · 약 {total_equiv_krw:,}원)"
                 )
             elif self.fallback_to_paid:
                 items.append(
-                    f"• 예상 API 비용: 무료 한도 초과로 유료 전환 · 약 ${paid_usd:.4f} (약 {paid_krw:,}원 기준)"
+                    f"• 예상 API 비용: 무료 폴백 → 유료 {self.paid_call_count}회 약 ${paid_usd:.4f} "
+                    f"(약 {paid_krw:,}원 · 단가표 기준 추정치)"
                 )
             else:
                 items.append(
-                    f"• 예상 API 비용: 약 ${paid_usd:.4f} (약 {paid_krw:,}원 · 유료 단가/환율 {KRW_PER_USD:,}원 기준)"
+                    f"• 예상 API 비용: 유료 티어 약 ${paid_usd:.4f} "
+                    f"(약 {paid_krw:,}원 · 단가표/환율 {KRW_PER_USD:,}원 기준 추정치)"
                 )
 
         if self.tts_provider:
