@@ -18,7 +18,7 @@ on:
           - science_mind
           - health_medicine
           - econ_geopolitics
-          - law_cases
+          - humanities_society
           - weekend_special
       target_minutes:
         description: '목표 오디오 분량 (auto=문헌 수·길이에 따라 25~45분 자동 조절, 최대 60분)'

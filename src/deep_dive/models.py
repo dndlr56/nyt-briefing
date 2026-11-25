@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 CoreThemeId = Literal[
@@ -13,7 +13,7 @@ CoreThemeId = Literal[
     "science_mind",
     "health_medicine",
     "econ_geopolitics",
-    "law_cases",
+    "humanities_society",
 ]
 DocumentLensType = Literal[
     "empirical_or_review",
@@ -89,6 +89,23 @@ class SourceCandidate:
     influential_citations: int = 0  # 실질적 핵심 인용 수 (Semantic Scholar)
     fwci: float | None = None  # 분야·연도 보정 인용 지수 (OpenAlex FWCI, 1.0=평균)
     top_percentile_label: str = ""  # 분야·연도 정규화 상위 백분위 (예: 'Top 1%', 'Top 10%')
+    issns: list[str] = field(default_factory=list)  # 정규화 ISSN / eISSN 목록
+    venue_type: str = ""  # journal | conference | preprint | repository | report | essay | legal_column | case_law
+    wos_editions: list[str] = field(default_factory=list)  # WoS 등재 색인 (예: ['SCIE', 'SSCI'], ['AHCI'], ['ESCI'])
+    wos_categories: list[str] = field(default_factory=list)  # Web of Science Categories
+    journal_if_approx: float | None = None  # OpenAlex 2년 평균 피인용(2yr_mean_citedness, IF 근사치)
+
+    @property
+    def wos_badge(self) -> str:
+        return " · ".join(self.wos_editions)
+
+    @property
+    def is_wos_core(self) -> bool:
+        return any(ed in ("SCIE", "SSCI", "AHCI") for ed in self.wos_editions)
+
+    @property
+    def is_wos_indexed(self) -> bool:
+        return bool(self.wos_editions)
 
 
 @dataclass
@@ -238,9 +255,16 @@ class DeepDiveStudyNote(BaseModel):
             "이 문헌이 가장 정확히 속하는 5대 핵심 아카이브 분야 중 하나: "
             "'ai_tech'(AI·기술·사회), 'science_mind'(종합과학·뇌인지), "
             "'health_medicine'(의학·건강·장수), 'econ_geopolitics'(경제·금융·지정학), "
-            "'law_cases'(인문·철학·역사·제도)"
+            "'humanities_society'(인문·철학·역사·제도)"
         )
     )
+
+    @field_validator("primary_theme_id", mode="before")
+    @classmethod
+    def _normalize_legacy_theme_id(cls, value: object) -> object:
+        if isinstance(value, str) and value.strip().lower() == "law_cases":
+            return "humanities_society"
+        return value
     doc_lens: DocumentLensType = Field(
         default="empirical_or_review",
         description=(

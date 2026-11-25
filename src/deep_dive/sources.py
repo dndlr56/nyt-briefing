@@ -25,7 +25,14 @@ from deep_dive.themes import (
     PmcQuerySpec,
     RssFeedSpec,
     SemanticScholarQuerySpec,
+    THEME_SLOTS,
     ThemeSlot,
+    normalize_theme_id,
+)
+from deep_dive.wos_index import (
+    compute_wos_rank_score,
+    get_wos_index,
+    normalize_issn,
 )
 
 
@@ -47,6 +54,7 @@ BROWSER_HEADERS = {
 }
 
 OPENALEX_API_URL = "https://api.openalex.org/works"
+OPENALEX_SOURCES_API_URL = "https://api.openalex.org/sources"
 UNPAYWALL_API_URL = "https://api.unpaywall.org/v2/{doi}"
 EUROPE_PMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 EUROPE_PMC_FULLTEXT_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmc_id}/fullTextXML"
@@ -64,6 +72,57 @@ MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB 안전 상한
 _WS_RE = re.compile(r"\s+")
 _ISO_DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 _HANGUL_RE = re.compile(r"[가-힣]")
+_JOURNAL_NOTICE_PREFIX_RE = re.compile(
+    r"^\s*(?:author\s+correction|publisher\s+correction|correction|erratum|corrigendum|retraction|expression\s+of\s+concern)\s*[:\-]",
+    re.IGNORECASE,
+)
+
+
+def _openalex_mailto() -> str:
+    return (os.getenv("PODCAST_OWNER_EMAIL") or "").strip() or "deepdive-briefing@users.noreply.github.com"
+
+
+def _fetch_openalex_source_metrics(source_ids: list[str]) -> dict[str, float]:
+    """OpenAlex /sources 배치 1회 조회로 저널별 2년 평균 피인용(2yr_mean_citedness, IF 근사치)을 가져옵니다."""
+    short_ids: list[str] = []
+    seen: set[str] = set()
+    for raw_id in source_ids:
+        cleaned = str(raw_id or "").strip().rstrip("/").split("/")[-1]
+        if cleaned.startswith("S") and cleaned[1:].isdigit() and cleaned not in seen:
+            seen.add(cleaned)
+            short_ids.append(cleaned)
+    if not short_ids:
+        return {}
+
+    try:
+        resp = requests.get(
+            OPENALEX_SOURCES_API_URL,
+            params={
+                "filter": f"openalex_id:{'|'.join(short_ids[:50])}",
+                "select": "id,summary_stats",
+                "per-page": min(50, len(short_ids)),
+                "mailto": _openalex_mailto(),
+            },
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        rows = resp.json().get("results") or []
+    except Exception:
+        return {}
+
+    metrics: dict[str, float] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        sid = str(row.get("id") or "").strip().rstrip("/").split("/")[-1]
+        stats = row.get("summary_stats")
+        if not sid or not isinstance(stats, dict):
+            continue
+        raw_if = stats.get("2yr_mean_citedness")
+        if isinstance(raw_if, (int, float)) and raw_if > 0:
+            metrics[sid] = round(float(raw_if), 1)
+    return metrics
 _PAYWALL_MARKERS = (
     "subscribe to continue reading",
     "buy this article",
@@ -108,6 +167,67 @@ def _normalize_doi(raw_doi: str) -> str:
         if cleaned.lower().startswith(prefix):
             cleaned = cleaned[len(prefix) :].strip()
     return cleaned
+
+
+def _collect_unique_issns(raw_values: list[object]) -> list[str]:
+    """여러 ISSN/eISSN 원시 값(문자열 또는 리스트)에서 정규화된 고유 ISSN 목록을 추출합니다."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in raw_values:
+        if isinstance(item, (list, tuple, set)):
+            sub_items = list(item)
+        else:
+            sub_items = [item]
+        for raw in sub_items:
+            if not raw:
+                continue
+            norm = normalize_issn(str(raw))
+            if norm and norm not in seen:
+                seen.add(norm)
+                out.append(norm)
+    return out
+
+
+def _enrich_candidate_with_wos(
+    candidate: SourceCandidate,
+    journal_name: str = "",
+) -> SourceCandidate:
+    """저널 트랙 후보에 WoS Core Collection(SCIE/SSCI/AHCI/ESCI) 등재 여부와 카테고리를 부착합니다."""
+    candidate.issns = _collect_unique_issns(list(candidate.issns))
+    vtype = (candidate.venue_type or "").strip().lower()
+    if vtype not in ("journal", ""):
+        return candidate
+
+    wos = get_wos_index()
+    if not wos.is_loaded:
+        return candidate
+
+    match = wos.lookup(
+        issns=candidate.issns,
+        journal_title=journal_name or candidate.source_name,
+    )
+    if match is not None:
+        candidate.wos_editions = list(match.editions)
+        candidate.wos_categories = list(match.categories)
+        if not candidate.venue_type:
+            candidate.venue_type = "journal"
+    return candidate
+
+
+def _candidate_wos_score(
+    candidate: SourceCandidate,
+    theme: ThemeSlot | None = None,
+) -> int:
+    """테마별 선호 에디션·카테고리를 반영한 후보의 WoS 정합성 점수를 반환합니다."""
+    slot = theme or THEME_SLOTS.get(normalize_theme_id(candidate.theme_id))
+    return compute_wos_rank_score(
+        wos_editions=candidate.wos_editions,
+        wos_categories=candidate.wos_categories,
+        venue_type=candidate.venue_type,
+        preferred_editions=slot.preferred_wos_editions if slot else (),
+        preferred_categories=slot.preferred_wos_categories if slot else (),
+        excluded_categories=slot.excluded_wos_categories if slot else (),
+    )
 
 
 def _reconstruct_openalex_abstract(inverted_index: dict | None) -> str:
@@ -326,7 +446,8 @@ def fetch_openalex_candidates(
             "search": spec.search,
             "filter": ",".join(filters),
             "sort": "cited_by_count:desc",
-            "per-page": spec.max_results,
+            "per-page": min(25, max(spec.max_results * 2, 12)),
+            "mailto": _openalex_mailto(),
         }
         resp = requests.get(
             OPENALEX_API_URL,
@@ -342,6 +463,17 @@ def fetch_openalex_candidates(
         time.sleep(0.25)
         results = _query(use_top10=False)
 
+    work_source_ids: list[str] = []
+    for work in results:
+        if not isinstance(work, dict):
+            continue
+        p_src = (work.get("primary_location") or {}).get("source") or {}
+        b_src = (work.get("best_oa_location") or {}).get("source") or {}
+        sid = str(p_src.get("id") or b_src.get("id") or "").strip()
+        if sid:
+            work_source_ids.append(sid)
+    source_if_map = _fetch_openalex_source_metrics(work_source_ids)
+
     candidates: list[SourceCandidate] = []
     for work in results:
         if not isinstance(work, dict) or work.get("is_retracted"):
@@ -356,8 +488,32 @@ def fetch_openalex_candidates(
         if not landing_url:
             continue
 
-        source_obj = primary.get("source") or best_oa.get("source") or {}
+        primary_src = primary.get("source") or {}
+        best_src = best_oa.get("source") or {}
+        source_obj = primary_src or best_src or {}
         journal = _clean_text(source_obj.get("display_name") or spec.name)
+        src_short_id = str(source_obj.get("id") or "").strip().rstrip("/").split("/")[-1]
+        journal_if_approx = source_if_map.get(src_short_id)
+        issns = _collect_unique_issns(
+            [
+                primary_src.get("issn_l"),
+                primary_src.get("issn"),
+                best_src.get("issn_l"),
+                best_src.get("issn"),
+            ]
+        )
+        raw_src_type = str(source_obj.get("type") or "").strip().lower()
+        if raw_src_type == "journal":
+            venue_type = "journal"
+        elif raw_src_type in ("repository", "ebook platform", "book series"):
+            venue_type = "repository"
+        elif raw_src_type == "conference":
+            venue_type = "conference"
+        elif issns:
+            venue_type = "journal"
+        else:
+            venue_type = ""
+
         pub_date = _clean_text(work.get("publication_date") or str(work.get("publication_year") or ""))
         cited = int(work.get("cited_by_count") or 0)
         raw_fwci = work.get("fwci")
@@ -375,7 +531,7 @@ def fetch_openalex_candidates(
         if not abstract:
             abstract = f"[OpenAlex Top-Impact OA] Journal: {journal}. Cited by {cited} works."
 
-        candidates.append(
+        cand = _enrich_candidate_with_wos(
             SourceCandidate(
                 title=title,
                 url=landing_url,
@@ -394,11 +550,19 @@ def fetch_openalex_candidates(
                 cited_by_count=cited,
                 fwci=fwci_val,
                 top_percentile_label=pct_label,
-            )
+                issns=issns,
+                venue_type=venue_type,
+                journal_if_approx=journal_if_approx,
+            ),
+            journal_name=journal,
         )
-    # FWCI와 피인용 수를 종합해 정렬
-    candidates.sort(key=lambda c: ((c.fwci or 0.0), c.cited_by_count), reverse=True)
-    return candidates
+        candidates.append(cand)
+    # WoS 핵심 등재·테마 정합성 + FWCI + 피인용 수를 종합해 정렬 후 상위 max_results 반환
+    candidates.sort(
+        key=lambda c: (_candidate_wos_score(c), (c.fwci or 0.0), c.cited_by_count),
+        reverse=True,
+    )
+    return candidates[: spec.max_results]
 
 
 def fetch_europe_pmc_candidates(
@@ -416,7 +580,7 @@ def fetch_europe_pmc_candidates(
         "query": full_query,
         "resultType": "core",
         "sort": "CITED desc",
-        "pageSize": spec.max_results,
+        "pageSize": min(25, max(spec.max_results * 2, 12)),
         "format": "json",
     }
     resp = requests.get(
@@ -438,10 +602,18 @@ def fetch_europe_pmc_candidates(
 
         pmc_id = str(item.get("pmcid") or "").strip().upper()
         doi = _normalize_doi(str(item.get("doi") or ""))
+        journal_meta = (item.get("journalInfo") or {}).get("journal") or {}
         journal = _clean_text(
-            (item.get("journalInfo") or {}).get("journal", {}).get("title")
+            journal_meta.get("title")
             or item.get("journalTitle")
             or spec.name
+        )
+        issns = _collect_unique_issns(
+            [
+                journal_meta.get("issn"),
+                journal_meta.get("essn"),
+                item.get("journalIssn"),
+            ]
         )
         pub_date = _clean_text(item.get("firstPublicationDate") or str(item.get("pubYear") or ""))
         authors = _clean_text(item.get("authorString") or "")[:200]
@@ -466,7 +638,7 @@ def fetch_europe_pmc_candidates(
         if not landing_url:
             continue
 
-        candidates.append(
+        cand = _enrich_candidate_with_wos(
             SourceCandidate(
                 title=title,
                 url=landing_url,
@@ -482,9 +654,17 @@ def fetch_europe_pmc_candidates(
                 authority_tier=1,
                 doi=doi,
                 cited_by_count=cited,
-            )
+                issns=issns,
+                venue_type="journal",
+            ),
+            journal_name=journal,
         )
-    return candidates
+        candidates.append(cand)
+    candidates.sort(
+        key=lambda c: (_candidate_wos_score(c), c.cited_by_count),
+        reverse=True,
+    )
+    return candidates[: spec.max_results]
 
 
 def fetch_semantic_scholar_candidates(
@@ -504,7 +684,7 @@ def fetch_semantic_scholar_candidates(
         "openAccessPdf": "",
         "limit": max(spec.max_results * 2, 16),
         "fields": (
-            "title,url,year,publicationDate,venue,authors,abstract,"
+            "title,url,year,publicationDate,venue,publicationVenue,authors,abstract,"
             "citationCount,influentialCitationCount,openAccessPdf,externalIds,tldr"
         ),
     }
@@ -552,7 +732,21 @@ def fetch_semantic_scholar_candidates(
         if not landing_url:
             continue
 
-        venue = _clean_text(row.get("venue") or spec.name)
+        pub_venue = row.get("publicationVenue") or {}
+        venue = _clean_text(pub_venue.get("name") or row.get("venue") or spec.name)
+        pv_issns = _collect_unique_issns(
+            [pub_venue.get("issn"), pub_venue.get("alternate_issns")]
+        )
+        pv_type = str(pub_venue.get("type") or "").strip().lower()
+        if pv_type == "conference":
+            venue_type = "conference"
+        elif pv_type == "journal" or pv_issns:
+            venue_type = "journal"
+        elif arxiv_id and not row.get("venue"):
+            venue_type = "preprint"
+        else:
+            venue_type = ""
+
         pub_date = _clean_text(row.get("publicationDate") or str(row.get("year") or ""))
         authors = ", ".join(
             _clean_text(a.get("name") or "")
@@ -565,7 +759,7 @@ def fetch_semantic_scholar_candidates(
         cited = int(row.get("citationCount") or 0)
         influential = int(row.get("influentialCitationCount") or 0)
 
-        candidates.append(
+        cand = _enrich_candidate_with_wos(
             SourceCandidate(
                 title=title,
                 url=landing_url,
@@ -582,10 +776,17 @@ def fetch_semantic_scholar_candidates(
                 doi=doi,
                 cited_by_count=cited,
                 influential_citations=influential,
-            )
+                issns=pv_issns,
+                venue_type=venue_type,
+            ),
+            journal_name=venue,
         )
+        candidates.append(cand)
 
-    candidates.sort(key=lambda c: (c.influential_citations, c.cited_by_count), reverse=True)
+    candidates.sort(
+        key=lambda c: (_candidate_wos_score(c), c.influential_citations, c.cited_by_count),
+        reverse=True,
+    )
     return candidates[: spec.max_results]
 
 
@@ -637,6 +838,7 @@ def fetch_arxiv_candidates(spec: ArxivQuerySpec, theme_id: str) -> list[SourceCa
                     source_kind="paper",
                     sub_topic_hint=spec.sub_topic_hint,
                     authority_tier=1,
+                    venue_type="preprint",
                 )
             )
     return _filter_by_lookback(candidates, spec.lookback_days)[: spec.max_results]
@@ -696,8 +898,9 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
         )
         article_url = f"https://pmc.ncbi.nlm.nih.gov/articles/{pmc_code}/"
         pdf_url = f"https://pmc.ncbi.nlm.nih.gov/articles/{pmc_code}/pdf/"
+        issns = _collect_unique_issns([item.get("issn"), item.get("essn")])
 
-        candidates.append(
+        cand = _enrich_candidate_with_wos(
             SourceCandidate(
                 title=title,
                 url=article_url,
@@ -711,8 +914,13 @@ def fetch_pmc_candidates(spec: PmcQuerySpec, theme_id: str) -> list[SourceCandid
                 source_kind="review",
                 sub_topic_hint=spec.sub_topic_hint,
                 authority_tier=1,
-            )
+                issns=issns,
+                venue_type="journal",
+            ),
+            journal_name=journal,
         )
+        candidates.append(cand)
+    candidates.sort(key=lambda c: _candidate_wos_score(c), reverse=True)
     return candidates
 
 
@@ -777,21 +985,27 @@ def _parse_rss_with_beautifulsoup(
                 pdf_url = enc_url
 
         if title and link:
-            candidates.append(
-                SourceCandidate(
-                    title=title,
-                    url=link,
-                    source_name=spec.name,
-                    theme_id=theme_id,
-                    published=published[:35],
-                    authors=", ".join(authors_list[:4]),
-                    abstract=summary[:1500],
-                    pdf_url=pdf_url,
-                    source_kind=spec.source_kind,
-                    sub_topic_hint=spec.sub_topic_hint,
-                    authority_tier=spec.authority_tier,
-                )
+            is_journal_rss = spec.source_kind in ("paper", "review") and bool(spec.issn)
+            if is_journal_rss and _JOURNAL_NOTICE_PREFIX_RE.match(title):
+                continue
+            cand = SourceCandidate(
+                title=title,
+                url=link,
+                source_name=spec.name,
+                theme_id=theme_id,
+                published=published[:35],
+                authors=", ".join(authors_list[:4]),
+                abstract=summary[:1500],
+                pdf_url=pdf_url,
+                source_kind=spec.source_kind,
+                sub_topic_hint=spec.sub_topic_hint,
+                authority_tier=spec.authority_tier,
+                issns=[spec.issn] if spec.issn else [],
+                venue_type="journal" if is_journal_rss else spec.source_kind,
             )
+            if is_journal_rss:
+                _enrich_candidate_with_wos(cand, journal_name=spec.name)
+            candidates.append(cand)
     return candidates
 
 
@@ -853,21 +1067,27 @@ def fetch_rss_candidates(spec: RssFeedSpec, theme_id: str) -> list[SourceCandida
                     pdf_url = enc_url
 
         if title and link:
-            candidates.append(
-                SourceCandidate(
-                    title=title,
-                    url=link,
-                    source_name=spec.name,
-                    theme_id=theme_id,
-                    published=published[:35],
-                    authors=", ".join(authors_list[:4]),
-                    abstract=summary[:1500],
-                    pdf_url=pdf_url,
-                    source_kind=spec.source_kind,
-                    sub_topic_hint=spec.sub_topic_hint,
-                    authority_tier=spec.authority_tier,
-                )
+            is_journal_rss = spec.source_kind in ("paper", "review") and bool(spec.issn)
+            if is_journal_rss and _JOURNAL_NOTICE_PREFIX_RE.match(title):
+                continue
+            cand = SourceCandidate(
+                title=title,
+                url=link,
+                source_name=spec.name,
+                theme_id=theme_id,
+                published=published[:35],
+                authors=", ".join(authors_list[:4]),
+                abstract=summary[:1500],
+                pdf_url=pdf_url,
+                source_kind=spec.source_kind,
+                sub_topic_hint=spec.sub_topic_hint,
+                authority_tier=spec.authority_tier,
+                issns=[spec.issn] if spec.issn else [],
+                venue_type="journal" if is_journal_rss else spec.source_kind,
             )
+            if is_journal_rss:
+                _enrich_candidate_with_wos(cand, journal_name=spec.name)
+            candidates.append(cand)
     return _filter_by_lookback(candidates, spec.lookback_days)[: spec.max_items]
 
 
@@ -903,11 +1123,82 @@ def fetch_html_list_candidates(spec: HtmlListSpec, theme_id: str) -> list[Source
                 source_kind=spec.source_kind,
                 sub_topic_hint=spec.sub_topic_hint,
                 authority_tier=spec.authority_tier,
+                venue_type=spec.source_kind,
             )
         )
         if len(candidates) >= spec.max_items:
             break
     return candidates
+
+
+def build_curator_pool(
+    candidates: list[SourceCandidate],
+    covered_urls: set[str] | None = None,
+    theme: ThemeSlot | None = None,
+    max_pool: int = 35,
+) -> list[SourceCandidate]:
+    """
+    기다룬 URL을 제외하고, 35건 상한 안에서 학술 저널(WoS 검증 우선) · 프리프린트/학회 ·
+    에세이/보고서/칼럼 채널이 서로 밀려나지 않도록 균형 있게 선별 풀을 구성합니다.
+    (curator.py와 main.py가 동일한 인덱스 매핑을 보장하기 위해 이 함수를 공용으로 사용합니다.)
+    """
+    seen = {u.strip().rstrip("/") for u in (covered_urls or set()) if u}
+    fresh = [c for c in candidates if c.url.strip().rstrip("/") not in seen]
+    if not fresh:
+        fresh = list(candidates)
+    if not fresh:
+        return []
+
+    journal_track: list[SourceCandidate] = []
+    preprint_conf_track: list[SourceCandidate] = []
+    editorial_track: list[SourceCandidate] = []
+
+    for c in fresh:
+        vtype = (c.venue_type or "").strip().lower()
+        if vtype == "journal":
+            journal_track.append(c)
+        elif vtype in ("preprint", "conference", "repository"):
+            preprint_conf_track.append(c)
+        else:
+            editorial_track.append(c)
+
+    # 저널 트랙은 WoS 핵심 등재·테마 카테고리 정합성 -> FWCI -> 실질인용 -> 총피인용 순으로 정렬
+    journal_track.sort(
+        key=lambda c: (
+            _candidate_wos_score(c, theme=theme),
+            c.fwci or 0.0,
+            c.influential_citations,
+            c.cited_by_count,
+        ),
+        reverse=True,
+    )
+    preprint_conf_track.sort(
+        key=lambda c: (c.influential_citations, c.cited_by_count),
+        reverse=True,
+    )
+    editorial_track.sort(key=lambda c: c.authority_tier)
+
+    # 채널별 최소 쿼터 보장 (에세이·보고서가 OpenAlex에 밀려 35건 밖으로 탈락하는 현상 방지)
+    editorial_quota = min(len(editorial_track), max(6, max_pool // 3))
+    preprint_quota = min(len(preprint_conf_track), max(4, max_pool // 5))
+    journal_quota = min(len(journal_track), max(0, max_pool - editorial_quota - preprint_quota))
+
+    selected: list[SourceCandidate] = []
+    selected.extend(journal_track[:journal_quota])
+    selected.extend(editorial_track[:editorial_quota])
+    selected.extend(preprint_conf_track[:preprint_quota])
+
+    # 남은 슬롯은 저널 -> 에세이/보고서 -> 프리프린트 순으로 잔여 후보를 채움
+    rem_slots = max_pool - len(selected)
+    if rem_slots > 0:
+        leftovers = (
+            journal_track[journal_quota:]
+            + editorial_track[editorial_quota:]
+            + preprint_conf_track[preprint_quota:]
+        )
+        selected.extend(leftovers[:rem_slots])
+
+    return selected[:max_pool]
 
 
 def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
@@ -993,9 +1284,25 @@ def collect_candidates_for_theme(theme: ThemeSlot) -> list[SourceCandidate]:
 
 
 def extract_text_from_pdf_bytes(pdf_bytes: bytes, max_pages: int = 65) -> str:
-    """PDF 바이트에서 본문 텍스트를 추출합니다."""
+    """PDF 바이트에서 본문 텍스트를 추출합니다 (2단 학술 논문 읽기 순서에 강한 PyMuPDF 우선, pypdf 폴백)."""
+    try:
+        import pymupdf  # type: ignore[import-not-found]
+
+        pages_text: list[str] = []
+        with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
+            for page in doc[:max_pages]:
+                # 기본 sort=False가 MuPDF의 다단(2-column) 읽기 순서를 자연스럽게 보존합니다.
+                txt = (page.get_text("text") or "").strip()
+                if txt:
+                    pages_text.append(txt)
+        extracted = "\n\n".join(pages_text).strip()
+        if extracted:
+            return extracted
+    except Exception:
+        pass
+
     reader = PdfReader(io.BytesIO(pdf_bytes))
-    pages_text: list[str] = []
+    pages_text = []
     for page in reader.pages[:max_pages]:
         txt = page.extract_text() or ""
         if txt.strip():
@@ -1260,6 +1567,23 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
                 discovered_pdf = urljoin(url, href)
                 break
 
+    # 1차: trafilatura 본문 추출 (사이드바·추천글·각주 노이즈 제거에 강함)
+    trafi_text = ""
+    try:
+        import trafilatura  # type: ignore[import-not-found]
+
+        extracted = trafilatura.extract(
+            decoded_html,
+            url=url,
+            include_comments=False,
+            include_tables=True,
+            no_fallback=False,
+        )
+        if extracted and extracted.strip():
+            trafi_text = extracted.strip()
+    except Exception:
+        trafi_text = ""
+
     for tag in soup(["script", "style", "noscript", "nav", "header", "footer", "aside", "form", "svg"]):
         tag.decompose()
 
@@ -1281,8 +1605,11 @@ def _extract_html_article_and_pdf_link(url: str) -> tuple[str, str]:
         else:
             blocks.append(txt)
 
-    text = "\n\n".join(blocks).strip()
-    return text, discovered_pdf
+    bs4_text = "\n\n".join(blocks).strip()
+    # trafilatura가 충분한 본문을 뽑았으면 우선 채택, 누락 시 BeautifulSoup 결과로 폴백
+    if trafi_text and (len(trafi_text) >= 400 or len(trafi_text) >= len(bs4_text) * 0.7):
+        return trafi_text, discovered_pdf
+    return bs4_text, discovered_pdf
 
 
 def _looks_paywalled(text: str) -> bool:
@@ -1450,7 +1777,7 @@ def search_document_by_title(
     try:
         resp = requests.get(
             OPENALEX_API_URL,
-            params={"search": query_clean, "per-page": 5},
+            params={"search": query_clean, "per-page": 5, "mailto": _openalex_mailto()},
             headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
             timeout=25,
         )
@@ -1464,8 +1791,23 @@ def search_document_by_title(
                 continue
 
             primary = work.get("primary_location") or {}
-            source_obj = primary.get("source") or {}
+            best_oa_loc = work.get("best_oa_location") or {}
+            source_obj = primary.get("source") or best_oa_loc.get("source") or {}
             journal = _clean_text(source_obj.get("display_name") or "OpenAlex")
+            work_issns = _collect_unique_issns(
+                [
+                    (primary.get("source") or {}).get("issn_l"),
+                    (primary.get("source") or {}).get("issn"),
+                    (best_oa_loc.get("source") or {}).get("issn_l"),
+                    (best_oa_loc.get("source") or {}).get("issn"),
+                ]
+            )
+            work_src_type = str(source_obj.get("type") or "").strip().lower()
+            work_venue_type = (
+                "journal"
+                if work_src_type == "journal" or work_issns
+                else ("repository" if work_src_type == "repository" else "")
+            )
             pub_date = _clean_text(work.get("publication_date") or str(work.get("publication_year") or ""))
             cited = int(work.get("cited_by_count") or 0)
             raw_fwci = work.get("fwci")
@@ -1509,21 +1851,26 @@ def search_document_by_title(
                 f"OA 후보 위치 {len(loc_candidates)}곳)"
             )
             for p_url, l_url in loc_candidates[:6]:
-                cand = SourceCandidate(
-                    title=w_title,
-                    url=l_url or p_url or (f"https://doi.org/{doi}" if doi else ""),
-                    source_name=f"{journal} (OpenAlex OA)",
-                    theme_id=theme_id,
-                    published=pub_date[:10],
-                    authors=authors,
-                    abstract=_reconstruct_openalex_abstract(work.get("abstract_inverted_index"))[:1500],
-                    pdf_url=p_url,
-                    pmc_id=pmc_id,
-                    source_kind="review",
-                    doi=doi,
-                    cited_by_count=cited,
-                    fwci=fwci_val,
-                    top_percentile_label=pct_label,
+                cand = _enrich_candidate_with_wos(
+                    SourceCandidate(
+                        title=w_title,
+                        url=l_url or p_url or (f"https://doi.org/{doi}" if doi else ""),
+                        source_name=f"{journal} (OpenAlex OA)",
+                        theme_id=theme_id,
+                        published=pub_date[:10],
+                        authors=authors,
+                        abstract=_reconstruct_openalex_abstract(work.get("abstract_inverted_index"))[:1500],
+                        pdf_url=p_url,
+                        pmc_id=pmc_id,
+                        source_kind="review",
+                        doi=doi,
+                        cited_by_count=cited,
+                        fwci=fwci_val,
+                        top_percentile_label=pct_label,
+                        issns=work_issns,
+                        venue_type=work_venue_type,
+                    ),
+                    journal_name=journal,
                 )
                 doc = fetch_full_document(cand)
                 if doc is not None:

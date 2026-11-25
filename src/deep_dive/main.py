@@ -27,12 +27,18 @@ from deep_dive.gemini_pool import GeminiClientPool
 from deep_dive.models import CurationDecision, CuratedPick, FetchedDocument
 from deep_dive.notifier import build_deep_dive_telegram_message, notify_deep_dive_telegram
 from deep_dive.sources import (
+    build_curator_pool,
     collect_candidates_for_theme,
     fetch_full_document,
     load_manual_source,
     search_document_by_title,
 )
-from deep_dive.themes import CORE_THEME_IDS, THEME_SLOTS, resolve_theme_slot
+from deep_dive.themes import (
+    CORE_THEME_IDS,
+    LEGACY_THEME_ID_ALIASES,
+    THEME_SLOTS,
+    resolve_theme_slot,
+)
 from deep_dive.web_publisher import (
     load_covered_urls_from_pages,
     publish_deep_dive,
@@ -59,7 +65,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--theme",
         default="auto",
-        choices=["auto", *THEME_SLOTS.keys()],
+        choices=["auto", *THEME_SLOTS.keys(), *LEGACY_THEME_ID_ALIASES.keys()],
         help="테마 슬롯 선택 (auto=KST 요일별 로테이션)",
     )
     parser.add_argument(
@@ -257,10 +263,12 @@ def main() -> int:
             usage_tracker=usage_tracker,
             gemini_pool=gemini_pool,
         )
-        fresh_pool = [
-            c for c in candidates if c.url.strip().rstrip("/") not in covered_urls
-        ] or candidates
-        pool = fresh_pool[:35]
+        pool = build_curator_pool(
+            candidates=candidates,
+            covered_urls=covered_urls,
+            theme=theme,
+            max_pool=35,
+        )
 
         print(
             f"   -> 선별 모드: {decision.mode} | 세부 주제: {decision.sub_subject_kr}\n"
@@ -317,7 +325,11 @@ def main() -> int:
                     for idx, c in enumerate(pool, start=1)
                     if idx not in tried_indices
                 ),
-                key=lambda pair: (0 if (pair[1].pmc_id or pair[1].pdf_url) else 1, pair[0]),
+                key=lambda pair: (
+                    0 if (pair[1].pmc_id or pair[1].pdf_url) else 1,
+                    0 if pair[1].is_wos_core else 1,
+                    pair[0],
+                ),
             )
             for _, cand in prioritized[:10]:
                 doc = fetch_full_document(cand)
@@ -536,6 +548,7 @@ def main() -> int:
             {
                 "title": d.candidate.title,
                 "source": d.candidate.source_name,
+                "wos_editions": list(d.candidate.wos_editions),
                 "text_source": d.text_source,
                 "char_count": d.char_count,
                 "has_pdf": d.pdf_bytes is not None,

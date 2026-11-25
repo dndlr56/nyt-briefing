@@ -301,10 +301,26 @@ def render_study_note_markdown(
         f'briefing_mode: "{mode_label}"',
         f'author: "{_yaml_escape(primary_author)}"',
     ]
+    merged_wos_editions: list[str] = []
+    merged_wos_cats: list[str] = []
+    for d in docs:
+        for ed in d.candidate.wos_editions:
+            if ed and ed not in merged_wos_editions:
+                merged_wos_editions.append(ed)
+        for cat in d.candidate.wos_categories:
+            if cat and cat not in merged_wos_cats:
+                merged_wos_cats.append(cat)
+
     if primary_url:
         lines.append(f'source_url: "{_yaml_escape(primary_url)}"')
     if web_article_url:
         lines.append(f'web_url: "{_yaml_escape(web_article_url)}"')
+    if merged_wos_editions:
+        lines.append(f'wos_index: "{" · ".join(merged_wos_editions)}"')
+    if merged_wos_cats:
+        lines.append("wos_categories:")
+        for wcat in merged_wos_cats[:5]:
+            lines.append(f'  - "{_yaml_escape(wcat)}"')
     lines.append("tags:")
     for tg in raw_tags[:5]:
         lines.append(f'  - "{_yaml_escape(tg)}"')
@@ -381,9 +397,10 @@ def render_study_note_markdown(
     lines.extend(["## 📚 원문 출처", ""])
     for d in docs:
         pub_part = f", {d.candidate.published}" if d.candidate.published else ""
+        wos_part = f"[{d.candidate.wos_badge}] " if d.candidate.wos_badge else ""
         pdf_part = f" · [PDF]({d.candidate.pdf_url})" if d.candidate.pdf_url else ""
         lines.append(
-            f"- **{_escape_md_tildes(d.candidate.title)}** ({_escape_md_tildes(d.candidate.source_name)}{pub_part}) — "
+            f"- {wos_part}**{_escape_md_tildes(d.candidate.title)}** ({_escape_md_tildes(d.candidate.source_name)}{pub_part}) — "
             f"[원문 보기]({d.candidate.url}){pdf_part}"
         )
 

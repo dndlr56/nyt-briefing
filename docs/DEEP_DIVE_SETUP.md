@@ -15,12 +15,12 @@
 
 | 요일 | 테마 ID | 분야 | 고퀄리티 1차 소스 및 탐색 기간 |
 | :--- | :--- | :--- | :--- |
-| 월 | `ai_tech` | AI·기술·사회 | OpenAlex FWCI/상위권(**2년**), Semantic Scholar 실질인용(**2년**), arXiv 관련도순(**6~9개월**), Nature MI·DeepMind·MIT Tech Review |
-| 화 | `science_mind` | 종합과학·뇌인지 | OpenAlex FWCI 리뷰(**4년**), Europe PMC 고인용 OA(**4년**), Semantic Scholar 인지심리(**4년**), Quanta·Nature·Science Advances |
-| 수 | `health_medicine` | 의학·건강·장수 | Europe PMC 고인용 리뷰·메타분석(**4년**), OpenAlex FWCI 리뷰(**4년**), Nature Medicine·eLife |
-| 목 | `econ_geopolitics` | 경제·금융·지정학 | OpenAlex 행동재무·거시·지정학(**3~4년**), Semantic Scholar 경제(**4년**), NBER·BIS·IMF·Brookings·RAND·CSIS, arXiv(`q-fin`/`econ`) |
-| 금 | `law_cases` | 인문·철학·역사·제도 | OpenAlex·Semantic Scholar 철학·윤리·문화진화·역사·헌정·법제도 고인용 OA 리뷰(최근 5년), Works in Progress, Aeon Essays, Just Security |
-| 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**5년**), Semantic Scholar 명작(**5년**), Aeon·Quanta·Foreign Affairs·Just Security·Brookings *(웹 리더 발행 시 내용에 맞는 위 5개 핵심 탭 중 하나에 자동 배정)* |
+| 월 | `ai_tech` | AI·기술·사회 | OpenAlex FWCI/상위권(**2년**), Semantic Scholar 실질인용(**2년**), arXiv 관련도순(**6~9개월**), Nature MI·DeepMind·Epoch AI |
+| 화 | `science_mind` | 종합과학·뇌인지 | OpenAlex FWCI 리뷰(**4년**), Europe PMC 고인용 OA(**4년**), Semantic Scholar 인지심리(**4년**), Quanta·Nature·Science Advances·PLOS Biology |
+| 수 | `health_medicine` | 의학·건강·장수 | Europe PMC 고인용 리뷰·메타분석(**4년**), OpenAlex FWCI 리뷰(**4년**), Nature Medicine·PLOS Medicine·eLife |
+| 목 | `econ_geopolitics` | 경제·금융·지정학 | OpenAlex 행동재무·거시·지정학(**3~4년**), Semantic Scholar 경제(**4년**), NBER·BIS·IMF·Brookings·RAND·CSIS·CEPR VoxEU·NY Fed, arXiv(`q-fin`/`econ`) |
+| 금 | `humanities_society` | 인문·철학·역사·제도 | OpenAlex·Semantic Scholar 철학·윤리·문화진화·역사·헌정·법제도 고인용 OA 리뷰(최근 5년, AHCI·SSCI 우선), Stanford Encyclopedia of Philosophy, Works in Progress, Aeon Essays, Just Security |
+| 토·일 | `weekend_special` | 주말 무제한 스페셜 | OpenAlex 교차분야 랜드마크 리뷰(**5년**), Semantic Scholar 명작(**5년**), Aeon·Quanta·Works in Progress·Our World in Data·Just Security·Brookings *(웹 리더 발행 시 내용에 맞는 위 5개 핵심 탭 중 하나에 자동 배정)* |
 
 > **아카이브 탭 정책**: 웹 리더(`deep/index.html`)에는 별도의 '주말 무제한 스페셜' 탭을 두지 않고 **전체 + 5대 핵심 분야 탭**만 노출합니다. 주말 슬롯이나 수동 지정(`source_url`/`search_title`) 문헌은 Stage 1에서 원문 성격에 가장 맞는 핵심 탭으로 자동 분류됩니다.
 >

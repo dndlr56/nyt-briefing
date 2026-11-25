@@ -30,7 +30,8 @@ def build_deep_dive_telegram_message(
 
     bullets = "\n".join(f"• {esc(b)}" for b in note.tldr_bullets)
     sources = "\n".join(
-        f"  - {esc(d.candidate.source_name)}: <a href=\"{esc(d.candidate.url, quote=True)}\">{esc(d.candidate.title[:70])}</a>"
+        f"  - {'[' + esc(d.candidate.wos_badge) + '] ' if d.candidate.wos_badge else ''}"
+        f"{esc(d.candidate.source_name)}: <a href=\"{esc(d.candidate.url, quote=True)}\">{esc(d.candidate.title[:70])}</a>"
         for d in docs
     )
 

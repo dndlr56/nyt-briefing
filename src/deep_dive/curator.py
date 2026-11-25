@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from deep_dive.gemini_pool import GeminiClientPool
 from deep_dive.models import CurationDecision, SourceCandidate
+from deep_dive.sources import build_curator_pool
 from deep_dive.themes import ThemeSlot
 from usage_tracker import RunUsageTracker
 
@@ -29,6 +30,10 @@ CURATOR_SYSTEM_INSTRUCTION = """당신은 서울대학교 철학·심리학 전�
 [선별 원칙]
 - 단순 단신 뉴스, 보도자료, 지엽적 실험(예: 특정 마우스 유전자 하나만 건드린 초미세 논문)은 제외하세요.
 - 패러다임적 통찰, 리뷰/서베이/메타분석, 랜드마크 판례, 거시 보고서, 장문 에세이를 최우선으로 고르세요.
+- **학술 저널 권위 검증(Web of Science Core Collection)**:
+  - 학술 저널 논문 간 비교 시 **`WoS: SCIE` / `SSCI` / `AHCI`** 핵심 색인 등재 저널을 최우선으로 삼으세요.
+  - `WoS: ESCI` 단독 저널이나 `WoS 미등재 저널`은 압도적인 학술적·실무적 가치가 명백한 예외가 아니면 핵심 색인 저널보다 후순위로 두세요.
+  - 단, **AI·CS 탑 학회·arXiv 프리프린트, NBER·BIS·IMF·Brookings·RAND·CSIS 정책 보고서, Quanta·Aeon·Works in Progress·Just Security 장문 에세이** 등 비저널 권위 소스는 WoS 등재 대상이 아니므로 내용과 출처 권위 자체로 동등하게 평가하세요.
 - **적응형 밀도 판단(mode)**:
   - `single_deep_dive`: 한 편 자체가 묵직한 대형 리뷰 논문, 정책 보고서, 랜드마크 판례, 심층 장문 에세이인 경우 1편만 선택.
   - `multi_synthesis`: 개별 길이가 비교적 짧거나 서로 같은 핵심 쟁점을 다른 각도에서 보완하는 논문/글 2~3편을 엮을 때 훨씬 큰 통찰이 나오는 경우 2~3편 선택.
@@ -49,18 +54,26 @@ def curate_candidates(
     gemini_pool: GeminiClientPool | None = None,
 ) -> CurationDecision:
     """수집된 후보 중 이미 다룬 URL을 제외하고 오늘의 문헌 1~3편과 순위별 백업을 선별합니다."""
-    seen = {u.strip().rstrip("/") for u in (covered_urls or set()) if u}
-    fresh = [c for c in candidates if c.url.strip().rstrip("/") not in seen]
-    if not fresh:
-        fresh = candidates
-    if not fresh:
+    pool = build_curator_pool(
+        candidates=candidates,
+        covered_urls=covered_urls,
+        theme=theme,
+        max_pool=35,
+    )
+    if not pool:
         raise RuntimeError(f"테마 '{theme.theme_id}'에서 선별할 후보 문헌이 없습니다.")
 
-    # 컨텍스트 효율을 위해 최대 35건까지만 선별 프롬프트에 투입
-    pool = fresh[:35]
     lines: list[str] = []
     for idx, c in enumerate(pool, start=1):
         badges: list[str] = []
+        if c.wos_editions:
+            badges.append(f"WoS: {c.wos_badge}")
+            if c.wos_categories:
+                badges.append("WoS분야: " + ", ".join(c.wos_categories[:2]))
+        elif (c.venue_type or "").lower() == "journal":
+            badges.append("WoS 미등재 저널")
+        if c.journal_if_approx is not None and c.journal_if_approx > 0:
+            badges.append(f"저널IF≈{c.journal_if_approx:.1f}")
         if c.top_percentile_label:
             badges.append(f"분야 {c.top_percentile_label}")
         if c.fwci is not None and c.fwci > 0:
@@ -84,8 +97,8 @@ def curate_candidates(
     prompt = (
         f"오늘의 테마: {theme.emoji} {theme.label_kr} ({theme.theme_id})\n"
         f"테마 큐레이션 가이드:\n{theme.focus_prompt}\n\n"
-        "최신성 자체보다 **학계·실무에서 검증·주목받은 고퀄리티 원전(높은 FWCI, 분야 상위 1~10%, 높은 실질 인용 수, "
-        "대표 리뷰/서베이, 랜드마크 판례·법조 심층 칼럼·에세이)**을 우선적으로 고르세요.\n\n"
+        "최신성 자체보다 **학계·실무에서 검증·주목받은 고퀄리티 원전(WoS SCIE/SSCI/AHCI 등재 저널, 높은 FWCI, 분야 상위 1~10%, "
+        "높은 실질 인용 수, 대표 리뷰/서베이, 권위 있는 정책 보고서·장문 에세이)**을 우선적으로 고르세요.\n\n"
         f"아래 {len(pool)}편의 후보 중 가장 지적 가치가 높고 전문(Full-text) 분석 가치가 뛰어난 "
         "1순위 문헌(single_deep_dive 1편 또는 multi_synthesis 2~3편)을 고르고, "
         "1순위 추출 실패 시 대체할 2~3순위 `backup_picks` 2~3편도 함께 JSON으로 응답해 주세요.\n\n"

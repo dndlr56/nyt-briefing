@@ -21,7 +21,12 @@ from deep_dive.models import (
     FetchedDocument,
     resolve_section_headings,
 )
-from deep_dive.themes import CORE_THEME_IDS, THEME_SLOTS, ThemeSlot
+from deep_dive.themes import (
+    CORE_THEME_IDS,
+    THEME_SLOTS,
+    ThemeSlot,
+    normalize_theme_id,
+)
 
 
 KST = timezone(timedelta(hours=9))
@@ -171,7 +176,12 @@ def render_study_note_body_html(
 
     sources_items = "".join(
         "<li>"
-        f"<strong>{esc(d.candidate.title)}</strong> "
+        + (
+            f"<span class='wos-badge'>{esc(d.candidate.wos_badge)}</span> "
+            if d.candidate.wos_badge
+            else ""
+        )
+        + f"<strong>{esc(d.candidate.title)}</strong> "
         f"<span class='src-venue'>({esc(d.candidate.source_name)}{', ' + esc(d.candidate.published) if d.candidate.published else ''})</span> "
         f"<a href='{esc(d.candidate.url, quote=True)}' target='_blank' rel='noopener'>원문 보기</a>"
         + (
@@ -609,6 +619,18 @@ def render_article_page_from_parts(
     .tag.muted, .badge.outline {{
       background: transparent;
       color: var(--ink-muted);
+    }}
+    .wos-badge {{
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.1rem 0.44rem;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      vertical-align: middle;
     }}
     .subtitle {{
       font-family: var(--font-serif);
@@ -1083,7 +1105,7 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
 
     counts_by_theme: dict[str, int] = {tid: 0 for tid in CORE_THEME_IDS}
     for ep in episodes:
-        tid = ep.get("theme_id", "")
+        tid = normalize_theme_id(ep.get("theme_id", ""))
         if tid in counts_by_theme:
             counts_by_theme[tid] += 1
 
@@ -1099,8 +1121,13 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
 
     cards: list[str] = []
     for idx, ep in enumerate(episodes):
-        tid = ep.get("theme_id", "")
-        theme_label = ep.get("theme_label", tid)
+        tid = normalize_theme_id(ep.get("theme_id", ""))
+        slot_for_ep = THEME_SLOTS.get(tid)
+        theme_label = (
+            f"{slot_for_ep.emoji} {slot_for_ep.label_kr}"
+            if slot_for_ep is not None and tid in CORE_THEME_IDS
+            else ep.get("theme_label", tid)
+        )
         sub_subject = ep.get("sub_subject_kr", "")
         article_href = f"posts/{esc(ep['article_filename'], quote=True)}"
         dur = (
@@ -1115,7 +1142,10 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
         clean_title = re.sub(r"^\[[^\]]+\]\s*", "", raw_title)
         clean_title = re.sub(r"\s*\|\s*\d{4}\.\d{2}\.\d{2}$", "", clean_title).strip() or raw_title
 
-        search_blob = f"{clean_title} {ep.get('subtitle_kr', '')} {sub_subject} {ep.get('summary_plain', '')}".lower()
+        wos_editions_ep = ep.get("wos_editions") or []
+        wos_badge_ep = " · ".join(str(e) for e in wos_editions_ep if e) if isinstance(wos_editions_ep, list) else ""
+
+        search_blob = f"{clean_title} {ep.get('subtitle_kr', '')} {sub_subject} {wos_badge_ep} {ep.get('summary_plain', '')}".lower()
         featured_cls = " featured" if idx == 0 else ""
         featured_tag = "<span class='latest-tag'>최신 브리핑</span>" if idx == 0 else ""
 
@@ -1130,6 +1160,8 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
         meta_chips = [f"<span class='meta-date'>{esc(date_str)}</span>", f"<span class='meta-chip'>{esc(theme_label)}</span>"]
         if sub_subject:
             meta_chips.append(f"<span class='meta-chip subtle'>{esc(sub_subject)}</span>")
+        if wos_badge_ep:
+            meta_chips.append(f"<span class='meta-chip wos'>{esc(wos_badge_ep)}</span>")
         if cast_summary:
             meta_chips.append(f"<span class='meta-info'>{esc(cast_summary)}</span>")
         meta_chips.append(f"<span class='meta-info'>{esc(dur)}</span>")
@@ -1283,6 +1315,7 @@ def _render_archive_index_html(episodes: list[dict[str, Any]], base_url: str) ->
       font-weight: 600;
     }}
     .meta-chip.subtle {{ background: transparent; border: 1px solid var(--border); font-weight: 500; }}
+    .meta-chip.wos {{ background: var(--accent-soft); color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }}
     .card h2 {{
       margin: 0 0 0.45rem;
       font-size: 1.22rem;
@@ -1497,6 +1530,12 @@ def publish_deep_dive(
     new_source_urls_norm = {
         d.candidate.url.strip().rstrip("/") for d in docs if d.candidate.url.strip()
     }
+    merged_wos_editions: list[str] = []
+    for d in docs:
+        for ed in d.candidate.wos_editions:
+            if ed and ed not in merged_wos_editions:
+                merged_wos_editions.append(ed)
+
     new_entry: dict[str, Any] = {
         "guid": guid,
         "date_slug": date_slug,
@@ -1515,12 +1554,13 @@ def publish_deep_dive(
         "file_size_bytes": mp3_size,
         "duration_seconds": int(duration_seconds),
         "source_urls": [d.candidate.url for d in docs],
+        "wos_editions": merged_wos_editions,
         "summary_plain": f"{note.subtitle_kr} — " + " / ".join(note.tldr_bullets[:2]),
         "description_html": rss_body_html,
     }
 
     def _is_replaced_entry(ep: dict[str, Any]) -> bool:
-        if ep.get("date_slug") == date_slug and ep.get("theme_id") == theme.theme_id:
+        if ep.get("date_slug") == date_slug and normalize_theme_id(ep.get("theme_id", "")) == normalize_theme_id(theme.theme_id):
             return True
         if new_source_urls_norm:
             ep_urls = {

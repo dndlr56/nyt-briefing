@@ -128,7 +128,7 @@ class DeepDivePipelineTests(unittest.TestCase):
             (24, "science_mind"),
             (25, "health_medicine"),
             (26, "econ_geopolitics"),
-            (27, "law_cases"),
+            (27, "humanities_society"),
             (28, "weekend_special"),
             (29, "weekend_special"),
         ]
@@ -137,7 +137,9 @@ class DeepDivePipelineTests(unittest.TestCase):
             slot = resolve_theme_slot("auto", now_kst=dt)
             self.assertEqual(slot.theme_id, expected_id)
 
-        self.assertEqual(resolve_theme_slot("law_cases").theme_id, "law_cases")
+        self.assertEqual(resolve_theme_slot("humanities_society").theme_id, "humanities_society")
+        # 구형 'law_cases' 별칭 하위 호환 검증
+        self.assertEqual(resolve_theme_slot("law_cases").theme_id, "humanities_society")
         with self.assertRaises(ValueError):
             resolve_theme_slot("unknown_theme")
 
@@ -303,9 +305,15 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertIn("법리", law_headings["sec2"])
 
         law_note = _sample_note().model_copy(
-            update={"primary_theme_id": "law_cases", "doc_lens": "law_and_cases", "tags": ["판례", "민법"]}
+            update={"primary_theme_id": "humanities_society", "doc_lens": "law_and_cases", "tags": ["판례", "민법"]}
         )
-        law_theme = resolve_theme_slot("law_cases")
+        # 구형 'law_cases'가 들어와도 validator가 자동으로 'humanities_society'로 정규화하는지 검증
+        legacy_note = DeepDiveStudyNote.model_validate(
+            {**_sample_note().model_dump(), "primary_theme_id": "law_cases"}
+        )
+        self.assertEqual(legacy_note.primary_theme_id, "humanities_society")
+
+        law_theme = resolve_theme_slot("humanities_society")
         decision = CurationDecision(
             mode="single_deep_dive",
             unifying_angle_kr="대법원 판시 법리 분석",
@@ -317,7 +325,7 @@ class DeepDivePipelineTests(unittest.TestCase):
                 title="대법원 2026다99999 판결",
                 url="https://example.kr/scourt/99999",
                 source_name="대한민국 대법원",
-                theme_id="law_cases",
+                theme_id="humanities_society",
             ),
             full_text="판결문 전문 " * 100,
             text_source="html",
@@ -550,11 +558,14 @@ class DeepDivePipelineTests(unittest.TestCase):
             recovered_text, _ = _fetch_core_fulltext_fallback(cand)
         self.assertGreater(len(recovered_text), 2400)
 
-    def test_korean_law_theme_and_hangul_threshold(self) -> None:
+    def test_humanities_society_theme_and_hangul_threshold(self) -> None:
         from deep_dive.sources import _meets_min_length
 
-        fri_slot = resolve_theme_slot("law_cases")
+        fri_slot = resolve_theme_slot("humanities_society")
         self.assertIn("인문", fri_slot.label_kr)
+        self.assertEqual(fri_slot.theme_id, "humanities_society")
+        self.assertIn("AHCI", fri_slot.preferred_wos_editions)
+        self.assertIn("SSCI", fri_slot.preferred_wos_editions)
         self.assertGreaterEqual(len(fri_slot.openalex_queries), 3)
         self.assertGreaterEqual(len(fri_slot.semantic_scholar_queries), 2)
         self.assertTrue(any("worksinprogress.co" in r.url for r in fri_slot.rss_feeds))
@@ -887,14 +898,14 @@ class DeepDivePipelineTests(unittest.TestCase):
                 title="대법원 2026다12345 전원합의체 판결",
                 url="https://example.kr/case/12345",
                 source_name="대한민국 대법원",
-                theme_id="law_cases",
+                theme_id="humanities_society",
             ),
             full_text="판결문 전문 " * 200,
             text_source="html",
         )
         # 1) 순수 ASCII 슬러그 검증 (한글 파일명 금지)
         en_slug = _ascii_post_slug("2026-11-21", "ai_tech", [en_doc])
-        ko_slug = _ascii_post_slug("2026-11-21", "law_cases", [ko_doc])
+        ko_slug = _ascii_post_slug("2026-11-21", "humanities_society", [ko_doc])
         self.assertTrue(en_slug.isascii())
         self.assertTrue(ko_slug.isascii())
         self.assertIn("computational-ethics", en_slug)
@@ -1356,6 +1367,343 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertEqual(paid_ok2.models_called, ["gemini-4-hydrogen"])
         self.assertEqual(tracker2.calls[0].tier, "paid")
         self.assertGreater(tracker2.actual_paid_usd(), 0.0)
+
+    def test_wos_index_lookup_scoring_balanced_pool_and_badges(self) -> None:
+        from deep_dive.drive_archiver import render_study_note_markdown
+        from deep_dive.sources import (
+            build_curator_pool,
+            fetch_openalex_candidates,
+            fetch_semantic_scholar_candidates,
+        )
+        from deep_dive.themes import OpenAlexQuerySpec, SemanticScholarQuerySpec
+        from deep_dive.web_publisher import (
+            _render_archive_index_html,
+            render_study_note_body_html,
+        )
+        from deep_dive.wos_index import compute_wos_rank_score, get_wos_index
+
+        # 1) 컴파일된 WoS Core Collection 경량 인덱스 로드 및 ISSN/저널명 조회 검증
+        wos = get_wos_index()
+        self.assertTrue(wos.is_loaded)
+        self.assertGreater(wos.issn_count, 35000)
+
+        nature_match = wos.lookup(issns=["0028-0836"])
+        self.assertIsNotNone(nature_match)
+        assert nature_match is not None
+        self.assertIn("SCIE", nature_match.editions)
+        self.assertTrue(nature_match.is_core)
+
+        nm_match = wos.lookup(issns=["10788956"])  # 하이픈 없는 ISSN도 정규화 매칭
+        self.assertIsNotNone(nm_match)
+        assert nm_match is not None
+        self.assertIn("SCIE", nm_match.editions)
+
+        self.assertIsNone(wos.lookup(issns=["9999-9999"], journal_title="Nonexistent Predatory Journal"))
+
+        # 2) 테마 정합성 점수 검증: AHCI/SSCI 철학 > ESCI > 비등재 저널, 비저널(학회/에세이) 중립 보호, 의학 잡음 감점
+        fri = resolve_theme_slot("humanities_society")
+        s_ahci_phil = compute_wos_rank_score(
+            ["AHCI"], ["Philosophy", "Ethics"], "journal",
+            fri.preferred_wos_editions, fri.preferred_wos_categories, fri.excluded_wos_categories,
+        )
+        s_scie_surg = compute_wos_rank_score(
+            ["SCIE"], ["Surgery"], "journal",
+            fri.preferred_wos_editions, fri.preferred_wos_categories, fri.excluded_wos_categories,
+        )
+        s_esci = compute_wos_rank_score(
+            ["ESCI"], ["Philosophy"], "journal",
+            fri.preferred_wos_editions, fri.preferred_wos_categories, fri.excluded_wos_categories,
+        )
+        s_unlisted_journal = compute_wos_rank_score(
+            [], [], "journal",
+            fri.preferred_wos_editions, fri.preferred_wos_categories, fri.excluded_wos_categories,
+        )
+        s_conference = compute_wos_rank_score(
+            [], [], "conference",
+            fri.preferred_wos_editions, fri.preferred_wos_categories, fri.excluded_wos_categories,
+        )
+        self.assertGreater(s_ahci_phil, s_esci)
+        self.assertGreater(s_ahci_phil, s_scie_surg)
+        self.assertGreater(s_conference, s_unlisted_journal)
+        self.assertLess(s_unlisted_journal, 0)
+
+        # 3) OpenAlex에서 WoS SCIE 저널이 단순 고인용 비등재 OA 저널보다 상위로 정렬되는지 검증
+        oa_payload = {
+            "results": [
+                {
+                    "display_name": "High-Citation Unlisted OA Paper",
+                    "publication_date": "2025-01-10",
+                    "cited_by_count": 500,
+                    "fwci": 12.0,
+                    "is_retracted": False,
+                    "primary_location": {
+                        "landing_page_url": "https://example.org/unlisted",
+                        "source": {
+                            "display_name": "Random Unlisted Mega Journal",
+                            "type": "journal",
+                            "issn_l": "9999-8888",
+                        },
+                    },
+                    "best_oa_location": {"landing_page_url": "https://example.org/unlisted"},
+                },
+                {
+                    "display_name": "Nature Medicine Clinical Longevity Review",
+                    "publication_date": "2025-02-10",
+                    "cited_by_count": 120,
+                    "fwci": 6.5,
+                    "is_retracted": False,
+                    "primary_location": {
+                        "landing_page_url": "https://example.org/nm",
+                        "source": {
+                            "display_name": "Nature Medicine",
+                            "type": "journal",
+                            "issn_l": "1078-8956",
+                            "issn": ["1078-8956", "1546-170X"],
+                        },
+                    },
+                    "best_oa_location": {"landing_page_url": "https://example.org/nm"},
+                },
+            ]
+        }
+
+        class _FakeResp:
+            def __init__(self, data: dict) -> None:
+                self._data = data
+
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return self._data
+
+        oa_spec = OpenAlexQuerySpec(name="Health OA", search="longevity", prefer_top_10_percent=False)
+        with patch("deep_dive.sources.requests.get", return_value=_FakeResp(oa_payload)):
+            oa_items = fetch_openalex_candidates(oa_spec, theme_id="health_medicine")
+        self.assertEqual(len(oa_items), 2)
+        self.assertEqual(oa_items[0].title, "Nature Medicine Clinical Longevity Review")
+        self.assertIn("SCIE", oa_items[0].wos_editions)
+        self.assertEqual(oa_items[1].wos_editions, [])
+
+        # 4) Semantic Scholar publicationVenue: 컨퍼런스(NeurIPS)는 미등재 저널 페널티 없이 보호
+        s2_payload = {
+            "data": [
+                {
+                    "title": "Frontier Reasoning at Scale",
+                    "url": "https://www.semanticscholar.org/paper/conf1",
+                    "publicationDate": "2025-12-01",
+                    "venue": "NeurIPS",
+                    "publicationVenue": {"name": "NeurIPS", "type": "conference"},
+                    "citationCount": 250,
+                    "influentialCitationCount": 42,
+                    "openAccessPdf": {"url": "https://arxiv.org/pdf/2512.00001.pdf"},
+                    "externalIds": {"ArXiv": "2512.00001"},
+                },
+                {
+                    "title": "Unlisted Journal AI Survey",
+                    "url": "https://www.semanticscholar.org/paper/j1",
+                    "publicationDate": "2025-11-01",
+                    "venue": "Unknown AI Journal",
+                    "publicationVenue": {"name": "Unknown AI Journal", "type": "journal", "issn": "9999-7777"},
+                    "citationCount": 300,
+                    "influentialCitationCount": 50,
+                    "openAccessPdf": {"url": "https://example.org/j1.pdf"},
+                    "externalIds": {},
+                },
+            ]
+        }
+        s2_spec = SemanticScholarQuerySpec(name="S2 AI", query="reasoning")
+        with patch("deep_dive.sources.requests.get", return_value=_FakeResp(s2_payload)):
+            s2_items = fetch_semantic_scholar_candidates(s2_spec, theme_id="ai_tech")
+        self.assertEqual(s2_items[0].title, "Frontier Reasoning at Scale")
+        self.assertEqual(s2_items[0].venue_type, "conference")
+
+        # 5) 35건 균형 풀 빌더: 저널 후보가 40건 넘어도 RSS 에세이/보고서·프리프린트가 절단되지 않아야 함
+        many_journals = [
+            SourceCandidate(
+                title=f"Journal Paper {i}",
+                url=f"https://example.org/j/{i}",
+                source_name="Nature",
+                theme_id="humanities_society",
+                venue_type="journal",
+                wos_editions=["SSCI"],
+                wos_categories=["Philosophy"],
+                cited_by_count=100 - i,
+            )
+            for i in range(40)
+        ]
+        rss_essays = [
+            SourceCandidate(
+                title=f"Aeon Essay {i}",
+                url=f"https://aeon.co/essays/{i}",
+                source_name="Aeon Essays",
+                theme_id="humanities_society",
+                source_kind="essay",
+                venue_type="essay",
+            )
+            for i in range(5)
+        ]
+        pool = build_curator_pool(many_journals + rss_essays, theme=fri, max_pool=35)
+        self.assertEqual(len(pool), 35)
+        self.assertEqual(sum(1 for c in pool if c.venue_type == "essay"), 5)
+
+        # 6) 웹 리더 · Drive 마크다운 · 텔레그램에 WoS 배지 출력 + 아카이브 구형 'law_cases' 정규화 검증
+        wos_doc = FetchedDocument(
+            candidate=SourceCandidate(
+                title="Philosophy of Institutions",
+                url="https://example.org/phil",
+                source_name="Ethics (OpenAlex OA)",
+                theme_id="humanities_society",
+                published="2025-05-01",
+                venue_type="journal",
+                wos_editions=["SSCI", "AHCI"],
+                wos_categories=["Ethics", "Philosophy"],
+            ),
+            full_text="Full text " * 200,
+            text_source="pdf",
+        )
+        note = _sample_note().model_copy(update={"primary_theme_id": "humanities_society"})
+        decision = CurationDecision(
+            mode="single_deep_dive",
+            unifying_angle_kr="제도 철학",
+            sub_subject_kr="철학·제도",
+            picks=[CuratedPick(candidate_index=1, why_selected_kr="AHCI·SSCI 핵심 리뷰")],
+        )
+        body_html = render_study_note_body_html(note, [wos_doc], fri, decision)
+        self.assertIn("SSCI · AHCI", body_html)
+        self.assertIn("class='wos-badge'", body_html)
+
+        md = render_study_note_markdown("2026-11-27", fri, decision, note, [wos_doc])
+        self.assertIn('wos_index: "SSCI · AHCI"', md)
+        self.assertIn("[SSCI · AHCI] **Philosophy of Institutions**", md)
+
+        tg_msg = build_deep_dive_telegram_message("2026-11-27", fri, decision, note, [wos_doc])
+        self.assertIn("[SSCI · AHCI]", tg_msg)
+
+        archive_html = _render_archive_index_html(
+            episodes=[
+                {
+                    "theme_id": "law_cases",
+                    "theme_label": "🏛️ 인문·철학·역사·제도",
+                    "title": "과거 에피소드",
+                    "subtitle_kr": "부제",
+                    "article_filename": "old.html",
+                    "date_slug": "2026-11-20",
+                    "wos_editions": ["AHCI"],
+                }
+            ],
+            base_url="https://dndlr56.github.io/nyt-briefing/deep",
+        )
+        self.assertIn("data-theme='humanities_society'", archive_html)
+        self.assertNotIn("data-theme='law_cases'", archive_html)
+        self.assertIn("<span class='meta-chip wos'>AHCI</span>", archive_html)
+
+    def test_pymupdf_trafilatura_journal_if_and_rss_notice_filter(self) -> None:
+        import pymupdf
+        from deep_dive.sources import (
+            _extract_html_article_and_pdf_link,
+            _fetch_openalex_source_metrics,
+            extract_text_from_pdf_bytes,
+            fetch_rss_candidates,
+        )
+        from deep_dive.themes import RssFeedSpec, THEME_SLOTS
+
+        # 1) PyMuPDF 기반 PDF 텍스트 추출 검증 (실제 메모리 PDF 생성)
+        pdf_doc = pymupdf.open()
+        page = pdf_doc.new_page()
+        page.insert_text((72, 72), "PyMuPDF academic two-column extraction verification text.")
+        pdf_bytes = pdf_doc.tobytes()
+        pdf_doc.close()
+        extracted_pdf = extract_text_from_pdf_bytes(pdf_bytes)
+        self.assertIn("PyMuPDF academic two-column extraction", extracted_pdf)
+
+        # 2) trafilatura 본문 추출 검증 (사이드바·네비게이션 노이즈 제거)
+        long_body = " ".join(
+            [
+                "Institutional economics explains how formal rules and informal social norms shape long-run economic performance."
+            ]
+            * 10
+        )
+        sample_html = (
+            f"<html><body><nav>Home Menu Login</nav>"
+            f"<article><h1>Institutional Economics</h1><p>{long_body}</p></article>"
+            f"<footer>Copyright 2026</footer></body></html>"
+        ).encode("utf-8")
+
+        class _FakeHtmlResp:
+            content = sample_html
+            headers = {"Content-Type": "text/html; charset=utf-8"}
+            encoding = "utf-8"
+            apparent_encoding = "utf-8"
+
+            def raise_for_status(self) -> None:
+                return None
+
+        with patch("deep_dive.sources.requests.get", return_value=_FakeHtmlResp()):
+            extracted_html, _ = _extract_html_article_and_pdf_link("https://example.org/essay")
+        self.assertIn("Institutional economics explains", extracted_html)
+        self.assertNotIn("Home Menu Login", extracted_html)
+
+        # 3) OpenAlex /sources 배치 조회로 2yr_mean_citedness(IF 근사치) 추출 검증
+        class _FakeSourcesResp:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return {
+                    "results": [
+                        {
+                            "id": "https://openalex.org/S114265899",
+                            "summary_stats": {"2yr_mean_citedness": 14.84},
+                        }
+                    ]
+                }
+
+        with patch("deep_dive.sources.requests.get", return_value=_FakeSourcesResp()):
+            if_map = _fetch_openalex_source_metrics(["https://openalex.org/S114265899"])
+        self.assertEqual(if_map.get("S114265899"), 14.8)
+
+        # 4) 학술 저널 RSS에서 Correction:/Retraction: 정정 공지 자동 배제 검증
+        plos_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <entry>
+            <title>Correction: Some Old Study</title>
+            <link href="https://journals.plos.org/plosmedicine/article?id=10.1371/corr" />
+            <updated>2026-11-20T00:00:00Z</updated>
+          </entry>
+          <entry>
+            <title>Cardiorespiratory Fitness and Longevity Meta-Analysis</title>
+            <link href="https://journals.plos.org/plosmedicine/article?id=10.1371/real" />
+            <updated>2026-11-20T00:00:00Z</updated>
+          </entry>
+        </feed>"""
+
+        class _FakeRssResp:
+            content = plos_xml
+
+            def raise_for_status(self) -> None:
+                return None
+
+        plos_spec = RssFeedSpec(
+            name="PLOS Medicine",
+            url="https://journals.plos.org/plosmedicine/feed/atom",
+            source_kind="paper",
+            issn="1549-1676",
+            lookback_days=3650,
+        )
+        with patch("deep_dive.sources.requests.get", return_value=_FakeRssResp()):
+            plos_items = fetch_rss_candidates(plos_spec, theme_id="health_medicine")
+        self.assertEqual(len(plos_items), 1)
+        self.assertIn("Cardiorespiratory Fitness", plos_items[0].title)
+        self.assertIn("SCIE", plos_items[0].wos_editions)
+
+        # 5) 하드 페이월 피드(Foreign Affairs, MIT Technology Review) 제거 확인
+        all_feed_names = {rf.name for slot in THEME_SLOTS.values() for rf in slot.rss_feeds}
+        self.assertNotIn("Foreign Affairs", all_feed_names)
+        self.assertNotIn("MIT Technology Review", all_feed_names)
+        self.assertIn("Stanford Encyclopedia of Philosophy", all_feed_names)
+        self.assertIn("PLOS Medicine", all_feed_names)
+        self.assertIn("CEPR VoxEU", all_feed_names)
+        self.assertIn("Epoch AI", all_feed_names)
 
 
 if __name__ == "__main__":
