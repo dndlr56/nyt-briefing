@@ -553,10 +553,11 @@ class DeepDivePipelineTests(unittest.TestCase):
     def test_korean_law_theme_and_hangul_threshold(self) -> None:
         from deep_dive.sources import _meets_min_length
 
-        law_slot = resolve_theme_slot("law_cases")
-        self.assertIn("대한민국", law_slot.label_kr)
-        self.assertTrue(all(oq.language == "ko" for oq in law_slot.openalex_queries))
-        self.assertGreaterEqual(len(law_slot.html_lists), 3)
+        fri_slot = resolve_theme_slot("law_cases")
+        self.assertIn("인문", fri_slot.label_kr)
+        self.assertGreaterEqual(len(fri_slot.openalex_queries), 3)
+        self.assertGreaterEqual(len(fri_slot.semantic_scholar_queries), 2)
+        self.assertTrue(any("worksinprogress.co" in r.url for r in fri_slot.rss_feeds))
 
         korean_article = "대한민국 대법원 전원합의체 판결의 법리적 의의와 헌법적 쟁점을 상세히 검토한다. " * 30
         self.assertTrue(_meets_min_length(korean_article, min_chars=2400))

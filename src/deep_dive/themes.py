@@ -455,93 +455,93 @@ THEME_SLOTS: dict[str, ThemeSlot] = {
     ),
     "law_cases": ThemeSlot(
         theme_id="law_cases",
-        label_kr="대한민국 법학·판례·법조 칼럼",
-        emoji="⚖️",
+        label_kr="인문·철학·역사·제도",
+        emoji="🏛️",
         weekdays=(4,),  # 금요일
         focus_prompt=(
-            "대한민국 법학전문대학원(로스쿨) 입학 예정자를 위한 **100% 대한민국 법 중심** 트랙입니다. "
-            "미국·유럽 등 해외 단독 판례나 해외 사법 뉴스는 배제하고, 반드시 **대한민국 헌법·민법·형법·행정법·상법·노동법·지식재산권법**과 "
-            "직결되는 글을 고르세요. 학술 논문뿐만 아니라 **법리적 시사점이 큰 대법원 전원합의체/중요 판결, 헌법재판소 결정, "
-            "법률신문·법조신문·법률저널의 심층 판례 해설·사설·법조 칼럼**을 최우선으로 선별하세요. "
-            "(단순 인사 발령, 행사 안내, 수험 학원 홍보성 기사는 제외하세요.)"
+            "폭넓은 지적 교양과 인문·사회과학적 통찰을 기르기 위한 **100% 글로벌 인문·철학·역사·제도** 트랙입니다. "
+            "① 철학·윤리학·인식론·정치철학(정의론, 합리성, 과학철학, 자유의지), "
+            "② 역사·문명사·문화진화·인류학·사회학(국가·제도의 기원, 사회적 신뢰와 협력, 장기 문명 패턴), "
+            "③ 법경제학·헌정주의·사회규범·거버넌스(제도와 인센티브, 권력·규범의 작동 원리)를 다루는 "
+            "**엄밀한 1차 학술 리뷰 논문·연구를 최우선(약 70%)**으로 선별하고, "
+            "Works in Progress·Aeon 등의 **깊이 있는 역사·제도·철학 장문 에세이(약 30%)**를 균형 있게 보완하세요. "
+            "(단순 시사 단신이나 의학·순수 컴퓨터공학 논문은 배제하세요.)"
         ),
         openalex_queries=(
             OpenAlexQuerySpec(
-                name="OpenAlex 한국 헌법·공법·헌재 판례평석 OA",
-                search="헌법재판소 대법원 위헌 기본권 행정법 판례 평석",
-                sub_topic_hint="대한민국 헌법·행정법·공법 판례평석",
+                name="OpenAlex Philosophy, Ethics & Political Theory OA",
+                search="political philosophy ethics justice epistemology",
+                sub_topic_hint="철학·윤리학·정치철학·인식론 (FWCI/상위권)",
                 lookback_years=5,
-                min_citations=2,
+                min_citations=25,
                 prefer_top_10_percent=False,
-                language="ko",
                 max_results=8,
             ),
             OpenAlexQuerySpec(
-                name="OpenAlex 한국 민법·형법·상법·AI법 학술논문 OA",
-                search="민법 형법 상법 대법원 전원합의체 손해배상 인공지능 저작권",
-                sub_topic_hint="대한민국 민·형·상법·신기술 법리",
+                name="OpenAlex Cultural Evolution & Social Norms OA",
+                search="cultural evolution social norms cooperation institutions",
+                sub_topic_hint="문화진화·역사·사회규범·협력 (FWCI/상위권)",
                 lookback_years=5,
-                min_citations=2,
+                min_citations=30,
                 prefer_top_10_percent=False,
-                language="ko",
+                max_results=8,
+            ),
+            OpenAlexQuerySpec(
+                name="OpenAlex Constitutionalism, Law & Institutional Design OA",
+                search="constitutionalism rule of law institutional governance",
+                sub_topic_hint="헌정주의·법제도·거버넌스 (FWCI/상위권)",
+                lookback_years=5,
+                min_citations=25,
+                prefer_top_10_percent=False,
                 max_results=8,
             ),
         ),
-        html_lists=(
-            HtmlListSpec(
-                name="법률신문 (판결·법원·헌재)",
-                url="https://www.lawtimes.co.kr/news/articleList.html?sc_section_code=S1N1",
-                link_pattern=r"articleView\.html\?idxno=\d+",
-                source_kind="case_law",
-                sub_topic_hint="대한민국 대법원·하급심 주요 판결 및 법조 쟁점",
-                authority_tier=1,
-                max_items=10,
+        semantic_scholar_queries=(
+            SemanticScholarQuerySpec(
+                name="Semantic Scholar Philosophy & Political Theory OA",
+                query="political philosophy moral theory rationality justice",
+                sub_topic_hint="실질 인용 최상위 철학·정치이론",
+                lookback_years=5,
+                min_citations=25,
+                fields_of_study=("Philosophy", "Political Science"),
+                max_results=6,
             ),
-            HtmlListSpec(
-                name="법률신문 (오피니언·칼럼·판례해설)",
-                url="https://www.lawtimes.co.kr/news/articleList.html?sc_section_code=S1N3",
-                link_pattern=r"articleView\.html\?idxno=\d+",
-                source_kind="legal_column",
-                sub_topic_hint="대한민국 법학자·법조인 사설·칼럼·판례해설",
-                authority_tier=1,
-                max_items=10,
-            ),
-            HtmlListSpec(
-                name="법조신문 (대한변호사협회)",
-                url="https://news.koreanbar.or.kr/news/articleList.html",
-                link_pattern=r"articleView\.html\?idxno=\d+",
-                source_kind="legal_column",
-                sub_topic_hint="대한변협 법조 현안·입법·판례 분석",
-                authority_tier=1,
-                max_items=10,
-            ),
-            HtmlListSpec(
-                name="대한민국 대법원 판례속보",
-                url="https://www.scourt.go.kr/portal/news/NewsListAction.work?gubun=4&type=5",
-                link_pattern=r"NewsViewAction\.work\?.*seqnum=\d+",
-                source_kind="case_law",
-                sub_topic_hint="대법원 중요 판결·전원합의체 요지 공식 속보",
-                authority_tier=1,
-                max_items=8,
+            SemanticScholarQuerySpec(
+                name="Semantic Scholar Historical Institutions & Law OA",
+                query="historical institutions cultural evolution constitutional law social norms",
+                sub_topic_hint="실질 인용 최상위 역사·제도·법이론",
+                lookback_years=5,
+                min_citations=25,
+                fields_of_study=("History", "Sociology", "Law"),
+                max_results=6,
             ),
         ),
         rss_feeds=(
             RssFeedSpec(
-                name="법률저널 (로스쿨·법조)",
-                url="https://www.lec.co.kr/rss/S1N2.xml",
-                source_kind="legal_column",
-                sub_topic_hint="로스쿨·법조계 심층 기사 및 동향",
-                authority_tier=2,
+                name="Works in Progress",
+                url="https://worksinprogress.co/rss.xml",
+                source_kind="essay",
+                sub_topic_hint="역사·제도사·기술진보 장문 에세이",
+                authority_tier=1,
                 max_items=8,
-                lookback_days=180,
+                lookback_days=365,
             ),
             RssFeedSpec(
-                name="법률저널 (연재·법학 칼럼)",
-                url="https://www.lec.co.kr/rss/S1N5.xml",
-                source_kind="legal_column",
-                sub_topic_hint="법학 연재 칼럼 및 판례 평석",
-                authority_tier=2,
+                name="Aeon Essays",
+                url="https://aeon.co/feed.rss",
+                source_kind="essay",
+                sub_topic_hint="철학·역사·인문·사회 장문 에세이",
+                authority_tier=1,
                 max_items=8,
+                lookback_days=365,
+            ),
+            RssFeedSpec(
+                name="Just Security",
+                url="https://www.justsecurity.org/feed/",
+                source_kind="legal_column",
+                sub_topic_hint="국제법·헌정·권력·거버넌스 심층 분석",
+                authority_tier=2,
+                max_items=5,
                 lookback_days=180,
             ),
         ),

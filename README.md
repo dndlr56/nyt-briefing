@@ -29,7 +29,7 @@
 
 매일 오전 **07:30 KST** ([`.github/workflows/deep_dive_briefing.yml`](.github/workflows/deep_dive_briefing.yml)) 실행
 
-- **요일별 테마 로테이션** ([`src/deep_dive/themes.py`](src/deep_dive/themes.py)): 월(`ai_tech` AI·기술·사회) · 화(`science_mind` 종합과학·뇌인지) · 수(`health_medicine` 의학·건강·장수) · 목(`econ_geopolitics` 경제·금융·지정학) · 금(`law_cases` 대한민국 법학·판례·법조 칼럼) · 토/일(`weekend_special` 주말 스페셜 → 내용에 맞는 5대 핵심 탭에 자동 분류).
+- **요일별 테마 로테이션** ([`src/deep_dive/themes.py`](src/deep_dive/themes.py)): 월(`ai_tech` AI·기술·사회) · 화(`science_mind` 종합과학·뇌인지) · 수(`health_medicine` 의학·건강·장수) · 목(`econ_geopolitics` 경제·금융·지정학) · 금(`law_cases` 인문·철학·역사·제도) · 토/일(`weekend_special` 주말 스페셜 → 내용에 맞는 5대 핵심 탭에 자동 분류).
 - **고품질 1차 문헌 수집** ([`src/deep_dive/sources.py`](src/deep_dive/sources.py)): OpenAlex(FWCI·상위 백분위), Semantic Scholar, Europe PMC, CORE v3, arXiv, Unpaywall OA 미러 및 대법원 판례·법률 매체를 결합하며, 수동 실행 시 `source_url` 또는 `search_title`로 특정 논문/기사/PDF를 직접 지정할 수 있습니다.
 - **3단계 생성 & 무료→유료 자동 전환** ([`src/deep_dive/curator.py`](src/deep_dive/curator.py), [`src/deep_dive/writer.py`](src/deep_dive/writer.py), [`src/deep_dive/gemini_pool.py`](src/deep_dive/gemini_pool.py)):
   - 문헌 선별(`gemini-3.5-flash-lite`) → Stage 1 원문 충실 요약 노트·분류·캐스팅(`gemini-4-hydrogen`, `thinking=high`) → Stage 2 2인 대화형 장문 대본(`gemini-4-hydrogen`, `thinking=low`, 분량에 따라 25~45분 자동 조절·최대 60분).

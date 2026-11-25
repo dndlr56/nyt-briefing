@@ -238,7 +238,7 @@ class DeepDiveStudyNote(BaseModel):
             "이 문헌이 가장 정확히 속하는 5대 핵심 아카이브 분야 중 하나: "
             "'ai_tech'(AI·기술·사회), 'science_mind'(종합과학·뇌인지), "
             "'health_medicine'(의학·건강·장수), 'econ_geopolitics'(경제·금융·지정학), "
-            "'law_cases'(대한민국 법학·판례·법조 칼럼)"
+            "'law_cases'(인문·철학·역사·제도)"
         )
     )
     doc_lens: DocumentLensType = Field(
