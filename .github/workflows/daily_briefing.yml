@@ -2,8 +2,8 @@ name: NYT Morning Briefing
 
 on:
   schedule:
-    # 매일 한국시간(KST, UTC+9) 오전 6시 27분 = UTC 21시 27분 (GitHub Actions 크론 지연 고려해 ~30분 앞당김 + 비정각 분)
-    - cron: '27 21 * * *'
+    # 매일 한국시간(KST, UTC+9) 오전 6시 33분 = UTC 21시 33분 (기존 07:00 대비 27분 앞당김 + 비정각 분)
+    - cron: '33 21 * * *'
   workflow_dispatch:
     inputs:
       mode:

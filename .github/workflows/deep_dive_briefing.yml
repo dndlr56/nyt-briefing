@@ -2,9 +2,9 @@ name: Deep Dive Knowledge Briefing
 
 on:
   schedule:
-    # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오전 6시 57분 = UTC 21시 57분
-    # (GitHub Actions 크론 지연 고려해 ~30분 앞당김 + 비정각 분, 모닝 브리핑과 30분 간격 + concurrency 그룹으로 gh-pages 충돌 방지)
-    - cron: '57 21 * * *'
+    # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오전 7시 03분 = UTC 22시 03분
+    # (기존 07:30 대비 27분 앞당김 + 비정각 분, 모닝 브리핑과 30분 간격 + concurrency 그룹으로 gh-pages 충돌 방지)
+    - cron: '3 22 * * *'
   workflow_dispatch:
     inputs:
       theme:
