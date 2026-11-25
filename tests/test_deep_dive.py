@@ -1233,6 +1233,129 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertEqual(seen_calls[1]["input"], "full_doc_plus_part_prompt")
         self.assertEqual(seen_calls[1]["system_instruction"], "sys_inst")
 
+    def test_morning_briefing_pool_free_alt_and_accurate_tier_tracking(self) -> None:
+        import os
+        from types import SimpleNamespace
+        from unittest import mock
+        from deep_dive.gemini_pool import GeminiClientPool
+        from usage_tracker import RunUsageTracker
+
+        # 1) free_fallback_model 지정 시 503 3회 백오프 후 유료 대신 경량 무료 모델($0) 우선 성공
+        pool = GeminiClientPool(free_api_key="free", paid_api_key="paid", mode="auto")
+        tracker = RunUsageTracker(api_tier="free")
+
+        class _FreeAltInteractions:
+            def __init__(self, fail_alt: bool = False) -> None:
+                self.fail_alt = fail_alt
+                self.models_called: list[str] = []
+
+            def create(self, **kwargs: object) -> object:
+                model_name = str(kwargs.get("model", ""))
+                self.models_called.append(model_name)
+                if model_name == "gemini-4-hydrogen" or self.fail_alt:
+                    raise RuntimeError("503 UNAVAILABLE: high demand")
+                return SimpleNamespace(
+                    output_text="ok-alt",
+                    usage={
+                        "total_input_tokens": 5000,
+                        "total_cached_tokens": 0,
+                        "total_output_tokens": 500,
+                        "total_thought_tokens": 0,
+                        "total_tokens": 5500,
+                    },
+                )
+
+        class _PaidOkInteractions:
+            def __init__(self) -> None:
+                self.models_called: list[str] = []
+
+            def create(self, **kwargs: object) -> object:
+                self.models_called.append(str(kwargs.get("model", "")))
+                return SimpleNamespace(
+                    output_text="ok-paid",
+                    usage={
+                        "total_input_tokens": 10000,
+                        "total_cached_tokens": 0,
+                        "total_output_tokens": 4000,
+                        "total_thought_tokens": 0,
+                        "total_tokens": 14000,
+                    },
+                )
+
+        free_alt = _FreeAltInteractions(fail_alt=False)
+        paid_ok = _PaidOkInteractions()
+        pool._free_client = SimpleNamespace(interactions=free_alt)  # type: ignore[assignment]
+        pool._paid_client = SimpleNamespace(interactions=paid_ok)  # type: ignore[assignment]
+
+        with mock.patch("deep_dive.gemini_pool.time.sleep"):
+            _, tier1 = pool.create_interaction(
+                model="gemini-4-hydrogen",
+                stage="기사 선별",
+                usage_tracker=tracker,
+                free_fallback_model="gemini-3.5-flash-lite",
+                input="headlines",
+            )
+        self.assertEqual(tier1, "free")
+        self.assertEqual(paid_ok.models_called, [])
+        self.assertEqual(free_alt.models_called[-1], "gemini-3.5-flash-lite")
+        self.assertEqual(tracker.calls[-1].model, "gemini-3.5-flash-lite")
+        self.assertEqual(tracker.actual_paid_usd(), 0.0)
+
+        # 2) Stage 2가 503 지속으로 유료 1회 우회되고 TTS는 무료로 실행되면 정확한 혼합 티어 집계
+        with mock.patch.dict(os.environ, {"GEMINI_API_TIER": "auto", "GEMINI_FREE_API_KEY": "free"}, clear=False):
+            with mock.patch("deep_dive.gemini_pool.time.sleep"):
+                _, tier2 = pool.create_interaction(
+                    model="gemini-4-hydrogen",
+                    stage="요약+오디오 대본",
+                    usage_tracker=tracker,
+                    input="articles",
+                )
+            self.assertEqual(tier2, "paid")
+            self.assertTrue(tracker.fallback_to_paid)
+            self.assertEqual(paid_ok.models_called, ["gemini-4-hydrogen"])
+            # TTS 호출은 여전히 무료로 성공
+            _, tier_tts = pool.create_interaction(
+                model="gemini-3.8-flash-lite-tts",
+                stage="TTS Part 1/1",
+                usage_tracker=tracker,
+                input="tts text",
+            )
+            self.assertEqual(tier_tts, "free")
+            tracker.set_tts(
+                provider="gemini_tts",
+                voice="Kore",
+                chars=6000,
+                model="gemini-3.8-flash-lite-tts",
+                tier=pool.active_tier_for("gemini-3.8-flash-lite-tts"),
+            )
+            self.assertTrue(tracker.is_mixed_tier)
+            self.assertGreater(tracker.actual_paid_usd(), 0.0)
+            self.assertIn("무료 티어 $0", tracker._tts_cost_label())
+            self.assertNotIn("무료 한도 초과", tracker._tts_cost_label())
+            html_report = tracker.format_show_notes_html()
+            self.assertIn("무료 2회($0) + 유료 우회 1회", html_report)
+            self.assertIn("무료 티어 $0", html_report)
+            self.assertEqual(tracker.api_tier, "free")
+
+        # 3) free_fallback_model도 실패하면 원래 모델로 유료 1회 우회
+        pool2 = GeminiClientPool(free_api_key="free", paid_api_key="paid", mode="auto")
+        tracker2 = RunUsageTracker(api_tier="free")
+        paid_ok2 = _PaidOkInteractions()
+        pool2._free_client = SimpleNamespace(interactions=_FreeAltInteractions(fail_alt=True))  # type: ignore[assignment]
+        pool2._paid_client = SimpleNamespace(interactions=paid_ok2)  # type: ignore[assignment]
+        with mock.patch("deep_dive.gemini_pool.time.sleep"):
+            _, tier_fb = pool2.create_interaction(
+                model="gemini-4-hydrogen",
+                stage="기사 선별",
+                usage_tracker=tracker2,
+                free_fallback_model="gemini-3.5-flash-lite",
+                input="headlines",
+            )
+        self.assertEqual(tier_fb, "paid")
+        self.assertEqual(paid_ok2.models_called, ["gemini-4-hydrogen"])
+        self.assertEqual(tracker2.calls[0].tier, "paid")
+        self.assertGreater(tracker2.actual_paid_usd(), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

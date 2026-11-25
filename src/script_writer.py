@@ -7,18 +7,12 @@ import os
 import time
 from typing import List
 
-from google import genai
 from pydantic import BaseModel, Field, ValidationError
 
 from curator import CuratedArticle, DailyBriefing
+from deep_dive.gemini_pool import GeminiClientPool
 from guardian_fetcher import FullArticle
-from usage_tracker import (
-    RunUsageTracker,
-    get_paid_api_key_if_available,
-    is_rate_limit_error,
-    is_transient_server_error,
-    try_switch_to_paid_key,
-)
+from usage_tracker import RunUsageTracker
 
 
 KST = timezone(timedelta(hours=9))
@@ -100,6 +94,7 @@ def write_roundup_script(
     articles: list[FullArticle],
     model: str | None = None,
     usage_tracker: RunUsageTracker | None = None,
+    gemini_pool: GeminiClientPool | None = None,
 ) -> RoundupAudioScript:
     """선별된 10~12개 기사로 설명란 요약 + 15~18분 분량 1인 앵커 해설 대본을 한 번에 생성합니다."""
     if not articles:
@@ -111,7 +106,7 @@ def write_roundup_script(
         or os.getenv("GEMINI_MODEL")
         or DEFAULT_SCRIPT_MODEL
     )
-    client = genai.Client(http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
+    client_pool = gemini_pool or GeminiClientPool()
 
     today_kst = datetime.now(KST).strftime("%Y년 %m월 %d일 (%a)")
     today_title_date = datetime.now(KST).strftime("%Y.%m.%d")
@@ -140,12 +135,12 @@ def write_roundup_script(
     )
 
     last_exc: Exception | None = None
-    free_503_waits = [5, 15, 30]
-    free_503_attempts = 0
-    for attempt in range(1, 7):
+    for attempt in range(1, 3):
         try:
-            interaction = client.interactions.create(
+            interaction, _ = client_pool.create_interaction(
                 model=selected_model,
+                stage="요약+오디오 대본",
+                usage_tracker=usage_tracker,
                 system_instruction=SCRIPT_SYSTEM_INSTRUCTION,
                 input=prompt,
                 response_mime_type="application/json",
@@ -156,8 +151,6 @@ def write_roundup_script(
                 },
                 store=False,
             )
-            if usage_tracker is not None:
-                usage_tracker.add_interaction(interaction, stage="요약+오디오 대본", model=selected_model)
 
             raw_json = interaction.output_text
             if not raw_json:
@@ -167,38 +160,9 @@ def write_roundup_script(
         except (ValidationError, Exception) as exc:
             last_exc = exc
 
-        if attempt < 6:
-            if is_rate_limit_error(last_exc):
-                if attempt >= 2:
-                    paid_key = try_switch_to_paid_key()
-                    if paid_key:
-                        client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
-                        continue
-                wait_sec = 20
-            elif is_transient_server_error(last_exc):
-                if free_503_attempts < len(free_503_waits):
-                    wait_sec = free_503_waits[free_503_attempts]
-                    free_503_attempts += 1
-                    print(
-                        f"      [WARN] Script generation 무료 티어 503 과부하 ({free_503_attempts}/{len(free_503_waits)}) -> "
-                        f"{wait_sec}초 후 재시도..."
-                    )
-                    time.sleep(wait_sec)
-                    continue
-                paid_key = get_paid_api_key_if_available()
-                if paid_key:
-                    os.environ["GEMINI_FALLBACK_USED"] = "1"
-                    print("      [FAILOVER-ONCE] Script generation 무료 티어 503 지속 -> 이번 호출만 유료 1회 우회")
-                    client = genai.Client(api_key=paid_key, http_options={"api_version": "v1beta", "retry_options": {"attempts": 1}})
-                    continue
-                wait_sec = 15
-            else:
-                wait_sec = 3 * attempt
-            print(
-                f"      [WARN] Script generation failed (attempt {attempt}/5): {last_exc}. "
-                f"Retrying in {wait_sec}s..."
-            )
-            time.sleep(wait_sec)
+        if attempt < 2:
+            print(f"      [WARN] Script JSON validation failed ({last_exc}). Retrying...")
+            time.sleep(3)
 
     raise RuntimeError(f"방송 대본 생성 실패: {last_exc}")
 

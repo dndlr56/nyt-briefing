@@ -604,6 +604,8 @@ def generate_audio_from_segments(
     style: str | None = None,
     max_gemini_parts: int | None = None,
     pause_seconds: float = SEGMENT_PAUSE_SECONDS,
+    gemini_pool: object | None = None,
+    usage_tracker: object | None = None,
 ) -> GeneratedAudio:
     """임의의 (라벨, 발화 텍스트) 세그먼트 리스트를 단일 MP3 파일로 합성합니다."""
     provider = (tts_provider or os.getenv("TTS_PROVIDER") or DEFAULT_TTS_PROVIDER).strip().lower()
@@ -644,38 +646,76 @@ def generate_audio_from_segments(
 
     if provider == "gemini_tts":
         try:
+            from deep_dive.gemini_pool import GeminiClientPool
+
             selected_model = tts_model or os.getenv("GEMINI_TTS_MODEL", DEFAULT_GEMINI_TTS_MODEL)
             selected_style = style if style is not None else os.getenv("GEMINI_TTS_STYLE", DEFAULT_ANCHOR_STYLE)
-            client = genai.Client(http_options={"api_version": "v1beta"})
+            pool = gemini_pool if isinstance(gemini_pool, GeminiClientPool) else GeminiClientPool()
 
             part_limit = max_gemini_parts if max_gemini_parts is not None else GEMINI_TTS_MAX_PARTS
             grouped_parts = _group_segments_balanced(cleaned_segments, max_parts=part_limit)
 
             last_call_start = 0.0
             for idx, part_text in enumerate(grouped_parts, start=1):
-                api_tier = (os.getenv("GEMINI_API_TIER") or "paid").strip().lower()
-                min_interval = GEMINI_TTS_MIN_INTERVAL_SECONDS if api_tier == "free" else 0.0
+                min_interval = (
+                    GEMINI_TTS_MIN_INTERVAL_SECONDS
+                    if pool.is_free_tier_for(selected_model)
+                    else 0.5
+                )
                 if idx > 1 and min_interval > 0:
                     elapsed = time.monotonic() - last_call_start
                     if elapsed < min_interval:
                         sleep_sec = min_interval - elapsed
-                        print(
-                            f"      [Gemini TTS] Free-tier RPM pacing: waiting {sleep_sec:.1f}s..."
-                        )
+                        if sleep_sec >= 2.0:
+                            print(
+                                f"      [Gemini TTS] Free-tier RPM pacing: waiting {sleep_sec:.1f}s..."
+                            )
                         time.sleep(sleep_sec)
 
+                part_payload: dict[str, object] = {
+                    "type": "text",
+                    "text": part_text,
+                }
+                if selected_style and selected_style.strip():
+                    part_payload["annotations"] = [
+                        {
+                            "type": "speech_metadata",
+                            "style": selected_style.strip(),
+                        }
+                    ]
+
+                active_tier = pool.active_tier_for(selected_model)
                 last_call_start = time.monotonic()
                 print(
                     f"      [Gemini TTS] Part {idx}/{len(grouped_parts)} "
-                    f"({len(part_text)} chars, model={selected_model}, voice={selected_voice})..."
+                    f"({len(part_text)} chars, model={selected_model}, voice={selected_voice}, tier={active_tier})..."
                 )
-                wav_bytes, client = _synthesize_gemini_tts_part(
-                    client=client,
-                    text=part_text,
+                interaction, _ = pool.create_interaction(
                     model=selected_model,
-                    voice=selected_voice,
-                    style=selected_style,
+                    stage=f"TTS Part {idx}/{len(grouped_parts)}",
+                    usage_tracker=usage_tracker,  # type: ignore[arg-type]
+                    input=[part_payload],
+                    response_format={"type": "audio"},
+                    generation_config={
+                        "speech_config": [
+                            {"voice": selected_voice},
+                        ]
+                    },
+                    store=False,
                 )
+                output_audio = getattr(interaction, "output_audio", None)
+                raw_data = getattr(output_audio, "data", None) if output_audio is not None else None
+                if not raw_data:
+                    raise RuntimeError(
+                        "Gemini TTS API 응답에서 오디오 데이터를 찾지 못했습니다."
+                    )
+                if isinstance(raw_data, bytes):
+                    wav_bytes = raw_data
+                elif isinstance(raw_data, str):
+                    wav_bytes = base64.b64decode(raw_data)
+                else:
+                    raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
+
                 part_dur = _get_wav_duration_seconds(wav_bytes)
                 audio_parts.append(wav_bytes)
                 total_duration += part_dur
@@ -759,6 +799,8 @@ def generate_audio_briefing(
     voice: str | None = None,
     tts_model: str | None = None,
     style: str | None = None,
+    gemini_pool: object | None = None,
+    usage_tracker: object | None = None,
 ) -> GeneratedAudio:
     """라운드업 대본을 단일 앵커 목소리로 합성해 하나의 MP3 파일로 결합합니다."""
     segments = get_script_segments(script)
@@ -769,6 +811,8 @@ def generate_audio_briefing(
         voice=voice,
         tts_model=tts_model,
         style=style,
+        gemini_pool=gemini_pool,
+        usage_tracker=usage_tracker,
     )
 
 

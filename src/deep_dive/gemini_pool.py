@@ -205,26 +205,37 @@ class GeminiClientPool:
         cached_tier: str | None = None,
         fallback_input: Any = None,
         fallback_system_instruction: str | None = None,
+        free_fallback_model: str | None = None,
         **create_kwargs: Any,
     ) -> tuple[Any, str]:
         """
         client.interactions.create(...)를 호출하며:
         - SDK 내부 암묵적 재시도를 비활성화하고 각 호출에 기본 180초 타임아웃을 적용해 hang을 방지합니다.
         - 무료 티어 한도 도달, 타임아웃, 또는 반복 503 시 유료 프로젝트로 자동 전환합니다.
+        - free_fallback_model 지정 시 무료 티어에서 503/할당량 초과가 나면 유료 전환 전에
+          지정된 경량 모델을 무료 티어($0)로 1회 먼저 시도합니다.
         - cached_content 지정 시 동일 티어에서만 사용하고, 티어 전환 또는 캐시 오류 시 자동으로 일반 입력으로 폴백합니다.
         반환: (interaction, actual_tier)
         """
         last_exc: Exception | None = None
         rpm_waited_on_free = False
-        free_503_waits = [5, 15, 30]
+        free_503_waits = [10, 20, 40]
         free_503_attempts = 0
         override_tier_once: str | None = None
+        override_model_once: str | None = None
+        free_fallback_model_tried = False
         disable_cache = False
 
-        max_total_attempts = max(max_retries + 2, 6)
+        alt_free_model = (free_fallback_model or "").strip()
+        if alt_free_model == model:
+            alt_free_model = ""
+
+        max_total_attempts = max(max_retries + 4, 8)
         for attempt in range(1, max_total_attempts):
             tier = override_tier_once or self.active_tier_for(model)
             override_tier_once = None
+            active_model = override_model_once or model
+            override_model_once = None
             client = self._get_client(tier)
             call_kwargs = dict(create_kwargs)
             call_kwargs.setdefault("timeout", timeout)
@@ -233,6 +244,7 @@ class GeminiClientPool:
                 cached_content
                 and cached_tier
                 and tier == cached_tier
+                and active_model == model
                 and not disable_cache
             )
             if use_cache:
@@ -248,10 +260,12 @@ class GeminiClientPool:
 
             started_at = time.monotonic()
             try:
-                interaction = client.interactions.create(model=model, **call_kwargs)
+                interaction = client.interactions.create(model=active_model, **call_kwargs)
                 if usage_tracker is not None:
+                    if tier == "paid" and self.mode != "paid" and self.has_free_key:
+                        usage_tracker.fallback_to_paid = True
                     usage_tracker.add_interaction(
-                        interaction, stage=stage, model=model, tier=tier
+                        interaction, stage=stage, model=active_model, tier=tier
                     )
                 return interaction, tier
             except Exception as exc:
@@ -284,22 +298,47 @@ class GeminiClientPool:
                     "503" in err_lower
                     or "unavailable" in err_lower
                     or "overloaded" in err_lower
+                    or "high demand" in err_lower
                     or "internalservererror" in exc_name_lower
                 )
 
-                if tier == "free" and is_quota and self.has_paid_fallback:
-                    # 일일 한도(RPD) 소진이거나 이미 1회 RPM 대기를 거쳤다면 즉시 유료 프로젝트로 전환
-                    if _is_hard_daily_quota_error(exc) or rpm_waited_on_free:
-                        self.switch_group_to_paid(model, reason=str(exc)[:140])
+                # 무료 경량 대체 모델 1회 시도가 실패한 경우 -> 원래 모델로 유료 우회(가능 시) 또는 중단
+                if tier == "free" and active_model != model:
+                    if self.has_paid_fallback:
+                        msg = (
+                            f"[{_model_group(model)}] {stage} 무료 대체 모델({active_model})도 실패 "
+                            f"({type(exc).__name__}) -> 이번 호출만 유료({model}) 1회 우회"
+                        )
+                        self.failover_events.append(msg)
+                        print(f"      [FAILOVER-ONCE] {msg}")
+                        override_tier_once = "paid"
                         continue
-                    # 일시적 분당 제한(RPM) 가능성: 1회만 짧게 대기 후 재시도, 다시 막히면 유료 전환
-                    rpm_waited_on_free = True
-                    print(
-                        f"      [WARN] {stage} 무료 티어 속도 제한(429, {elapsed:.1f}s) -> 22초 대기 후 재시도 "
-                        "(재발 시 유료 프로젝트로 자동 전환)..."
-                    )
-                    time.sleep(22)
-                    continue
+                    break
+
+                if tier == "free" and is_quota:
+                    # 일일 한도(RPD) 소진이거나 이미 1회 RPM 대기를 거쳤다면
+                    if _is_hard_daily_quota_error(exc) or rpm_waited_on_free:
+                        if alt_free_model and not free_fallback_model_tried:
+                            free_fallback_model_tried = True
+                            print(
+                                f"      [FREE-ALT] {stage} 무료 {model} 할당량 초과 -> "
+                                f"유료 전환 전 무료 {alt_free_model}($0) 1회 우선 시도..."
+                            )
+                            override_tier_once = "free"
+                            override_model_once = alt_free_model
+                            continue
+                        if self.has_paid_fallback:
+                            self.switch_group_to_paid(model, reason=str(exc)[:140])
+                            continue
+                    # 일시적 분당 제한(RPM) 가능성: 1회만 짧게 대기 후 재시도, 다시 막히면 대체/유료 전환
+                    if self.has_paid_fallback or (alt_free_model and not free_fallback_model_tried):
+                        rpm_waited_on_free = True
+                        print(
+                            f"      [WARN] {stage} 무료 티어 속도 제한(429, {elapsed:.1f}s) -> 22초 대기 후 재시도 "
+                            "(재발 시 대체/유료 전환)..."
+                        )
+                        time.sleep(22)
+                        continue
 
                 if tier == "free" and is_timeout and self.has_paid_fallback:
                     # 이미 180초를 대기했으므로 무료 티어에서 또 3분을 낭비하지 않고 즉시 유료로 전환
@@ -309,7 +348,7 @@ class GeminiClientPool:
                     )
                     continue
 
-                if tier == "free" and is_503 and self.has_paid_fallback:
+                if tier == "free" and is_503 and (self.has_paid_fallback or (alt_free_model and not free_fallback_model_tried)):
                     if free_503_attempts < len(free_503_waits):
                         wait_s = free_503_waits[free_503_attempts]
                         free_503_attempts += 1
@@ -318,6 +357,15 @@ class GeminiClientPool:
                             f"{wait_s}초 후 재시도 ({free_503_attempts}/{len(free_503_waits)})..."
                         )
                         time.sleep(wait_s)
+                        continue
+                    if alt_free_model and not free_fallback_model_tried:
+                        free_fallback_model_tried = True
+                        print(
+                            f"      [FREE-ALT] {stage} 무료 {model} 503 지속 -> "
+                            f"유료 우회 전 무료 {alt_free_model}($0) 1회 우선 시도..."
+                        )
+                        override_tier_once = "free"
+                        override_model_once = alt_free_model
                         continue
                     # 3회 백오프 후에도 무료 서버 과부하가 지속되면 이번 호출 1회만 유료로 처리하고 다음 단계는 다시 무료 우선
                     msg = f"[{_model_group(model)}] {stage} 무료 티어 503 지속 -> 이번 호출만 유료 1회 우회"
