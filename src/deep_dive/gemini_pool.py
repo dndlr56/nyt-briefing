@@ -42,6 +42,20 @@ def _is_hard_daily_quota_error(exc: Exception) -> bool:
     )
 
 
+FAST_503_THRESHOLD_SEC = 1.5
+FREE_503_COOLDOWN_SEC = 180.0
+FREE_503_NORMAL_WAITS = (10, 25)
+FREE_503_FAST_FAIL_MAX_CONSECUTIVE = 2
+
+
+def _format_exc_brief(exc: Exception, limit: int = 140) -> str:
+    """예외 메시지를 한 줄 요약 문자열로 정규화합니다."""
+    text = " ".join(str(exc).split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
 def _model_group(model: str) -> str:
     return "tts" if "tts" in (model or "").lower() else "text"
 
@@ -85,6 +99,8 @@ class GeminiClientPool:
         self._free_client: genai.Client | None = None
         self._paid_client: genai.Client | None = None
         self._group_tier: dict[str, str] = {}
+        self._last_call_tier: dict[str, str] = {}
+        self._group_fast_503_until: dict[str, float] = {}
         self.failover_events: list[str] = []
 
     @property
@@ -109,6 +125,11 @@ class GeminiClientPool:
             tier = "paid" if self.mode == "paid" else "free"
         self._group_tier[group] = tier
         return tier
+
+    def last_tier_for(self, model: str = "") -> str:
+        """지정 모델 그룹의 직전 성공 호출에서 실제로 사용된 티어를 반환합니다."""
+        group = _model_group(model)
+        return self._last_call_tier.get(group, self.active_tier_for(model))
 
     def is_free_tier_for(self, model: str = "") -> bool:
         return self.active_tier_for(model) == "free"
@@ -217,10 +238,13 @@ class GeminiClientPool:
         - cached_content 지정 시 동일 티어에서만 사용하고, 티어 전환 또는 캐시 오류 시 자동으로 일반 입력으로 폴백합니다.
         반환: (interaction, actual_tier)
         """
+        group = _model_group(model)
         last_exc: Exception | None = None
         rpm_waited_on_free = False
-        free_503_waits = [10, 20, 40]
+        free_503_waits = list(FREE_503_NORMAL_WAITS)
         free_503_attempts = 0
+        consecutive_fast_503 = 0
+        in_fast_503_cooldown = self._group_fast_503_until.get(group, 0.0) > time.monotonic()
         override_tier_once: str | None = None
         override_model_once: str | None = None
         free_fallback_model_tried = False
@@ -261,6 +285,9 @@ class GeminiClientPool:
             started_at = time.monotonic()
             try:
                 interaction = client.interactions.create(model=active_model, **call_kwargs)
+                self._last_call_tier[group] = tier
+                if tier == "free" and active_model == model:
+                    self._group_fast_503_until.pop(group, None)
                 if usage_tracker is not None:
                     if tier == "paid" and self.mode != "paid" and self.has_free_key:
                         usage_tracker.fallback_to_paid = True
@@ -273,6 +300,7 @@ class GeminiClientPool:
                 elapsed = time.monotonic() - started_at
                 err_lower = str(exc).lower()
                 exc_name_lower = type(exc).__name__.lower()
+                err_brief = _format_exc_brief(exc)
 
                 # 캐시 만료·권한·파라미터 충돌 시 즉시 캐시를 끄고 일반 입력으로 안전 재시도
                 if use_cache and any(
@@ -282,7 +310,7 @@ class GeminiClientPool:
                     disable_cache = True
                     print(
                         f"      [Cache] {stage} 캐시 호출 실패 -> 일반 입력으로 즉시 폴백 "
-                        f"({type(exc).__name__})"
+                        f"({type(exc).__name__}: {err_brief})"
                     )
                     continue
 
@@ -306,8 +334,8 @@ class GeminiClientPool:
                 if tier == "free" and active_model != model:
                     if self.has_paid_fallback:
                         msg = (
-                            f"[{_model_group(model)}] {stage} 무료 대체 모델({active_model})도 실패 "
-                            f"({type(exc).__name__}) -> 이번 호출만 유료({model}) 1회 우회"
+                            f"[{group}] {stage} 무료 대체 모델({active_model})도 실패 "
+                            f"({type(exc).__name__}: {err_brief}) -> 이번 호출만 유료({model}) 1회 우회"
                         )
                         self.failover_events.append(msg)
                         print(f"      [FAILOVER-ONCE] {msg}")
@@ -321,21 +349,21 @@ class GeminiClientPool:
                         if alt_free_model and not free_fallback_model_tried:
                             free_fallback_model_tried = True
                             print(
-                                f"      [FREE-ALT] {stage} 무료 {model} 할당량 초과 -> "
+                                f"      [FREE-ALT] {stage} 무료 {model} 할당량 초과 ({err_brief}) -> "
                                 f"유료 전환 전 무료 {alt_free_model}($0) 1회 우선 시도..."
                             )
                             override_tier_once = "free"
                             override_model_once = alt_free_model
                             continue
                         if self.has_paid_fallback:
-                            self.switch_group_to_paid(model, reason=str(exc)[:140])
+                            self.switch_group_to_paid(model, reason=err_brief)
                             continue
                     # 일시적 분당 제한(RPM) 가능성: 1회만 짧게 대기 후 재시도, 다시 막히면 대체/유료 전환
                     if self.has_paid_fallback or (alt_free_model and not free_fallback_model_tried):
                         rpm_waited_on_free = True
                         print(
-                            f"      [WARN] {stage} 무료 티어 속도 제한(429, {elapsed:.1f}s) -> 22초 대기 후 재시도 "
-                            "(재발 시 대체/유료 전환)..."
+                            f"      [WARN] {stage} 무료 티어 속도 제한(429, {elapsed:.1f}s: {err_brief}) -> "
+                            "22초 대기 후 재시도 (재발 시 대체/유료 전환)..."
                         )
                         time.sleep(22)
                         continue
@@ -349,26 +377,55 @@ class GeminiClientPool:
                     continue
 
                 if tier == "free" and is_503 and (self.has_paid_fallback or (alt_free_model and not free_fallback_model_tried)):
-                    if free_503_attempts < len(free_503_waits):
+                    is_fast_503 = elapsed < FAST_503_THRESHOLD_SEC
+                    if is_fast_503:
+                        consecutive_fast_503 += 1
+                    else:
+                        consecutive_fast_503 = 0
+
+                    # 최근 3분 내 fast-fail 503 우회 이력이 있고 이번 무료 프로브도 즉시(0.2~1.5s) 거부되면
+                    # 추가 재시도로 일일 무료 한도(20 RPD)를 태우지 않고 즉시 우회합니다.
+                    fast_fail_exhausted = (
+                        (in_fast_503_cooldown and is_fast_503)
+                        or consecutive_fast_503 >= FREE_503_FAST_FAIL_MAX_CONSECUTIVE
+                    )
+
+                    if not fast_fail_exhausted and free_503_attempts < len(free_503_waits):
                         wait_s = free_503_waits[free_503_attempts]
                         free_503_attempts += 1
                         print(
-                            f"      [WARN] {stage} 무료 티어 일시 과부하 ({type(exc).__name__}, {elapsed:.1f}s) -> "
+                            f"      [WARN] {stage} 무료 티어 일시 과부하 "
+                            f"({type(exc).__name__}, {elapsed:.1f}s: {err_brief}) -> "
                             f"{wait_s}초 후 재시도 ({free_503_attempts}/{len(free_503_waits)})..."
                         )
                         time.sleep(wait_s)
                         continue
+
+                    if fast_fail_exhausted:
+                        self._group_fast_503_until[group] = time.monotonic() + FREE_503_COOLDOWN_SEC
+
                     if alt_free_model and not free_fallback_model_tried:
                         free_fallback_model_tried = True
+                        reason_tag = "즉시 503 지속" if fast_fail_exhausted else "503 지속"
                         print(
-                            f"      [FREE-ALT] {stage} 무료 {model} 503 지속 -> "
+                            f"      [FREE-ALT] {stage} 무료 {model} {reason_tag} "
+                            f"({elapsed:.1f}s: {err_brief}) -> "
                             f"유료 우회 전 무료 {alt_free_model}($0) 1회 우선 시도..."
                         )
                         override_tier_once = "free"
                         override_model_once = alt_free_model
                         continue
-                    # 3회 백오프 후에도 무료 서버 과부하가 지속되면 이번 호출 1회만 유료로 처리하고 다음 단계는 다시 무료 우선
-                    msg = f"[{_model_group(model)}] {stage} 무료 티어 503 지속 -> 이번 호출만 유료 1회 우회"
+
+                    # 백오프 또는 fast-fail 감지 후에도 무료 서버 과부하가 지속되면 이번 호출 1회만 유료로 우회하고 다음 단계는 다시 무료 우선
+                    reason_detail = (
+                        f"즉시 503({elapsed:.1f}s) 반복"
+                        if fast_fail_exhausted
+                        else f"503({elapsed:.1f}s) 지속"
+                    )
+                    msg = (
+                        f"[{group}] {stage} 무료 티어 {reason_detail} ({err_brief}) -> "
+                        "이번 호출만 유료 1회 우회"
+                    )
                     self.failover_events.append(msg)
                     print(f"      [FAILOVER-ONCE] {msg}")
                     override_tier_once = "paid"

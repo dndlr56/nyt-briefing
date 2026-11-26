@@ -2,9 +2,9 @@ name: Deep Dive Knowledge Briefing
 
 on:
   schedule:
-    # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오전 7시 03분 = UTC 22시 03분
-    # (기존 07:30 대비 27분 앞당김 + 비정각 분, 모닝 브리핑과 30분 간격 + concurrency 그룹으로 gh-pages 충돌 방지)
-    - cron: '3 22 * * *'
+    # 매일(평일·토·일 포함) 한국시간(KST, UTC+9) 오후 6시 17분 = UTC 09시 17분
+    # (미 서부 심야 01:17 PST / 02:17 PDT 오프피크 + Gemini 무료 RPD 리셋(17:00 KST) 직후 + 모닝 브리핑과 시간대 완전 분리)
+    - cron: '17 9 * * *'
   workflow_dispatch:
     inputs:
       theme:
