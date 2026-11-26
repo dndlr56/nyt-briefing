@@ -1089,7 +1089,8 @@ class DeepDivePipelineTests(unittest.TestCase):
             covered = _load_recent_covered_urls(pdir, max_episodes=3)
             self.assertIn("https://www.theguardian.com/technology/2026/nov/21/anthropic-riemann", covered)
 
-        # 2) Deep Dive 503 과부하 시 3회 백오프 후 이번 호출만 유료 1회 우회, 다음 호출은 다시 무료 유지
+        # 2) Deep Dive 즉시(fast-fail) 503 시 2회 시도(초기 1회 + 1회 재시도) 후 유료 1회 우회,
+        #    3분 쿨다운 내 후속 호출은 1회 프로브 후 즉시 우회, 무료 회복 시 쿨다운 해제
         pool = GeminiClientPool(free_api_key="free", paid_api_key="paid", mode="auto")
 
         class _Fake503:
@@ -1103,17 +1104,70 @@ class DeepDivePipelineTests(unittest.TestCase):
                     raise RuntimeError("503 UNAVAILABLE: overloaded")
                 return SimpleNamespace(output_text="ok", usage=None)
 
-        pool._free_client = SimpleNamespace(interactions=_Fake503(fail_always=True))  # type: ignore[assignment]
-        pool._paid_client = SimpleNamespace(interactions=_Fake503(fail_always=False))  # type: ignore[assignment]
+        free_fake = _Fake503(fail_always=True)
+        paid_fake = _Fake503(fail_always=False)
+        pool._free_client = SimpleNamespace(interactions=free_fake)  # type: ignore[assignment]
+        pool._paid_client = SimpleNamespace(interactions=paid_fake)  # type: ignore[assignment]
 
-        with mock.patch("deep_dive.gemini_pool.time.sleep"):
+        with mock.patch("deep_dive.gemini_pool.time.sleep") as sleep_mock:
             _, tier_used = pool.create_interaction(
                 model="gemini-4-hydrogen", stage="문헌 선별", input="hi"
             )
-        self.assertEqual(tier_used, "paid")
-        self.assertEqual(pool._free_client.interactions.calls, 4)  # 초기 1회 + 백오프 3회
-        # 다음 호출은 여전히 free 티어 우선 유지
-        self.assertEqual(pool.active_tier_for("gemini-4-hydrogen"), "free")
+            self.assertEqual(tier_used, "paid")
+            self.assertEqual(free_fake.calls, 2)  # fast-fail 2회(초기 1회 + 10초 재시도 1회)
+            self.assertEqual(sleep_mock.call_count, 1)
+            self.assertEqual(pool.active_tier_for("gemini-4-hydrogen"), "free")
+            self.assertEqual(pool.last_tier_for("gemini-4-hydrogen"), "paid")
+            self.assertIn("503 UNAVAILABLE: overloaded", pool.failover_events[-1])
+
+            # 쿨다운 내 후속 호출은 1회 무료 프로브만 시도하고 대기 없이 즉시 유료 우회
+            sleep_mock.reset_mock()
+            _, tier_used_2 = pool.create_interaction(
+                model="gemini-4-hydrogen", stage="원문 번역·구조화 요약", input="hi2"
+            )
+            self.assertEqual(tier_used_2, "paid")
+            self.assertEqual(free_fake.calls, 3)  # +1회 프로브만 추가
+            self.assertEqual(sleep_mock.call_count, 0)
+
+            # 무료 티어가 회복되면 1회 프로브에서 즉시 무료 성공 및 쿨다운 해제
+            free_fake.fail_always = False
+            _, tier_used_3 = pool.create_interaction(
+                model="gemini-4-hydrogen", stage="대본 Part 1/3", input="hi3"
+            )
+            self.assertEqual(tier_used_3, "free")
+            self.assertEqual(pool.last_tier_for("gemini-4-hydrogen"), "free")
+            self.assertNotIn("text", pool._group_fast_503_until)
+
+        # 3) 지연(slow, >=1.5s) 503은 일시 과부하로 판단해 10s->25s 2회 백오프(총 3회 시도) 허용
+        slow_pool = GeminiClientPool(free_api_key="free", paid_api_key="paid", mode="auto")
+        slow_attempts = {"n": 0}
+        clock = {"t": 100.0}
+
+        def _fake_monotonic() -> float:
+            return clock["t"]
+
+        class _SlowTransient503:
+            def create(self, **kwargs: object) -> object:
+                slow_attempts["n"] += 1
+                clock["t"] += 5.0  # 5초 처리 후 503 -> fast-fail 아님
+                if slow_attempts["n"] < 3:
+                    raise RuntimeError("503 UNAVAILABLE: transient spike")
+                return SimpleNamespace(output_text="ok-free-3rd", usage=None)
+
+        slow_pool._free_client = SimpleNamespace(interactions=_SlowTransient503())  # type: ignore[assignment]
+        slow_pool._paid_client = SimpleNamespace(interactions=_Fake503(fail_always=False))  # type: ignore[assignment]
+
+        with (
+            mock.patch("deep_dive.gemini_pool.time.monotonic", side_effect=_fake_monotonic),
+            mock.patch("deep_dive.gemini_pool.time.sleep") as slow_sleep,
+        ):
+            res_slow, tier_slow = slow_pool.create_interaction(
+                model="gemini-4-hydrogen", stage="기사 선별", input="hi"
+            )
+        self.assertEqual(tier_slow, "free")
+        self.assertEqual(res_slow.output_text, "ok-free-3rd")
+        self.assertEqual(slow_attempts["n"], 3)
+        self.assertEqual([c.args[0] for c in slow_sleep.call_args_list], [10, 25])
 
     def test_multi_outlet_rss_and_conservative_cross_dedup(self) -> None:
         from datetime import datetime, timezone

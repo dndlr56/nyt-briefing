@@ -336,14 +336,19 @@ def generate_longform_script(
 
     for batch_idx, sec_ids in enumerate(batches, start=1):
         if batch_idx > 1:
+            needs_free_pacing = (
+                pool.is_free_tier_for(selected_model)
+                and pool.last_tier_for(selected_model) == "free"
+            )
             wait_sec = (
                 inter_call_sleep
                 if inter_call_sleep is not None
-                else (22.0 if pool.is_free_tier_for(selected_model) else 1.5)
+                else (22.0 if needs_free_pacing else 1.5)
             )
             if wait_sec > 0:
+                pacing_tier = "free" if needs_free_pacing else pool.last_tier_for(selected_model)
                 print(
-                    f"      [Script] Pacing ({pool.active_tier_for(selected_model)}): "
+                    f"      [Script] Pacing ({pacing_tier}): "
                     f"waiting {wait_sec:.0f}s before Part {batch_idx}/{len(batches)}..."
                 )
                 time.sleep(wait_sec)
