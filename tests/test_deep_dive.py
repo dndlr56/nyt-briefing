@@ -1759,6 +1759,121 @@ class DeepDivePipelineTests(unittest.TestCase):
         self.assertIn("CEPR VoxEU", all_feed_names)
         self.assertIn("Epoch AI", all_feed_names)
 
+    def test_gemini_tts_truncation_detection_and_recovery(self) -> None:
+        import io
+        import wave
+        from types import SimpleNamespace
+        from audio_generator import (
+            _is_tts_audio_truncated,
+            _synthesize_gemini_dialogue_parts,
+            generate_audio_from_segments,
+        )
+        from deep_dive.gemini_pool import GeminiClientPool
+
+        def _make_wav(duration_sec: float, rate: int = 24000) -> bytes:
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(rate)
+                wf.writeframes(b"\x00\x00" * int(rate * duration_sec))
+            return buf.getvalue()
+
+        # 1) 904자 -> 52초 (오늘 실제 장애 수준)는 누락 감지, 125초는 정상, 113자 짧은 클로징은 스킵
+        self.assertTrue(_is_tts_audio_truncated("가" * 904, _make_wav(52.0))[0])
+        self.assertFalse(_is_tts_audio_truncated("가" * 904, _make_wav(125.0))[0])
+        self.assertFalse(_is_tts_audio_truncated("가" * 113, _make_wav(5.0))[0])
+
+        # 2) 단일 화자 모닝 브리핑: 묶인 파트가 짧게 나오면 세그먼트별로 자동 분할 재합성
+        seg1_text = "오프닝입니다. " + ("가" * 260)
+        seg2_text = "첫 번째 기사입니다. " + ("나" * 610)
+        seg3_text = "두 번째 기사입니다. " + ("다" * 600)
+
+        recorded_texts: list[str] = []
+
+        class _FakePool(GeminiClientPool):
+            def __init__(self) -> None:
+                super().__init__(free_api_key="free", paid_api_key="paid", mode="auto")
+
+            def is_free_tier_for(self, model: str = "") -> bool:
+                return False  # 테스트에서 22초 대기 생략
+
+            def create_interaction(self, **kwargs: object) -> tuple[object, str]:
+                inp = kwargs["input"]
+                txt = inp[0]["text"]  # type: ignore[index]
+                recorded_texts.append(txt)
+                # 처음 묶인 (seg1 + seg2) 호출만 비정상적으로 짧은 52초 반환
+                if len(recorded_texts) == 1 and seg1_text in txt and seg2_text in txt:
+                    wav = _make_wav(52.0)
+                else:
+                    wav = _make_wav(max(5.0, len(txt) * 0.14))
+                return SimpleNamespace(output_audio=SimpleNamespace(data=wav)), "free"
+
+        fake_pool = _FakePool()
+        with tempfile.TemporaryDirectory() as tmp:
+            out_mp3 = Path(tmp) / "briefing.mp3"
+            with patch("audio_generator._concat_audio_parts_to_mp3") as mock_concat, patch(
+                "audio_generator._get_media_duration_seconds", return_value=210.0
+            ):
+                def _fake_concat(audio_parts: list[bytes], output_mp3: Path, **kwargs: object) -> None:
+                    output_mp3.write_bytes(b"FAKE_MP3")
+
+                mock_concat.side_effect = _fake_concat
+                generate_audio_from_segments(
+                    segments=[
+                        ("Opening", seg1_text),
+                        ("Story 1", seg2_text),
+                        ("Story 2", seg3_text),
+                    ],
+                    output_mp3=out_mp3,
+                    tts_provider="gemini_tts",
+                    max_gemini_parts=2,
+                    gemini_pool=fake_pool,
+                )
+                # Part 1(seg1+seg2) 실패 후 seg1, seg2 개별 호출 + Part 2(seg3) 호출 = 총 4회 호출, 최종 3개 오디오 파트 결합
+                self.assertEqual(len(recorded_texts), 4)
+                self.assertEqual(recorded_texts[1], seg1_text)
+                self.assertEqual(recorded_texts[2], seg2_text)
+                self.assertEqual(recorded_texts[3], seg3_text)
+                called_parts = mock_concat.call_args.kwargs["audio_parts"]
+                self.assertEqual(len(called_parts), 3)
+
+        # 3) 딥다이브 대화형 TTS: 파트가 짧으면 2등분 분할 재합성
+        dialogue_calls: list[int] = []
+
+        class _FakeDialoguePool(GeminiClientPool):
+            def __init__(self) -> None:
+                super().__init__(free_api_key="free", paid_api_key="paid", mode="auto")
+
+            def is_free_tier_for(self, model: str = "") -> bool:
+                return False
+
+            def create_interaction(self, **kwargs: object) -> tuple[object, str]:
+                inp = kwargs["input"]
+                turn_count = len(inp)  # type: ignore[arg-type]
+                total_chars = sum(len(p["text"]) for p in inp)  # type: ignore[index]
+                dialogue_calls.append(turn_count)
+                # 첫 4턴 일괄 호출만 짧은 30초 반환 -> 2턴 + 2턴으로 분할 재합성 유도
+                if len(dialogue_calls) == 1 and turn_count == 4:
+                    wav = _make_wav(30.0)
+                else:
+                    wav = _make_wav(max(5.0, total_chars * 0.14))
+                return SimpleNamespace(output_audio=SimpleNamespace(data=wav)), "free"
+
+        items = [
+            ("Ch1", "S1" if i % 2 == 0 else "S2", "가" * 250, i == 3)
+            for i in range(4)
+        ]
+        res_parts, _ = _synthesize_gemini_dialogue_parts(
+            dialogue_items=items,
+            voice_map={"S1": "Kore", "S2": "Charon"},
+            gemini_pool=_FakeDialoguePool(),
+        )
+        self.assertEqual(dialogue_calls, [4, 2, 2])
+        self.assertEqual(len(res_parts), 2)
+        self.assertFalse(res_parts[0][1])
+        self.assertTrue(res_parts[1][1])
+
 
 if __name__ == "__main__":
     unittest.main()
