@@ -389,18 +389,33 @@ def _synthesize_cloud_tts_chunk(
     return base64.b64decode(audio_b64)
 
 
-def _group_segments_balanced(
+MIN_TTS_DURATION_CHECK_CHARS = 200
+# 한국어 Gemini TTS 정상 발화 속도는 ~0.13~0.15초/자. 0.085초/자 미만이면 문장/세그먼트 누락 의심.
+MIN_TTS_SECONDS_PER_CHAR = 0.085
+
+
+def _is_tts_audio_truncated(text: str, wav_bytes: bytes) -> tuple[bool, float, float]:
+    """생성된 WAV 길이가 입력 텍스트 길이 대비 비정상적으로 짧은지(구간 스킵 의심) 검사합니다."""
+    char_count = len((text or "").strip())
+    wav_dur = _get_wav_duration_seconds(wav_bytes)
+    if char_count < MIN_TTS_DURATION_CHECK_CHARS or wav_dur <= 0:
+        return False, wav_dur, 0.0
+    min_expected = char_count * MIN_TTS_SECONDS_PER_CHAR
+    return wav_dur < min_expected, wav_dur, min_expected
+
+
+def _group_segment_lists_balanced(
     segments: list[tuple[str, str]],
     max_parts: int = GEMINI_TTS_MAX_PARTS,
-) -> list[str]:
-    """세그먼트 순서를 유지하면서 최대 max_parts개의 균형 잡힌 파트(~2분 내외)로 묶습니다."""
+) -> list[list[str]]:
+    """세그먼트 순서를 유지하면서 최대 max_parts개의 균형 잡힌 세그먼트 그룹으로 묶습니다."""
     texts = [text.strip() for _, text in segments if text and text.strip()]
     if not texts:
         return []
     n = len(texts)
     k = min(n, max(1, max_parts))
     if k == n:
-        return texts
+        return [[t] for t in texts]
 
     # 누적 길이로 DP: 연속 분할 시 가장 긴 파트의 글자 수를 최소화
     prefix = [0] * (n + 1)
@@ -428,7 +443,15 @@ def _group_segments_balanced(
         cur = prev
     bounds.reverse()
 
-    return ["\n\n".join(texts[s:e]) for s, e in bounds]
+    return [texts[s:e] for s, e in bounds]
+
+
+def _group_segments_balanced(
+    segments: list[tuple[str, str]],
+    max_parts: int = GEMINI_TTS_MAX_PARTS,
+) -> list[str]:
+    """세그먼트 순서를 유지하면서 최대 max_parts개의 균형 잡힌 파트(~2분 내외)로 묶습니다."""
+    return ["\n\n".join(group) for group in _group_segment_lists_balanced(segments, max_parts=max_parts)]
 
 
 def _synthesize_gemini_tts_part(
@@ -653,16 +676,18 @@ def generate_audio_from_segments(
             pool = gemini_pool if isinstance(gemini_pool, GeminiClientPool) else GeminiClientPool()
 
             part_limit = max_gemini_parts if max_gemini_parts is not None else GEMINI_TTS_MAX_PARTS
-            grouped_parts = _group_segments_balanced(cleaned_segments, max_parts=part_limit)
+            grouped_seg_lists = _group_segment_lists_balanced(cleaned_segments, max_parts=part_limit)
 
             last_call_start = 0.0
-            for idx, part_text in enumerate(grouped_parts, start=1):
+
+            def _call_gemini_single_tts(text: str, stage_label: str) -> bytes:
+                nonlocal last_call_start
                 min_interval = (
                     GEMINI_TTS_MIN_INTERVAL_SECONDS
                     if pool.is_free_tier_for(selected_model)
                     else 0.5
                 )
-                if idx > 1 and min_interval > 0:
+                if last_call_start > 0 and min_interval > 0:
                     elapsed = time.monotonic() - last_call_start
                     if elapsed < min_interval:
                         sleep_sec = min_interval - elapsed
@@ -674,7 +699,7 @@ def generate_audio_from_segments(
 
                 part_payload: dict[str, object] = {
                     "type": "text",
-                    "text": part_text,
+                    "text": text,
                 }
                 if selected_style and selected_style.strip():
                     part_payload["annotations"] = [
@@ -687,12 +712,12 @@ def generate_audio_from_segments(
                 active_tier = pool.active_tier_for(selected_model)
                 last_call_start = time.monotonic()
                 print(
-                    f"      [Gemini TTS] Part {idx}/{len(grouped_parts)} "
-                    f"({len(part_text)} chars, model={selected_model}, voice={selected_voice}, tier={active_tier})..."
+                    f"      [Gemini TTS] {stage_label} "
+                    f"({len(text)} chars, model={selected_model}, voice={selected_voice}, tier={active_tier})..."
                 )
                 interaction, _ = pool.create_interaction(
                     model=selected_model,
-                    stage=f"TTS Part {idx}/{len(grouped_parts)}",
+                    stage=stage_label,
                     usage_tracker=usage_tracker,  # type: ignore[arg-type]
                     input=[part_payload],
                     response_format={"type": "audio"},
@@ -710,15 +735,51 @@ def generate_audio_from_segments(
                         "Gemini TTS API 응답에서 오디오 데이터를 찾지 못했습니다."
                     )
                 if isinstance(raw_data, bytes):
-                    wav_bytes = raw_data
-                elif isinstance(raw_data, str):
-                    wav_bytes = base64.b64decode(raw_data)
-                else:
-                    raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
+                    return raw_data
+                if isinstance(raw_data, str):
+                    return base64.b64decode(raw_data)
+                raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
 
-                part_dur = _get_wav_duration_seconds(wav_bytes)
-                audio_parts.append(wav_bytes)
-                total_duration += part_dur
+            total_parts = len(grouped_seg_lists)
+            for idx, seg_texts in enumerate(grouped_seg_lists, start=1):
+                part_text = "\n\n".join(seg_texts)
+                wav_bytes = _call_gemini_single_tts(part_text, f"TTS Part {idx}/{total_parts}")
+                is_truncated, wav_dur, min_expected = _is_tts_audio_truncated(part_text, wav_bytes)
+
+                if not is_truncated:
+                    audio_parts.append(wav_bytes)
+                    total_duration += wav_dur
+                    continue
+
+                print(
+                    f"      [WARN] Gemini TTS Part {idx}/{total_parts} appears truncated "
+                    f"({wav_dur:.1f}s < expected >={min_expected:.1f}s for {len(part_text)} chars). "
+                    "Recovering..."
+                )
+                if len(seg_texts) > 1:
+                    for sub_idx, seg_text in enumerate(seg_texts, start=1):
+                        sub_label = f"TTS Part {idx}/{total_parts}.{sub_idx}"
+                        sub_wav = _call_gemini_single_tts(seg_text, sub_label)
+                        sub_trunc, sub_dur, sub_min = _is_tts_audio_truncated(seg_text, sub_wav)
+                        if sub_trunc:
+                            print(
+                                f"      [WARN] {sub_label} still short ({sub_dur:.1f}s < {sub_min:.1f}s); retrying once..."
+                            )
+                            retry_wav = _call_gemini_single_tts(seg_text, f"{sub_label} retry")
+                            retry_dur = _get_wav_duration_seconds(retry_wav)
+                            if retry_dur > sub_dur:
+                                sub_wav, sub_dur = retry_wav, retry_dur
+                        audio_parts.append(sub_wav)
+                        total_duration += sub_dur
+                else:
+                    retry_wav = _call_gemini_single_tts(
+                        part_text, f"TTS Part {idx}/{total_parts} retry"
+                    )
+                    retry_dur = _get_wav_duration_seconds(retry_wav)
+                    if retry_dur > wav_dur:
+                        wav_bytes, wav_dur = retry_wav, retry_dur
+                    audio_parts.append(wav_bytes)
+                    total_duration += wav_dur
         except Exception as gemini_exc:
             if os.getenv("GOOGLE_CLOUD_TTS_CREDENTIALS_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
                 fallback_voice = _normalize_voice_for_provider(selected_voice, "google_cloud_tts")
@@ -987,9 +1048,10 @@ def _synthesize_gemini_dialogue_parts(
     last_call_start = 0.0
     tiers_seen: set[str] = set()
 
-    for idx, (chunk_turns, ends_section) in enumerate(grouped, start=1):
+    def _call_dialogue_chunk(turns: list[tuple[str, str]], stage_label: str) -> bytes:
+        nonlocal last_call_start
         # 무료 티어(3 RPM)일 때만 22초 간격 유지; 유료 티어로 전환되면 즉시 0.5초 간격으로 가속
-        if idx > 1:
+        if last_call_start > 0:
             min_gap = GEMINI_TTS_MIN_INTERVAL_SECONDS if pool.is_free_tier_for(tts_model) else 0.5
             elapsed = time.monotonic() - last_call_start
             if elapsed < min_gap:
@@ -1000,12 +1062,12 @@ def _synthesize_gemini_dialogue_parts(
                     )
                 time.sleep(sleep_sec)
 
-        chunk_speakers = sorted({sp for sp, _ in chunk_turns})
-        chunk_chars = sum(len(t) for _, t in chunk_turns)
+        chunk_speakers = sorted({sp for sp, _ in turns})
+        chunk_chars = sum(len(t) for _, t in turns)
         active_tier = pool.active_tier_for(tts_model)
         print(
-            f"      [Gemini Dialogue TTS] Part {idx}/{len(grouped)} "
-            f"({len(chunk_turns)} turns, {chunk_chars} chars, speakers={chunk_speakers}, "
+            f"      [Gemini Dialogue TTS] {stage_label} "
+            f"({len(turns)} turns, {chunk_chars} chars, speakers={chunk_speakers}, "
             f"model={tts_model}, tier={active_tier})..."
         )
 
@@ -1018,7 +1080,7 @@ def _synthesize_gemini_dialogue_parts(
                 for sp in chunk_speakers
             ]
             input_parts = []
-            for sp, txt in chunk_turns:
+            for sp, txt in turns:
                 meta: dict[str, object] = {"type": "speech_metadata", "speaker": sp}
                 if style and style.strip():
                     meta["style"] = style.strip()
@@ -1033,7 +1095,7 @@ def _synthesize_gemini_dialogue_parts(
             only_sp = chunk_speakers[0]
             only_voice = voice_map.get(only_sp, DEFAULT_GEMINI_DIALOGUE_VOICES.get(only_sp, "Kore"))
             speech_config = [{"voice": only_voice}]
-            merged_text = "\n\n".join(txt for _, txt in chunk_turns)
+            merged_text = "\n\n".join(txt for _, txt in turns)
             part_obj: dict[str, object] = {"type": "text", "text": merged_text}
             if style and style.strip():
                 part_obj["annotations"] = [{"type": "speech_metadata", "style": style.strip()}]
@@ -1042,7 +1104,7 @@ def _synthesize_gemini_dialogue_parts(
         last_call_start = time.monotonic()
         interaction, actual_tier = pool.create_interaction(
             model=tts_model,
-            stage=f"TTS Part {idx}/{len(grouped)}",
+            stage=stage_label,
             usage_tracker=usage_tracker,  # type: ignore[arg-type]
             input=input_parts,
             response_format={"type": "audio"},
@@ -1054,16 +1116,52 @@ def _synthesize_gemini_dialogue_parts(
         output_audio = getattr(interaction, "output_audio", None)
         raw_data = getattr(output_audio, "data", None) if output_audio is not None else None
         if not raw_data:
-            raise RuntimeError(f"Gemini Dialogue TTS Part {idx}: 오디오 응답이 비어 있습니다.")
+            raise RuntimeError(f"Gemini Dialogue {stage_label}: 오디오 응답이 비어 있습니다.")
 
         if isinstance(raw_data, bytes):
-            wav_bytes = raw_data
-        elif isinstance(raw_data, str):
-            wav_bytes = base64.b64decode(raw_data)
-        else:
-            raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
+            return raw_data
+        if isinstance(raw_data, str):
+            return base64.b64decode(raw_data)
+        raise TypeError(f"예상하지 못한 오디오 데이터 타입입니다: {type(raw_data)}")
 
-        results.append((wav_bytes, ends_section))
+    total_parts = len(grouped)
+    for idx, (chunk_turns, ends_section) in enumerate(grouped, start=1):
+        stage_label = f"TTS Part {idx}/{total_parts}"
+        wav_bytes = _call_dialogue_chunk(chunk_turns, stage_label)
+        merged_text = "\n\n".join(txt for _, txt in chunk_turns)
+        is_truncated, wav_dur, min_expected = _is_tts_audio_truncated(merged_text, wav_bytes)
+
+        if not is_truncated:
+            results.append((wav_bytes, ends_section))
+            continue
+
+        print(
+            f"      [WARN] Gemini Dialogue {stage_label} appears truncated "
+            f"({wav_dur:.1f}s < expected >={min_expected:.1f}s for {len(merged_text)} chars). "
+            "Recovering..."
+        )
+        if len(chunk_turns) > 1:
+            mid = len(chunk_turns) // 2
+            halves = [chunk_turns[:mid], chunk_turns[mid:]]
+            for h_idx, sub_turns in enumerate(halves, start=1):
+                sub_label = f"{stage_label}.{h_idx}"
+                sub_wav = _call_dialogue_chunk(sub_turns, sub_label)
+                sub_text = "\n\n".join(txt for _, txt in sub_turns)
+                sub_trunc, sub_dur, sub_min = _is_tts_audio_truncated(sub_text, sub_wav)
+                if sub_trunc:
+                    print(
+                        f"      [WARN] {sub_label} still short ({sub_dur:.1f}s < {sub_min:.1f}s); retrying once..."
+                    )
+                    retry_wav = _call_dialogue_chunk(sub_turns, f"{sub_label} retry")
+                    if _get_wav_duration_seconds(retry_wav) > sub_dur:
+                        sub_wav = retry_wav
+                is_last_half = h_idx == len(halves)
+                results.append((sub_wav, ends_section if is_last_half else False))
+        else:
+            retry_wav = _call_dialogue_chunk(chunk_turns, f"{stage_label} retry")
+            if _get_wav_duration_seconds(retry_wav) > wav_dur:
+                wav_bytes = retry_wav
+            results.append((wav_bytes, ends_section))
 
     final_tier = "paid" if "paid" in tiers_seen else "free"
     return results, final_tier
