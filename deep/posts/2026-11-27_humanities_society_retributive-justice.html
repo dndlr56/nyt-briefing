@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[인문·철학·역사·제도] 응보적 정의의 세 원칙과 현대 형벌 철학의 정당화 논쟁 | 2026.11.27 — Deep Dive Knowledge Briefing</title>
+  <link rel="alternate" type="application/rss+xml" title="Deep Dive Knowledge Briefing" href="../feed.xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" />
+  <script>
+(function(){
+  try {
+    var saved = localStorage.getItem('briefing-color-mode');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-color-mode', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+  <style>
+    
+    :root {
+      --surface-page: #F5F7FA;
+      --surface-sheet: #FFFFFF;
+      --surface-subtle: #EDF1F6;
+      --ink-primary: #0F172A;
+      --ink-secondary: #334155;
+      --ink-muted: #64748B;
+      --accent: #1E40AF;
+      --accent-hover: #1E3A8A;
+      --accent-soft: #EBF2FF;
+      --speaker-alt: #0F766E;
+      --border: #D8E0EA;
+      --border-strong: #BAC6D6;
+      --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif;
+      --font-serif: "Noto Serif KR", Georgia, serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) {
+        --surface-page: #0B1018;
+        --surface-sheet: #121A26;
+        --surface-subtle: #1A2434;
+        --ink-primary: #E6EDF6;
+        --ink-secondary: #B4C2D4;
+        --ink-muted: #7C8FA6;
+        --accent: #7FB3FF;
+        --accent-hover: #A5C8FF;
+        --accent-soft: #172742;
+        --speaker-alt: #5EEAD4;
+        --border: #233044;
+        --border-strong: #33455F;
+      }
+    }
+    :root[data-color-mode="dark"] {
+      --surface-page: #0B1018;
+      --surface-sheet: #121A26;
+      --surface-subtle: #1A2434;
+      --ink-primary: #E6EDF6;
+      --ink-secondary: #B4C2D4;
+      --ink-muted: #7C8FA6;
+      --accent: #7FB3FF;
+      --accent-hover: #A5C8FF;
+      --accent-soft: #172742;
+      --speaker-alt: #5EEAD4;
+      --border: #233044;
+      --border-strong: #33455F;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      line-height: 1.78;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .masthead {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .masthead-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .channel-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--surface-subtle);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .channel-tab {
+      padding: 0.38rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-decoration: none;
+    }
+    .channel-tab:hover { color: var(--ink-primary); text-decoration: none; }
+    .channel-tab.active {
+      background: var(--surface-sheet);
+      color: var(--accent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .masthead-tools {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .tool-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-secondary);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.36rem 0.72rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tool-btn:hover { border-color: var(--border-strong); color: var(--ink-primary); }
+
+    .progress-track {
+      position: fixed; top: 0; left: 0; right: 0; height: 3px;
+      background: transparent; z-index: 40; pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%; width: 0%; background: var(--accent);
+      transition: width 80ms linear;
+    }
+    .reader-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4.5rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2.25rem;
+    }
+    @media (min-width: 1040px) {
+      .reader-shell {
+        grid-template-columns: 210px minmax(0, 740px);
+        justify-content: space-between;
+        align-items: start;
+      }
+    }
+    .toc-rail {
+      display: none;
+    }
+    @media (min-width: 1040px) {
+      .toc-rail {
+        display: block;
+        position: sticky;
+        top: 1.5rem;
+        padding-right: 0.75rem;
+        border-right: 1px solid var(--border);
+      }
+    }
+    .toc-heading {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--ink-muted);
+      margin: 0 0 0.65rem;
+    }
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .toc-link {
+      display: block;
+      font-size: 0.83rem;
+      line-height: 1.4;
+      color: var(--ink-muted);
+      padding: 0.25rem 0.45rem;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+    .toc-link:hover { color: var(--ink-primary); text-decoration: none; background: var(--surface-subtle); }
+    .toc-link.active { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+    .paper-sheet {
+      background: var(--surface-sheet);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.25rem 2.25rem 2.75rem;
+    }
+    @media (max-width: 640px) {
+      .paper-sheet { padding: 1.4rem 1.15rem 2rem; border-radius: 10px; }
+    }
+    .date-meta {
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-muted);
+      margin-bottom: 0.55rem;
+    }
+    h1 {
+      font-size: clamp(1.5rem, 2.8vw, 1.95rem);
+      line-height: 1.32;
+      letter-spacing: -0.025em;
+      margin: 0 0 0.9rem;
+      color: var(--ink-primary);
+    }
+    .meta-tags, .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.75rem 0 0.9rem;
+    }
+    .tag, .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.22rem 0.62rem;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      border: 1px solid var(--border);
+    }
+    .tag.primary, .badge:first-child {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: transparent;
+    }
+    .tag.muted, .badge.outline {
+      background: transparent;
+      color: var(--ink-muted);
+    }
+    .wos-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.1rem 0.44rem;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      vertical-align: middle;
+    }
+    .subtitle {
+      font-family: var(--font-serif);
+      font-size: 1.06rem;
+      line-height: 1.7;
+      color: var(--ink-secondary);
+      margin: 0.6rem 0 1.4rem;
+    }
+    .audio-deck {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1.05rem;
+      margin: 1.25rem 0 1.75rem;
+    }
+    .audio-deck-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .audio-title {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-primary);
+    }
+    .speed-group { display: inline-flex; gap: 0.25rem; }
+    .speed-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.18rem 0.48rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) .speed-btn.active { color: #0B1018; }
+    }
+    :root[data-color-mode="dark"] .speed-btn.active { color: #0B1018; }
+    audio { width: 100%; height: 38px; display: block; }
+    main { max-width: 68ch; }
+    .tldr-box {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 1.05rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0 2rem;
+    }
+    .tldr-box h2 {
+      margin: 0 0 0.55rem;
+      padding: 0;
+      border: none;
+      font-size: 1.02rem;
+      color: var(--accent);
+    }
+    .tldr-box ul { margin: 0; padding-left: 1.2rem; }
+    .tldr-box li { margin-bottom: 0.4rem; }
+    .tldr-box li:last-child { margin-bottom: 0; }
+    section { margin: 2.15rem 0; scroll-margin-top: 1.2rem; }
+    section > h2 {
+      font-size: 1.2rem;
+      letter-spacing: -0.015em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      margin: 0 0 0.95rem;
+      color: var(--ink-primary);
+    }
+    section p { margin: 0 0 0.9rem; color: var(--ink-primary); }
+    section p:last-child { margin-bottom: 0; }
+    .body-sec {
+      margin: 1.4rem 0;
+      padding-left: 0.85rem;
+      border-left: 2px solid var(--border);
+    }
+    .body-sec h3 {
+      font-size: 1.04rem;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .sec-idx { color: var(--accent); margin-right: 0.2rem; }
+    .table-wrap { overflow-x: auto; margin: 1rem 0; }
+    .analysis-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      border-top: 2px solid var(--border-strong);
+      border-bottom: 2px solid var(--border-strong);
+    }
+    .analysis-table th, .analysis-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .analysis-table thead th {
+      background: var(--surface-subtle);
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+    .analysis-table tbody th {
+      width: 27%;
+      font-weight: 600;
+      color: var(--ink-primary);
+      background: transparent;
+    }
+    .quote-block {
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--border-strong);
+      margin: 1.1rem 0;
+      padding: 1rem 1.2rem;
+      border-radius: 0 8px 8px 0;
+    }
+    .quote-en {
+      font-family: var(--font-serif);
+      font-size: 0.96rem;
+      line-height: 1.68;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .quote-kr {
+      font-size: 0.94rem;
+      margin: 0 0 0.4rem;
+      color: var(--ink-secondary);
+    }
+    .quote-block footer {
+      font-size: 0.81rem;
+      color: var(--ink-muted);
+    }
+    .chapter-list, .source-list { padding-left: 1.25rem; }
+    .chapter-list li, .source-list li { margin-bottom: 0.45rem; }
+    .src-venue, .sep { color: var(--ink-muted); }
+    .usage-meta {
+      margin-top: 2rem;
+      padding-top: 0.9rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+    .transcript {
+      margin-top: 2.5rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-subtle);
+      overflow: hidden;
+    }
+    .transcript summary {
+      cursor: pointer;
+      padding: 0.95rem 1.15rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--ink-primary);
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .transcript summary::-webkit-details-marker { display: none; }
+    .transcript summary::after {
+      content: "펼치기";
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .transcript[open] summary::after { content: "접기"; }
+    .transcript-body {
+      padding: 0.25rem 1.2rem 1.35rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .transcript-filter {
+      width: 100%;
+      margin: 0.9rem 0 1rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      font-family: inherit;
+      font-size: 0.86rem;
+    }
+    .cast-box {
+      background: var(--surface-subtle);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.85rem 0 1.2rem;
+      font-size: 0.88rem;
+    }
+    .cast-reason { color: var(--ink-muted); font-size: 0.83rem; margin-top: 0.2rem; }
+    .transcript-body h3 {
+      font-size: 1rem;
+      margin: 1.4rem 0 0.6rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .turn { margin: 0.7rem 0; line-height: 1.74; font-size: 0.94rem; }
+    .turn.hidden { display: none; }
+    .speaker {
+      display: inline-block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-right: 0.4rem;
+    }
+    .speaker.s2 { color: var(--speaker-alt); }
+  </style>
+</head>
+<body>
+  <div class="progress-track" aria-hidden="true"><div class="progress-bar" id="reading-progress"></div></div>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <nav class="channel-tabs" aria-label="브리핑 채널 전환">
+        <a class="channel-tab" href="../../index.html">글로벌 모닝 뉴스</a>
+        <a class="channel-tab active" href="../index.html">Deep Dive 심층 연구</a>
+      </nav>
+      <div class="masthead-tools">
+        <button type="button" class="tool-btn" data-copy-rss="https://dndlr56.github.io/nyt-briefing/deep/feed.xml">RSS 주소 복사</button>
+        <button type="button" class="tool-btn" id="color-mode-btn">화면 테마 전환</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="reader-shell">
+    <aside class="toc-rail" aria-label="문서 목차">
+      <a class="back-link" href="../index.html">아카이브 목록으로</a>
+      <p class="toc-heading">문서 구성</p>
+      <ul class="toc-list" id="toc-list"></ul>
+    </aside>
+
+    <article class="paper-sheet">
+      <header>
+        <div class="date-meta">2026년 11월 27일 (Fri) KST</div>
+        <h1>응보적 정의의 세 원칙과 현대 형벌 철학의 정당화 논쟁</h1>
+      </header>
+      <div class="audio-deck">
+          <div class="audio-deck-top">
+            <span class="audio-title">오디오 브리핑 / 2인 대화 (지수(진행), 현수(해설)) (00:29:45)</span>
+            <div class="speed-group" role="group" aria-label="재생 배속">
+              <button type="button" class="speed-btn active" data-speed="1">1.0x</button>
+              <button type="button" class="speed-btn" data-speed="1.25">1.25x</button>
+              <button type="button" class="speed-btn" data-speed="1.5">1.5x</button>
+              <button type="button" class="speed-btn" data-speed="1.75">1.75x</button>
+            </div>
+          </div>
+          <audio controls preload="metadata" src="../episodes/deep_dive_2026-11-27_humanities_society_193244.mp3"></audio>
+        </div>
+      <main id="article-main">
+        <div class="meta-tags">
+  <span class="tag primary">🏛️ 인문·철학·역사·제도</span>
+  <span class="tag">법철학·윤리학·형법이론</span>
+  <span class="tag muted">1편 심층 분석</span>
+</div>
+<p class="subtitle">도덕적 응분, 내재적 선, 비례성의 결합을 둘러싼 고전·현대 응보주의의 이론적 분화와 한계</p>
+
+
+<section id="sec-tldr" class="tldr-box" data-toc="핵심 요약">
+  <h2>핵심 요약</h2>
+  <ul><li>응보적 정의는 유책한 범죄자에 대한 비례적 처벌의 응분, 파생적 선과 무관한 처벌의 도덕적 옳음, 응분 초과·부재 시 처벌 금지라는 세 원칙에 기초한다.</li><li>강간범의 열대 섬 휴양 사고실험은 억제나 무력화 효과가 전무해도 중대 범죄를 처벌해야 한다는 응보적 직관을 보여주지만, 자유의지 부재와 고통의 내재적 선에 대한 혐오감이라는 반론에 직면한다.</li><li>응보주의는 개인적 복수나 동해복수법, 응분을 처벌의 소극적 제약으로만 삼는 혼합형 결과주의와 엄격히 구별되어야 한다.</li><li>현대 응보주의는 마이클 무어의 내재적 선 모델에서 출발해 공정성 회복, 표현적·소통적 응보주의, 다한 카츠의 단절적 응보주의 및 스트로슨 기반의 비난 이론으로 정교화되고 있다.</li></ul>
+</section>
+
+<section id="sec-1" data-toc="1. 문제 제기 및 핵심 테제">
+  <h2>1. 문제 제기 및 핵심 테제</h2>
+  <p>한때 합리적 사회가 청산해야 할 미신적이고 야만적인 잔재로 치부되던 응보적 정의는 1970년대 이후 형벌 철학의 지배적인 정당화 이론으로 부상했다. 이 사조는 유책하게 잘못을 저지른 자가 비례적 처벌을 받을 도덕적 응분이 있으며, 정당한 처벌자가 그 처벌을 부과하는 것은 추가적인 공리적 결과와 무관하게 그 자체로 옳거나 내재적으로 선하고, 응분이 없거나 응분을 초과하는 처벌은 금지된다는 세 가지 원칙에 뿌리를 둔다. 생명·자유·재산 같은 기본권을 박탈하는 국가 형벌의 무거운 정당화 부담 앞에서, 응보주의는 억제·무력화·교화에 의존하는 결과주의가 무고한 자의 처벌이나 경미한 죄에 대한 과잉 처벌을 막기 어렵다는 약점을 파고든다.</p><p>그러나 빅터 타드로스와 토마스 스캔론 같은 비판자들은 인간의 고통이 내재적으로 선할 수 있다는 발상 자체를 야만적이고 도덕적으로 혐오스럽다고 공격한다. 이에 레오라 다한 카츠와 알렉 월렌은 현대 응보주의가 복수나 동해복수법 같은 오해와 어떻게 구별되는지 획정하고, 직관에 기댄 고전적 모델을 넘어 공정성·표현·소통·단절·비난에 호소하는 다양한 현대적 정당화 전략과 그에 맞선 핵심 반론들의 지형을 체계적으로 분석한다.</p>
+</section>
+
+<section id="sec-2" data-toc="2. 분석 프레임워크 및 근거 구조">
+  <h2>2. 분석 프레임워크 및 근거 구조</h2>
+  <p>저자들은 경험적 자료 대신 형벌 철학의 개념 분석, 사고실험, 규범적 논증 재구성을 분석 프레임워크로 채택한다. 우선 처벌을 &#x27;비난&#x27;과 &#x27;제재(고통스러운 처우 또는 정당한 혜택의 박탈)&#x27;라는 두 요소로 해체한 뒤, 무어의 강간범 사고실험 등을 통해 결과주의적 유용성이 완전히 제거된 상황에서도 도덕적 직관이 어떻게 작동하는지 검증한다.</p><p>이어서 로버트 노직의 복수·응보 5가지 구별, H. L. A. 하트의 혼합 이론에 대한 논리적 딜레마 해부, 그리고 칸트·헤겔에서 무어·모리스·햄프턴·더프·베넷·다한 카츠·스트로슨으로 이어지는 이론 계보를 대조한다. 각 이론이 고통 부과의 필요성과 비례성 원칙을 실제로 도출할 수 있는지 내적 일관성과 반례를 통해 추적하는 방식을 취한다.</p>
+</section>
+
+<section id="sec-3" data-toc="3. 본문 핵심 논증">
+  <h2>3. 본문 핵심 논증</h2>
+  <div class='body-sec'><h3><span class='sec-idx'>1.</span> 응보적 직관의 호소력과 4대 근본 반론</h3><p>마이클 무어가 제시한 강간범 사고실험은 응보주의의 직관적 힘을 압축적으로 드러낸다. 유죄 판결을 받은 강간범이 병으로 신체 능력을 완전히 상실해 재범 가능성이 없고, 경제적으로도 부유해 생계형 범죄를 저지를 필요가 없으며, 일반 억제를 위해서는 수감복을 입고 감옥에서 찍은 영상만 주기적으로 공개해 대중을 속인 채 열대 섬 휴양지에서 여생을 보내게 하면 된다고 가정해도, 대다수는 이를 정의롭지 않다고 판단한다. 범죄 예방이나 무력화라는 부수적 선이 전혀 발생하지 않더라도 중대한 잘못은 마땅히 처벌받아야 한다는 것이다. 반면 억제·무력화·교화에 초점을 맞춘 결과주의는 무고한 자를 처벌하거나 경미한 잘못에 지나친 형벌을 내리는 일을 원칙적으로 배제하기 어렵다.</p><p>하지만 이러한 직관은 네 가지 강력한 철학적 도전에 부딪힌다. 첫째, 프리드리히 니체의 르상티망 비판처럼 응보적 직관이 분노·잔혹함·자기기만이 뒤섞인 의심스러운 심리 성향의 산물일 수 있으며, 갈렌 스트로슨·더크 페어붐 등은 인간에게 도덕적 책임의 전제인 자유의지가 없다고 지적한다. 둘째, 토마스 스캔론은 인간의 고통이 내재적으로 선하다는 주장을 도덕적으로 혐오스럽다고 거부하며, 셋째, 데이비드 돌링코와 디어드리 골라쉬는 응당한 고통이 선하더라도 국가가 타인에게 그것을 부과할 권리를 가진다는 근거는 별도로 입증해야 한다고 반박한다. 넷째, 사울 스밀란스키와 에린 켈리는 개별 행위자의 유책성을 결정하는 사실에 대한 우리의 인식적 접근이 극도로 제한되어 개별 사건에서 정당한 처벌을 찾아내기 어렵다고 비판한다.</p></div><div class='body-sec'><h3><span class='sec-idx'>2.</span> 응보주의와 혼동되는 세 개념: 복수, 동해복수법, 소극적 응보주의</h3><p>응보주의를 방어하려면 먼저 응보주의가 아닌 것들을 걷어내야 한다. 비판자들은 응보주의를 제도화·세탁된 복수로 보지만, 로버트 노직은 복수가 개인적이고 타인의 고통에서 쾌감을 느끼는 정서적 어조를 동반하는 반면, 응보는 비인격적이며 정서적 어조가 없거나 정의가 실현됨에 따른 기쁨만을 수반한다는 점 등 다섯 가지 차이로 양자를 분리한다. 조지 플레처의 비유처럼 응보는 욕망을 사랑과 동일시할 수 없듯 복수와 동일시될 수 없다. 또한 출애굽기와 칸트에서 나타나는 동해복수법, 즉 &#x27;눈에는 눈, 이에는 이&#x27; 식의 동등 보복 원리는 비례성의 한 척도일 뿐 응보주의 전체로 환원될 수 없으며, 아우구스티누스가 지적했듯 원래는 원한에 찬 과잉 보복을 제한하기 위해 도입된 완화 원칙이었다.</p><p>가장 정교한 개념적 혼동은 존 매키와 H. L. A. 하트가 말한 &#x27;소극적 응보주의&#x27;에서 발생한다. 이는 처벌 제도의 일반적 정당화 목적은 범죄 예방 같은 결과주의에서 찾고, 도덕적 응분은 오직 유책한 자에게만 그리고 응분을 넘지 않는 선에서만 처벌할 수 있다는 부수적 제약 조건으로만 사용하는 혼합 이론이다. 그러나 미첼 버먼이 지적하듯 응분이 처벌의 상한선을 제공한다면 그 한도 내에서는 응분이 처벌할 이유를 제공한다는 뜻이 되므로, 응분이 처벌의 적극적 이유를 전혀 제공하지 않는다는 소극적 응보주의의 전제와 모순된다. 이 모순을 피하려 응분을 &#x27;권리 상실&#x27;로 대체하면 이번에는 응보주의의 핵심인 비례성 상한을 설명하기 어려워지므로, 이런 입장은 소극적 응보주의가 아니라 제약된 결과주의로 불러야 마땅하다.</p></div><div class='body-sec'><h3><span class='sec-idx'>3.</span> 전통적 응보론과 마이클 무어의 내재적 선 모델</h3><p>전통적 응보론은 죄로 인해 깨진 도덕적 균형이나 우주적 질서의 회복에 주목했다. 칸트는 범죄가 행해졌다는 오직 그 이유만으로 처벌이 부과되어야 하며 형벌 정의는 행위자의 내면적 사악함에 비례해야 한다고 주장했고, 헤겔은 범죄가 법과 권리를 부정하려 하지만 그 자체로 무효인 의지이므로 형벌을 통해 범죄의 무효성을 폭로하고 권리를 재확인하는 것이 곧 범죄자의 권리이기도 하다고 논증했다. 현대 형벌 철학에서 응보주의의 부활을 이끈 마이클 무어는 이러한 맥락 위에서 도덕적 응분이 처벌 제도를 세우고 개별 처벌을 집행할 필요조건이자 충분조건이며, 유책한 자에게 응당한 처벌을 내리는 일은 그 자체로 내재적 선이라고 규정했다.</p><p>무어는 더 깊은 도덕 원리에서 연역하는 대신, 사람들의 구체적 판단과 가장 잘 부합하는 이론을 찾는 정합주의적 전략을 택했다. 즉 대다수가 응보적 직관을 공유하며 그 직관을 의심할 이유가 없다는 것인데, 자신이 끔찍한 폭력 범죄를 저질렀다면 죽을 만큼 죄책감을 느끼고 처벌을 달게 받을 것이라는 1인칭 사고실험을 통해 타인에게도 같은 기준을 적용해야 한다고 옹호한다. 그러나 문헌은 이에 대해 네 가지 반론을 제기한다. 1인칭의 자책·자기처벌에서 3인칭 국가의 타인 처벌 권리가 도출되지 않으며(더프·자이버트), 중범죄자의 실제 심리가 아닌 비범죄자의 상상일 수 있고, 죄책감 자체로 부족해 왜 추가 형벌이 필요한지 설명하지 못하며(후삭), 죄책감 자체가 니체가 말한 자기학대적 병리일 수 있다는 점이다. 아울러 무어의 입장이더라도 처벌 비용이나 헌법적 자유와의 비교 형량이 가능하며, 최근에는 고통의 내재적 선이라는 가치론적 주장을 버리고 처벌의 당위만 남긴 순수 의무론적 응보주의(마켈·다한 카츠)도 대안으로 제시된다.</p></div><div class='body-sec'><h3><span class='sec-idx'>4.</span> 공정성 회복 이론과 표현적·소통적 응보주의의 난점</h3><p>허버트 모리스와 제프리 머피가 발전시킨 공정성 이론은 사회적 협동 체제에서 모두가 자제라는 부담을 지는데 범죄자가 이를 저버림으로써 부당한 이득을 취하므로, 형벌이라는 고통을 통해 그 이득을 지우고 공정한 균형을 회복해야 한다고 본다. 그러나 분노에 휩싸여 우발적으로 살인을 저지른 자가 타인이 참고 억제해 온 &#x27;폭력의 이득&#x27;을 누렸다고 보기 어렵고, 경제 사기가 폭력 범죄보다 더 큰 이득을 남길 수 있음에도 폭력이 더 중하게 처벌되는 비례성 역전을 설명하지 못한다. 무엇보다 살인이나 강간의 본질적 악은 무임승차가 아니라 생명권과 성적 자율권의 침해에 있다. 피터 웨스턴처럼 이득이 아니라 &#x27;부담 회피&#x27;로 재해석해도 비례성 측정의 모호성과 현실 국가의 구조적 불의 때문에 처벌 정당성이 붕괴한다는 머피 자신의 마르크스주의적 비판을 넘어서기 어렵다.</p><p>이에 조엘 파인버그의 표현 기능 분석을 이어받아 장 햄프턴은 범죄가 피해자보다 가해자가 우월하다는 거짓 도덕적 주장을 선포하는 모욕이므로, 처벌을 통해 가해자를 꺾어 피해자의 동등한 도덕적 가치를 복권해야 한다고 주장했다. 반면 앤서니 더프는 형벌이 범죄자에 대한 비난을 일방적으로 표출하는 데 그치지 않고, 참회·교화·화해를 이끌어내는 양방향 도덕적 소통 과정이며 고통스러운 처우는 속죄의 배상을 강제해 이 소통에 집중하게 만드는 장치라고 본다. 하지만 비판자들은 표현적·소통적 이론 역시 치명적 난점을 안고 있다고 지적한다. 거짓 메시지나 모욕을 바로잡는 데 왜 말이나 배상이 아니라 신체적 자유 박탈 같은 가혹한 처우가 필수적인지, 그리고 가해자를 굴복시키는 행위가 어떻게 평등의 메시지가 되며 범죄의 경중에 따른 비례적 양형이 왜 필요한지 납득하기 어렵다는 것이다(돌링코·레이시·피카드·월렌).</p></div><div class='body-sec'><h3><span class='sec-idx'>5.</span> 단절적 응보주의와 비난 기반 접근으로의 모색</h3><p>표현과 소통 중심 이론이 겪는 &#x27;가혹한 처우의 불필요성&#x27; 문제를 우회하기 위해 등장한 것이 단절적 응보주의다. 크리스토퍼 베넷은 처벌이 가해자의 잘못으로부터 공동체가 스스로를 단절하고 가해자에게도 자기 단절을 요구하는 제도화된 &#x27;사죄 의식&#x27;이라고 설명하며 응분 개념을 아예 거부한다. 그러나 피터 차우는 상징적 단절을 표명할 수 있는 비형벌적 대안이 존재하며, 상징적 필요성이 개인의 권리를 침해하는 부담 부과를 곧바로 정당화하지는 못한다고 비판했다.</p><p>레오라 다한 카츠는 표현이 아니라 도덕 규범에 부합하는 &#x27;수행적 행위&#x27;로서의 단절을 제시한다. 범죄자와 일정한 관계에 있는 행위자가 타인의 도덕적 가치를 깎아내린 범죄에 부정적으로 대응하지 않고 관계를 그대로 유지하는 것은, 물에 빠진 사람을 보고도 방관하는 것처럼 범죄에 묵인·동조하는 2차적 잘못이 된다. 따라서 적절한 처벌은 메시지를 전달하기 위해서가 아니라 그 자체로 범죄와의 단절을 실행함으로써 타인의 도덕적 가치를 존중하는 행위이며, 다만 독립적 의무론적 제약과 응보 관행을 완화할 의무의 통제를 받는다. 다만 국가 형사 처벌의 맥락에서 어떤 관계적 특성이 기본권 박탈이라는 가혹한 부담까지 정당화하는지는 아직 충분히 규명되지 않은 과제로 남는다. 한편 근래에는 형법을 하나의 &#x27;비난 제도&#x27;로 보고, 자유의지 충족 여부와 무관하게 분개와 원망 같은 반응적 태도가 대인 책임 관행 내부에서 정당화될 수 있다고 본 P. F. 스트로슨의 통찰을 수용하는 비난 기반 응보 이론도 활발히 모색되고 있다.</p></div>
+</section>
+
+<section id="sec-4" data-toc="4. 주요 지표·쟁점 요약표">
+  <h2>4. 주요 지표·쟁점 요약표</h2>
+  <div class="table-wrap">
+    <table class="analysis-table">
+      <thead><tr><th scope="col">항목</th><th scope="col">원문 핵심 내용</th></tr></thead>
+      <tbody><tr><th scope='row'>소극적 응보주의 (하트·매키 등 혼합형 이론 일부 주장 포함 가능성 거론, 원문: Mackie 1982, Golding 1975, Hart 1968, Rawls 1955 등 지칭: Mackie, Golding, Hart, Mabbott, Quinton, Rawls, Duff 정리 참조) -&gt; 소극적 응보주의</th><td>응분을 처벌의 적극적 이유가 아니라 유책자 한정·과잉 금지의 부수적 제약으로만 사용. 그러나 상한선 설정이 응분의 처벌 이유를 전제한다는 개념적 모순을 안고 있어 제약된 결과주의로 재분류해야 함.</td></tr><tr><th scope='row'>내재적 선 응보주의 (마이클 무어 등: Moore, Alexander &amp; Ferzan, Zaibert 등 — 알렉산더·퍼잔·자이버트는 고통의 내재적 선 수용자로 병기됨) -&gt; 내재적 선 응보주의</th><td>도덕적 응분이 처벌의 필요충분조건이자 처벌 의무를 낳으며, 유책자의 응당한 고통이 내재적 선이라고 주장. 정합주의적 직관과 1인칭 죄책감 사고실험에 의존하나, 3인칭 처벌 도출 난점과 고통의 선성에 대한 혐오감 비판에 직면함.</td></tr><tr><th scope='row'>순수 의무론적 응보주의 (마켈, 다한 카츠 등) -&gt; 의무론적 응보주의</th><td>고통이 내재적으로 선하다는 가치론적 주장을 채택하지 않고도, 응당한 처벌의 부과가 조건부로 도덕적으로 요구된다고 보는 입장.</td></tr><tr><th scope='row'>공정성 이론 (모리스, 머피, 웨스턴 등) -&gt; 공정성 이론</th><td>범죄를 법 준수 시민들의 자제 부담을 회피해 얻은 부당 이득으로 보고, 형벌로 그 빚을 회수해 공정한 균형을 복원함. 폭력 범죄의 핵심 악 왜곡, 사기 대비 폭력의 비례성 역전, 현실 사회 불의로 인한 처벌권 상실 문제가 제기됨.</td></tr><tr><th scope='row'>표현적 응보주의 (장 햄프턴) -&gt; 표현적 응보주의</th><td>범죄를 피해자의 열등함을 선언하는 거짓 도덕적 주장으로 보고, 처벌로 가해자를 굴복시켜 피해자의 동등한 도덕적 가치를 복권함. 단순 비난·배상을 넘어 가혹한 형벌과 비례성이 왜 필요한지 설명하기 어렵다는 비판을 받음.</td></tr><tr><th scope='row'>소통적 형벌론 (앤서니 더프) -&gt; 소통적 형벌론</th><td>형벌을 범죄의 응당한 비난을 전달해 가해자의 참회·교화·화해를 끌어내는 양방향 도덕적 소통이자 속죄 배상으로 규정(2024년 저작에서는 부차적 억제 효과도 인정). 낙인으로 인한 사회 소외와 가혹한 처우의 필수성 부재가 약점으로 꼽힘.</td></tr><tr><th scope='row'>단절적 응보주의 (베넷, 다한 카츠) -&gt; 단절적 응보주의</th><td>베넷은 응분을 배제한 제도화된 사죄 의식으로서의 표현적 단절을, 다한 카츠는 묵인을 피하고 타인의 도덕적 가치를 존중하기 위한 수행적 단절을 옹호함. 국가가 권리 박탈 수준까지 단절 행위를 강제할 조건이 충분히 명시되지 못한 한계가 있음.</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sec-5" data-toc="5. 원문 핵심 문장 발췌">
+  <h2>5. 원문 핵심 문장 발췌</h2>
+  <blockquote class='quote-block'><p class='quote-en'>“[r]evenge involves a particular emotional tone, pleasure in the suffering of another, while retribution either need involve no emotional tone, or involves another one, namely, pleasure at justice being done.”</p><p class='quote-kr'>복수는 타인의 고통에서 느끼는 쾌감이라는 특정한 정서적 어조를 수반하는 반면, 응보는 어떠한 정서적 어조도 수반할 필요가 없거나 전혀 다른 정서, 즉 정의가 실현되었다는 기쁨만을 수반한다.</p><footer>Robert Nozick (1981: 367), Stanford Encyclopedia of Philosophy 재인용</footer></blockquote><blockquote class='quote-block'><p class='quote-en'>“It is in that sense retributive: it is justified as a response to the wrong for which it is imposed and must be appropriate in its character and severity to that wrong. But such communication is not purely backward-looking.”</p><p class='quote-kr'>그러한 의미에서 이는 응보적이다. 즉 부과 대상이 된 잘못에 대한 응답으로서 정당화되며, 그 성격과 엄중함에 있어 해당 잘못에 적절해야 한다. 그러나 그러한 소통은 순전히 과거 지향적인 것만은 아니다.</p><footer>Antony Duff (2012: 78), Stanford Encyclopedia of Philosophy 재인용</footer></blockquote><blockquote class='quote-block'><p class='quote-en'>“Similarly, while appropriate punishment often does and should make expressive statements, it is first and foremost a performative act which effects the dissociation required if one is to act consistent with the moral worth of persons. It is this performative function, rather than the expressive function, that justifies punishment.”</p><p class='quote-kr'>마찬가지로 적절한 처벌이 종종 표현적 진술을 담고 또 담아야 하지만, 그것은 무엇보다 인격의 도덕적 가치에 부합하게 행동하고자 할 때 요구되는 단절을 실제로 실행하는 수행적 행위다. 처벌을 정당화하는 것은 표현적 기능이 아니라 바로 이 수행적 기능이다.</p><footer>Leora Dahan Katz (2021: 604–605), Stanford Encyclopedia of Philosophy 재인용</footer></blockquote>
+</section>
+
+<section id="sec-6" data-toc="6. 트레이드오프·반론 및 한계">
+  <h2>6. 트레이드오프·반론 및 한계</h2>
+  <ul><li>자유의지 회의론과 인식적 한계: 인간에게 도덕적 책임에 필요한 자유의지가 없다는 비판(스트로슨·페어붐·레비·카루소)뿐 아니라, 설령 자유가 있더라도 개별 사건에서 행위자의 유책성을 결정하는 내면적·상황적 사실에 대한 우리의 인식적 접근이 극도로 제한된다(스밀란스키·켈리).</li><li>고통의 내재적 선과 처벌 권리의 간극: 인간의 고통이 내재적으로 선할 수 있다는 주장은 도덕적으로 혐오스럽다는 비판을 받으며(스캔론), 설령 그것이 선하더라도 국가나 타인이 그 고통을 직접 집행할 권리를 갖는다는 점이 자동으로 증명되지는 않는다(돌링코·골라쉬).</li><li>경계 조건과 예외적 비용 형량: 무어의 내재적 선 모델조차 절대적 처벌 의무를 주장하지 않으며, 경미한 잘못을 처벌하는 작은 선은 처벌 비용·헌법적 자유 보호·불처벌이 가져오는 다른 선에 의해 압도될 수 있고, 다한 카츠의 단절적 응보주의 역시 독립적 의무론적 제약과 응보 관행을 완화할 의무의 적용을 받는다.</li><li>현실 불의와 처벌 강도 도출의 난점: 공정성 이론은 혜택과 부담의 공정한 분배라는 배경 조건이 충족된 국가에서만 작동하므로 사회적 불의가 만연한 현실 국가에서는 처벌권을 정당화하기 어렵고(머피), 표현적·소통적·단절적 이론 모두 말이나 배상을 넘어 구체적으로 어떤 수준의 비례적 고통과 권리 박탈이 필요한지 명쾌한 기준을 제시하지 못한다.</li></ul>
+</section>
+
+<section id="sec-7" data-toc="7. 결론 및 정책·전략적 제언">
+  <h2>7. 결론 및 정책·전략적 제언</h2>
+  <ul><li>응보적 정의는 개인적 복수심의 제도화나 &#x27;눈에는 눈&#x27; 식의 동해복수법으로 환원될 수 없으며, 응분 없는 처벌과 과잉 처벌을 모두 배제하는 비례성 원칙을 핵심으로 삼는다.</li><li>응분을 처벌의 적극적 이유에서 배제한 채 상한선 제약으로만 쓰는 &#x27;소극적 응보주의&#x27;는 개념적 모순을 안고 있으므로, 응보주의가 아니라 부수적 제약을 둔 결과주의로 구분해야 한다.</li><li>응보적 직관이 단순한 진화적 충동이나 니체식 원한 감정(르상티망)의 반영이 아님을 입증하려면, 반성적 평형 속에서 더 근본적인 도덕 원리와 연결된 정당화 근거를 구축해야 한다.</li><li>현대 응보주의는 &#x27;고통의 내재적 선&#x27;을 옹호하는 전통적 노선에서 벗어나 순수 의무론적 응보주의, 피해자 가치 복권, 소통적 참회, 수행적 단절, 반응적 비난 태도 등 다양한 규범적 기초를 모색하며 비판에 대응하고 있다.</li></ul>
+</section>
+
+<section id="sec-8" data-toc="8. 오디오 챕터 구성">
+  <h2>8. 오디오 챕터 구성</h2>
+  <ol class="chapter-list"><li><strong>Ch.1. 응보적 정의의 세 원칙과 직관적 토대</strong> — 응보적 정의가 천명하는 세 가지 핵심 원칙과 국가 형벌의 정당화 문제를 짚어본다. 무어의 강간범 열대 섬 사고실험을 통해 결과주의적 효용이 없어도 처벌이 요구된다는 직관의 힘과 그에 맞선 네 가지 근본 비판을 정리한다.</li><li><strong>Ch.2. 응보주의가 아닌 것들: 복수, 동해복수법, 소극적 응보주의</strong> — 응보주의를 둘러싼 세 가지 대표적 개념 혼동을 정리한다. 노직의 5가지 구별 기준, 아우구스티누스가 지적한 동해복수법의 역사적 취지, 그리고 하트 등 혼합 이론이 안고 있는 소극적 응보주의의 논리적 모순을 해부한다.</li><li><strong>Ch.3. 전통적 응보론과 마이클 무어의 내재적 선 모델</strong> — 도덕적 균형·정화, 칸트의 내면적 사악함 비례, 헤겔의 법 재확인으로 이어지는 전통 사유가 현대에 어떻게 변주되었는지 살핀다. 무어의 정합주의적 정당화와 1인칭 죄책감 논증, 그리고 순수 의무론적 응보주의로의 분화를 다룬다.</li><li><strong>Ch.4. 공정성 이론과 표현적·소통적 응보주의의 한계</strong> — 응보 직관을 사회 협동의 공정성 회복(모리스·머피)이나 피해자 가치 복권(햄프턴), 양방향 도덕 소통(더프)으로 정당화하려는 시도들을 비교한다. 각 이론이 범죄의 본질적 해악과 가혹한 형벌의 비례성을 설명하는 과정에서 부딪히는 반론을 분석한다.</li><li><strong>Ch.5. 단절적 응보주의와 비난 기반 접근의 모색</strong> — 가혹한 처우의 필요성을 설명하기 위해 표현·소통을 넘어 단절 행위에 주목한 베넷과 다한 카츠의 이론을 살펴본다. 아울러 문헌 마지막에 등장하는 스트로슨의 반응적 태도와 형법의 비난 제도 관점이 열어젖힌 새로운 연구 방향을 정리한다.</li></ol>
+</section>
+
+<section id="sec-sources" data-toc="원문 출처">
+  <h2>원문 출처</h2>
+  <ul class="source-list"><li><strong>Retributive Justice</strong> <span class='src-venue'>(Stanford Encyclopedia of Philosophy, Tue, 24 Nov 2026 16:40:44 -0800)</span> <a href='https://plato.stanford.edu/entries/justice-retributive/' target='_blank' rel='noopener'>원문 보기</a></li></ul>
+</section>
+
+<div class='usage-meta'><hr/><p><small><strong>📊 이번 회차 생성 리포트</strong><br/>• Gemini API (<code>gemini-4-hydrogen, gemini-3.8-flash-tts</code>): 입력 95,315 + 출력 72,254 (추론 11,686 포함) = 총 167,569 토큰<br/>• 예상 API 비용: 무료 8회($0) + 유료 우회 5회 약 $0.3395 (약 475원 추정 · 전체 유료 환산 $0.7443)<br/>• 음성 합성(TTS): gemini_tts / <code>gemini-3.8-flash-tts</code> (<code>S1=Kore, S2=Charon</code>) · 12,989자 (무료 티어 $0 (유료 환산 $0.4048))</small></p></div>
+        <details class='transcript' id='sec-transcript' data-toc='전체 대화 대본'><summary>전체 대화 대본 (12,989자 / 85턴)</summary><div class='transcript-body'><div class='cast-box'><div><strong>진행 구성:</strong> 2인 대화 (지수(진행), 현수(해설))</div><div class='cast-reason'>스탠퍼드 철학 백과사전의 단일 종설 원문을 따라 응보적 정의의 개념 정의, 오해, 현대 이론의 분화 및 비판을 체계적으로 해설하는 데 진행자와 해설자 2인 구성이 가장 적합하다.</div></div><input type='search' id='transcript-search' class='transcript-filter' placeholder='대본 내 키워드 검색' aria-label='대본 내 키워드 검색' /><h3>오프닝</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 오늘 살펴볼 문헌은 스탠퍼드 철학 백과사전에 실린 레오라 다한 카츠와 알렉 월렌의 종설 논문 응보적 정의입니다. 한때 합리적인 사회가 청산해야 할 야만적인 잔재로 여겨지던 응보주의가 1970년대 이후 형벌 철학의 주류로 부상한 배경과, 이를 둘러싼 현대의 치열한 정당화 논쟁을 짚어보겠습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 이번 논의는 크게 다섯 단계로 진행됩니다. 먼저 응보적 정의의 세 가지 핵심 원칙과 직관적 토대, 그리고 이에 맞선 근본 비판들을 살펴보고요. 이어서 복수나 동해복수법, 소극적 응보주의처럼 응보주의로 오해받는 개념들을 걷어낸 뒤, 전통적 응보론과 현대의 공정성, 표현, 소통, 단절, 비난 기반 이론까지 차례로 분석하겠습니다.</p><h3>Chapter 1. 응보적 정의의 세 원칙과 직관적 토대</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 응보적 정의라는 말은 일상에서도 자주 쓰이지만, 철학적으로 정확히 어떤 원칙들을 뜻하는지부터 정리할 필요가 있을 것 같습니다. 원문에서는 이를 세 가지 원칙으로 정의하고 있죠?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. 첫째, 심각한 범죄처럼 비난받을 만한 잘못을 저지른 사람은 그에 비례하는 처벌을 받을 도덕적 응분이 있다는 원칙입니다. 둘째, 정당한 처벌자가 그 응분에 맞는 처벌을 부과하는 것은 추가적인 좋은 결과가 뒤따르는지와 무관하게 그 자체로 도덕적으로 옳거나 내재적으로 선하다는 것입니다. 셋째, 응분이 없는 사람에게는 처벌을 부과해서는 안 되며, 처벌이 잘못에 비례하는 수준을 초과해서도 안 된다는 원칙입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 여기서 말하는 처벌이란 구체적으로 무엇을 의미하며, 왜 국가의 형벌이 특히 무거운 정당화 부담을 지게 되는 건가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 처벌은 처벌자가 비난받을 만한 잘못이라고 믿는 행위나 부작위에 대해 가해자에게 의도적으로 부담이나 고통을 부과하는 것을 말합니다. 보통 두 가지 요소로 분석되는데, 잘못을 꾸짖는 비난과, 실제 어려움을 가하거나 마땅히 누릴 혜택을 박탈하는 가혹한 처우인 제재가 그것입니다. 특히 국가가 부과하는 형벌은 생명, 자유, 재산 같은 기본적 인권을 박탈한다는 점에서 사적 영역이나 기관의 처벌보다 훨씬 엄중한 도덕적 정당화를 요구받습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 흥미로운 점은 응보주의가 단순히 처벌의 필요성을 넘어, 우리가 일상적으로 공유하는 강한 도덕적 직관에 호소한다는 것입니다. 원문에 소개된 열대 섬 사고실험이 이를 아주 선명하게 보여주더군요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 마이클 무어가 제시한 유명한 사고실험입니다. 강간죄로 유죄 판결을 받은 범죄자에게 형량을 선고하는 판사라고 상상해 봅시다. 그런데 이 범죄자는 판결 직전 병을 얻어 신체적으로 무력화되었고, 다시는 폭력 범죄를 저지를 수 없는 상태가 되었습니다. 게다가 범죄를 저지를 필요가 없을 만큼 재산도 충분합니다. 재범 방지나 무력화 같은 예방적 이유가 전혀 남지 않은 셈이죠.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그래도 다른 잠재적 범죄자들에게 본보기를 보이기 위해 처벌해야 한다는 반론이 나올 수 있지 않나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그래서 사고실험은 한 걸음 더 나아갑니다. 만약 판사가 그를 원하는 열대 섬으로 보내 휴양을 즐기게 해 주면서, 정기적으로 죄수복을 입고 감옥에서 촬영한 영상만 대중에 공개해 모두가 그가 고통받고 있다고 믿게 만든다면 어떨까요. 들킬 가능성도 전혀 없고, 일반 예방 효과도 완벽히 달성됩니다. 하지만 대다수 사람은 이 판결이 부당하다고 직관적으로 느낍니다. 아무런 파생적 효용이 없더라도 잘못에 대한 처벌은 이루어져야 한다는 것이죠.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 반대로 억제나 무력화, 교화 같은 결과주의 이론들은 왜 이런 직관을 설명하는 데 어려움을 겪는 건가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 결과주의는 범죄 예방이나 사회적 효용을 극대화하는 데 초점을 맞추기 때문에, 응보주의의 핵심 제약인 무고한 자에 대한 처벌 금지나 경미한 죄에 대한 과잉 처벌 금지를 이론 내부에서 온전히 설명하기 어렵습니다. 예를 들어 사회적 공포를 잠재우기 위해 무고한 사람을 처벌하거나, 사소한 절도를 막기 위해 지나치게 무거운 형벌을 내리는 것이 더 큰 효용을 낳는다면 결과주의는 이를 막을 논리적 근거가 빈약해집니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 하지만 직관에 호소하는 것만으로는 이론이 완성될 수 없을 텐데요. 이러한 응보적 직관이 가진 한계는 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 원문은 두 가지 한계를 지적합니다. 우선 긍정적인 응보 직관이 사실은 도덕적으로 의심스러운 심리적 성향의 반영일 수 있다는 점입니다. 니체가 도덕의 계보에서 말한 르상티망, 즉 원한과 두려움, 분노, 잔인함, 질투, 자기기만 등이 뒤섞인 감정적 혼합물에 불과할 수 있다는 비판이죠. 또한 결과주의보다 낫다는 논증 역시 형벌 자체가 정당화 가능하다는 전제와, 둘보다 나은 제3의 대안이 없다는 전제를 깔고 있습니다. 따라서 응보 직관은 반성적 평형 속에서 더 깊은 도덕 원리와 연결되어야만 비로소 정당성을 확보할 수 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 직관의 한계를 넘어 응보주의 자체를 겨냥한 근본적인 비판들도 만만치 않아 보입니다. 원문에서 정리한 네 가지 핵심 반론은 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 첫째는 자유의지 회의론입니다. 처벌받을 응분이 있으려면 도덕적 책임을 질 수 있는 자유로운 조건에서 행동했어야 하는데, 갈렌 스트로슨이나 데렉 페레붐 같은 철학자들은 인간에게 그런 자유가 없다는 환상론을 폅니다. 둘째는 설령 자유가 있더라도 인간의 고통이 내재적으로 선할 수 있다는 주장은 도덕적으로 혐오스럽다는 비판입니다. 토마스 스캔론이 대표적으로 이 점을 공격합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 나머지 두 가지 반론도 짚어주시죠. 고통이 선하다는 점을 받아들인다 해도 여전히 남는 문제들이 있다고 했죠.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 셋째 반론은 데이비드 돌링코나 디어드리 골라쉬 등이 제기한 것으로, 누군가 고통을 받는 것이 선하다는 사실이 곧 다른 사람이나 국가가 그 고통을 부과할 권리를 가진다는 뜻은 아니라는 지적입니다. 넷째는 사울 스밀란스키나 에린 켈리가 강조하는 인식적 한계입니다. 설령 응분과 처벌권이 성립하더라도, 개별 사건에서 행위자가 실제로 얼마나 책임을 져야 하는지 정확히 파악할 수 있는 우리의 인식 능력이 극도로 제한되어 있어 정당한 처벌을 내리기 어렵다는 것입니다.</p><h3>Chapter 2. 응보주의가 아닌 것들: 복수, 동해복수법, 소극적 응보주의</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 이제 응보주의를 둘러싼 오해들을 걷어낼 차례입니다. 일상에서는 응보를 흔히 복수와 같은 말로 쓰곤 하는데, 철학적으로는 이 둘을 어떻게 엄격히 구분하나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 고대 그리스 아이스킬로스의 오레스테이아 비극에서도 분노에 찬 개인적 복수에서 법적 정의로 이행하는 과정을 그렸듯이, 두 개념의 구분은 역사가 깊습니다. 현대에는 로버트 노직이 복수와 응보를 다섯 가지 기준으로 명확히 갈랐습니다. 그중 핵심은 복수가 지극히 개인적인 성격을 띠는 반면 응보는 비인격적이라는 점, 그리고 감정적 어조의 차이입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 감정적 어조의 차이라는 것이 구체적으로 어떤 뜻인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 복수는 타인이 고통받는 모습을 보며 쾌감을 느끼는 특정한 감정을 수반합니다. 반면 응보는 아무런 감정적 어조를 띠지 않을 수도 있고, 설령 감정이 따르더라도 그것은 타인의 고통이 아니라 정의가 실현되었다는 데서 오는 기쁨입니다. 그래서 아무도 가해자에게 복수하고 싶어 하지 않는 상황에서도 응보적 처벌의 이유는 성립할 수 있습니다. 조지 플레처가 말했듯, 응보주의를 복수와 동일시하는 것은 사랑을 욕망과 동일시하는 것과 같은 오류입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 또 하나 자주 혼동되는 개념이 눈에는 눈, 이에는 이라는 동해복수법입니다. 칸트 같은 철학자도 이를 옹호한 것으로 알려져 있는데, 현대 응보주의는 이 원칙을 어떻게 바라보나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 라틴어로 렉스 탈리오니스라 불리는 동해복수법은 빚을 같은 종류로 갚는다는 비례성의 한 원칙을 제시합니다. 칸트 역시 평등의 원칙을 들어 타인에게 부당한 해악을 가한 자는 자기 자신에게 해악을 가한 것이므로, 살인자는 죽어야 한다고 보았습니다. 하지만 응보적 정의가 비례성을 중시한다고 해서 동해복수법이라는 특정 측정 방식으로 환원될 수는 없습니다. 오늘날 대부분의 응보주의자는 동해복수법을 매력적인 원칙으로 보지 않습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 원문을 보니 동해복수법이 가혹한 보복을 조장하는 원칙으로 비판받지만, 역사적으로는 정반대의 취지에서 도입되었다는 흥미로운 지적이 있더군요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 아우구스티누스가 지적했듯이, 동해복수법은 원래 가해자가 저지른 해악을 초과하는 과잉 보복을 금지하기 위해 만들어진 완화 원칙이었습니다. 가혹한 처벌을 보장하려는 것이 아니라, 보복의 상한선을 그어 정의를 세우려던 역사적 맥락이 있었던 셈입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 마지막으로 소극적 응보주의, 혹은 약한 응보주의라 불리는 입장도 응보주의가 아니라고 선을 긋고 있습니다. 하트 같은 법철학자가 옹호한 혼합 이론이 여기에 해당하죠?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. H. L. A. 하트는 형벌 제도의 일반적 정당화 목적은 범죄 예방 같은 결과주의적 선에서 찾고, 누구에게 얼마나 처벌을 분배할 것인가의 문제에서는 유죄인 사람에게만 처벌을 제한하는 응보적 제약을 두는 혼합 이론을 폈습니다. 존 롤스 역시 규칙 결과주의를 통해 유사한 제약을 도출했죠. 여기서 응분은 처벌의 충분조건이나 적극적 이유가 아니라, 단지 허용 가능한 처벌의 부수적 제약, 즉 필요조건으로만 작동합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 언뜻 보기에는 결과주의의 약점을 보완한 합리적인 절충안처럼 보이는데, 원문에서는 왜 이것이 개념적 모순에 빠진다고 비판하나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 소극적 응보주의는 흔히 잘못을 저지른 자를 그가 받을 응분 이상으로 처벌해서는 안 된다고 말합니다. 미첼 버먼이 지적했듯, 만약 응분이 처벌의 상한선을 제공한다면 그 상한선까지는 처벌받을 응분이 있다는 뜻이 됩니다. 그런데 응분이라는 개념 자체가 사람들에게 마땅히 받아야 할 것을 줄 이유가 있다는 함의를 담고 있습니다. 응분이 처벌할 적극적 이유를 제공하지 않는다고 부정하면서, 동시에 응분을 상한선으로 삼는 것은 자체 프레임워크 안에서 논리적 긴장과 모순을 일으킵니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 응분 대신 권리 상실, 즉 범죄자가 자신의 행위로 인해 처벌받지 않을 권리를 상실했다는 개념으로 상한선을 설명하면 이 모순을 피할 수 있지 않을까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 권리 상실 개념으로 옮겨가면 모순은 피할 수 있지만, 그에 따른 비용이 큽니다. 더프나 월렌이 지적하듯, 응분에 호소하지 않는 이론은 응보주의의 핵심인 비례성 제약을 제대로 설명해 내기 어렵기 때문입니다. 결국 이들이 추구하는 것은 소극적 응보주의가 아니라, 부수적 제약을 둔 또 다른 형태의 결과주의로 구분하는 것이 정확합니다.</p><h3>Chapter 3. 전통적 응보론과 마이클 무어의 내재적 선 모델</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 소극적 응보주의가 결국 결과주의의 변형에 불과하다면, 이제는 응보를 처벌의 적극적인 정당화 근거로 삼는 이론들을 살펴봐야겠습니다. 전통적인 응보론은 어떤 논리로 처벌을 정당화해 왔나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 전통적인 응보론은 대개 잘못이나 죄가 도덕적 균형을 깨뜨리고 일종의 오점을 남긴다는 생각에서 출발합니다. 따라서 처벌을 통해 그 죄를 씻어내고 깨진 도덕적 질서나 균형을 회복해야 한다고 보죠. 근대 철학에서 이 흐름을 대표하는 인물이 바로 칸트와 헤겔입니다. 칸트는 형벌이 오직 범죄를 저질렀다는 이유만으로 부과되어야 하며, 평등의 원칙에 따라 범죄자의 내면적 사악함에 비례해 처벌해야 한다고 주장했습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 칸트가 범죄자의 내면적 사악함에 비례한 처벌을 강조했다면, 헤겔은 형벌을 어떤 방식으로 정당화했나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 헤겔은 형벌을 법과 권리의 회복으로 봅니다. 범죄는 그 자체로 무효인 의지의 표현이지만, 이를 그대로 두면 법질서가 부정되는 것처럼 보이기 때문에 형벌을 통해 범죄를 무효화하고 법의 권위를 재확인해야 한다는 것입니다. 특히 헤겔의 독특한 점은 형벌을 단순히 국가가 가하는 고통이 아니라, 이성적 존재인 범죄자 자신이 마땅히 누려야 할 권리로까지 이해했다는 데 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 이러한 고전적 사유가 1970년대 이후 현대 철학에서 부활할 때, 가장 중심에 섰던 인물이 마이클 무어입니다. 무어의 내재적 선 모델은 구체적으로 어떤 주장을 펼치나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 무어는 응보주의의 핵심을 아주 명쾌하게 정리합니다. 도덕적 응분은 처벌의 필요조건일 뿐만 아니라 충분조건이기도 하며, 죄지은 자가 마땅한 처벌을 받는 것 자체가 내재적으로 선하다는 것입니다. 여기서 내재적으로 선하다는 말은 처벌이 범죄 예방 같은 다른 좋은 결과를 낳기 때문이 아니라, 그 자체로 가치 있다는 뜻입니다. 따라서 사회는 응보가 실현되도록 처벌 제도를 만들고 개별 범죄자를 처벌할 의무를 지게 됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 범죄자를 처벌하는 것 자체가 내재적으로 선하다면, 아무리 사소한 잘못이라도 무조건 처벌해야 한다는 극단적인 결론으로 흐를 위험은 없나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 무어도 응보적 정의만을 맹목적으로 추구하는 광신도처럼 굴어서는 안 된다고 선을 긋습니다. 사소한 잘못을 처벌해서 얻는 작은 선보다 처벌하지 않음으로써 얻는 다른 선이 더 클 수 있고, 헌법이 보호하는 자유를 행사한 행위는 처벌할 수 없다고 봅니다. 또한 처벌에 드는 비용도 고려해야 합니다. 다만 무어가 강조하는 것은, 범죄 억제 같은 도구적 이익이 처벌 비용을 상쇄할 수는 있어도 처벌 그 자체를 정당화하는 근거는 오직 응분뿐이라는 점입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 무어는 죄지은 자를 처벌하는 것이 내재적으로 선하다는 자신의 주장을 어떻게 입증하나요? 더 근본적인 도덕 원리에서 연역해 내나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 아닙니다. 무어는 더 깊은 원리에 호소하는 대신, 우리의 개별적인 도덕적 판단들과 가장 잘 들어맞는 이론을 찾는 정합주의적 접근을 택합니다. 그의 논증은 두 단계로 나뉩니다. 첫째, 대부분의 사람은 다른 이익이 없더라도 잘못을 저지른 자는 비례적으로 처벌받아야 한다고 직관적으로 믿는다는 것입니다. 둘째, 이러한 직관이 신뢰할 만하지 않다고 의심할 이유가 없다는 주장입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 하지만 진화 과정에서 생긴 부족주의 같은 감정적 충동이 도덕적으로 옳지 않을 수 있듯이, 처벌 직관 역시 복수심이나 자유의지에 대한 착각에서 비롯된 것일 수 있지 않나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 바로 그 지점이 무어 논증의 가장 약한 고리입니다. 이 반론에 맞서 무어는 흥미로운 1인칭 사고실험을 제시합니다. 자신이 끔찍한 폭력 범죄를 저질렀다고 상상해 보자는 것입니다. 무어는 자신이 그런 죄를 지었다면 죽을 만큼 깊은 죄책감을 느끼고, 스스로 처벌을 달게 받기를 원할 것이라고 말합니다. 그러면서 자기 자신에게는 그런 도덕적 잣대를 들이대면서, 타인에게는 죄책감과 처벌의 자격을 유보하는 것은 오히려 엘리트주의적이고 거만한 태도라고 반박합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 스스로의 죄책감에서 타인에 대한 처벌의 정당성을 이끌어내는 방식이 수사적으로는 강렬해 보입니다. 하지만 철학적으로는 꽤 많은 반론에 부딪힐 것 같은데요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 문헌에서는 무어의 이 1인칭 논증에 대해 네 가지 핵심 반론을 꼽습니다. 첫째, 내가 나 자신에게 죄책감을 느끼고 자책하는 1인칭 반응에서, 타인이 나를 비난하고 처벌해도 된다는 3인칭의 정당성을 곧바로 도출할 수는 없습니다. 둘째, 이 상상은 실제로 끔찍한 범죄를 저질러 본 적 없는 사람의 추측일 뿐, 실제 범죄자의 내면과는 다를 수 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 나머지 두 가지 반론은 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 셋째는 죄책감을 느끼는 것이 마땅하다는 사실과 거기에 형벌을 덧붙이는 것이 마땅하다는 사실을 혼동했다는 비판입니다. 죄책감만으로 왜 충분하지 않은지 설명이 빠졌다는 것이죠. 넷째는 아예 죄책감을 느끼는 반응 자체가 도덕적으로 건전한 것인지 의문을 제기합니다. 니체가 말한 것처럼 자기 자신을 학대하려는 병적인 양심의 가책일 수도 있기 때문입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 게다가 앞서 타드로스나 스캔론 같은 비판자들이 인간의 고통이 내재적으로 선하다는 발상 자체를 야만적이고 도덕적으로 혐오스럽다고 공격했잖아요. 현대 응보주의 내부에서도 이 지점에 대한 고민이 깊었을 것 같습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 그래서 최근에는 고통이 내재적으로 선하다는 가치론적 주장을 버리고, 순수하게 의무론적인 응보주의로 나아가는 학자들이 늘고 있습니다. 죄지은 자가 고통받는 것이 그 자체로 좋은 일이라고 말하지 않더라도, 정의의 원칙상 마땅한 처벌을 부과해야 할 도덕적 의무가 존재한다고 설명하는 방식입니다. 이렇게 이론적 기초가 다변화되면서 응보주의는 새로운 국면을 맞이하게 됩니다.</p><h3>Chapter 4. 공정성 이론과 표현적·소통적 응보주의의 한계</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 무어의 직관주의나 고통의 내재적 선에 기대지 않고, 응보 직관을 더 깊은 도덕 원리와 연결하려는 시도들도 활발히 전개되었죠. 그중 하나가 사회 협동의 공정성을 내세운 공정성 이론입니다. 허버트 모리스와 제프리 머피가 발전시킨 이 이론의 핵심은 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 공정성 이론은 우리가 사회라는 협동 체제 속에서 함께 이익을 누리며 살기 위해서는 서로 자신의 행동을 자제하는 부담을 나누어 져야 한다는 데서 출발합니다. 그런데 범죄자는 이 자제의 의무를 저버림으로써 다른 사람들은 누리지 못하는 부당한 이득을 취하게 됩니다. 따라서 형벌은 범죄자가 빚진 것을 받아내어 그 부당한 이득을 지우고, 사회의 공정한 균형을 회복하는 수단으로 정당화됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 무임승차자를 제재해 공정성을 되찾는다는 발상은 직관적으로 꽤 설득력이 있어 보입니다. 하지만 살인이나 폭력 범죄에도 이 논리가 그대로 적용될 수 있을까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 바로 그 지점에서 세 가지 심각한 난점이 드러납니다. 첫째, 범죄자가 정말로 다른 사람들이 포기한 이득을 얻었는가 하는 문제입니다. 예컨대 사소한 시비 끝에 화를 참지 못해 살인을 저지른 사람이 있다고 해봅시다. 평범한 사람들은 애초에 폭력을 행사하고 싶은 욕구 자체가 없거나 말로 푸는 것으로 충분하다고 느끼기 때문에, 살인자가 남들도 누리고 싶었지만 참았던 어떤 이득을 가로챘다고 보기는 어렵습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 설령 폭력을 쓸 자유라는 이득을 얻었다고 치더라도, 형벌의 크기를 정하는 비례성 문제에서도 곤란을 겪을 것 같은데요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 두 번째 난점이 바로 비례성의 역전입니다. 경제적 사기 범죄가 안겨주는 부당한 이득은 폭력 범죄보다 훨씬 클 수 있습니다. 하지만 우리는 사기보다 살인이나 폭력이 훨씬 더 중대한 범죄이며 더 무거운 처벌을 받아야 한다고 생각합니다. 세 번째 난점은 더 근본적입니다. 살인이나 강간이 잘못된 이유는 범죄자가 사회 규칙에 무임승차했기 때문이 아니라, 피해자의 생명과 성적 자율권을 침해했기 때문입니다. 공정성 이론은 범죄의 본질적 해악을 놓치고 있다는 비판을 피하기 어렵습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 공정성 이론을 옹호했던 머피조차 나중에는 현실 국가의 처벌권을 부정하는 결론에 이르렀다고 들었습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. 공정성 이론이 성립하려면 애초에 그 사회의 이익과 부담이 공정하게 분배되어 있다는 전제가 충족되어야 합니다. 머피는 마르크스주의적 관점에서 현실 사회를 분석한 뒤, 사회적 불의가 만연한 현실의 국가는 범죄자에게 공정성을 들이대며 처벌할 도덕적 권리가 없다는 급진적인 결론을 내리기도 했습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 범죄의 본질을 무임승차가 아니라 피해자에 대한 침해로 보아야 한다면, 진 햄프턴의 표현적 응보주의가 대안이 될 수 있겠군요. 햄프턴은 피해자의 가치 복권을 어떻게 설명하나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 햄프턴은 범죄자가 피해자를 해침으로써 자신이 피해자보다 우월한 존재이며 피해자를 자기 목적을 위해 이용해도 된다는 거짓된 도덕적 메시지를 선언한다고 봅니다. 따라서 응보적 형벌은 피해자나 그 대리인인 국가가 범죄자를 굴복시킴으로써, 범죄자가 군주가 아니며 피해자 역시 범죄자와 동등한 도덕적 가치를 지닌 존재임을 만천하에 다시 확인시켜 주는 행위입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 하지만 비난의 말이나 금전적 배상만으로도 피해자의 동등한 가치를 선언할 수 있지 않을까요? 굳이 감옥에 가두는 것 같은 가혹한 형벌까지 필요한 이유가 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 비판자들도 정확히 그 지점을 파고듭니다. 돌링코나 마트라버스, 한나 같은 학자들은 첫째, 범죄자가 자신이 우월하다고 착각하더라도 다른 사람들이 그 착각을 믿을 위험이 없다면 굳이 물리적 형벌로 교정할 필요가 있는지 묻습니다. 둘째, 말보다 행동이 더 분명하게 뜻을 전달하기 위해 일정 수준의 처벌이 필요하다고 해도, 왜 범죄의 경중에 비례해 형벌의 강도를 계속 높여야 하는지는 설명되지 않는다고 지적합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 피해자가 국가의 힘을 빌려 범죄자를 굴복시킨다는 구도 자체에도 역설이 숨어 있을 것 같습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 전세가 역전되어 이번에는 피해자가 군주 노릇을 하게 된다면, 그것은 두 사람이 동등하다는 메시지가 아니라 단지 이 범죄자가 군주 자리를 놓고 벌인 경쟁에서 패배했다는 메시지만 줄 뿐이라는 비판입니다. 게다가 강간의 잘못은 강간범이 보낸 메시지가 아니라 강간이라는 행위 그 자체에 있는데, 햄프턴 역시 본질적인 잘못을 다른 것으로 대체해 버리는 함정에 빠졌다는 지적을 받습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 일방적인 메시지 전달에 그치지 않고, 처벌자와 범죄자 사이의 양방향 도덕적 소통을 강조한 앤터니 더프의 소통적 이론은 이러한 한계를 어떻게 넘어서려 했나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 더프는 형벌이 범죄자에게 마땅한 비난을 소통하는 과정이며, 가혹한 처우 자체가 범죄자로 하여금 자신의 잘못을 직시하고 참회하며 개선과 화해에 이르도록 돕는 필수적인 도덕적 소통 수단이라고 봅니다. 하지만 이에 대해서도 날카로운 반론이 제기됩니다. 레이시와 피커드는 범죄자를 비난하고 낙인찍는 행위가 오히려 그들을 사회로부터 소외시켜 참회와 소통을 방해한다고 비판합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 결국 소통을 위해서라면 왜 하필 가혹한 형벌이어야 하는지, 그리고 왜 그 강도가 죄의 무게에 비례해야 하는지에 대한 의문은 여전히 남는 셈이네요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. 메시지나 소통은 가혹한 처우 없이도 가능하기 때문에, 표현과 소통을 중심에 놓는 이론들은 형벌의 가혹성과 비례성을 온전히 정당화하는 데 한계를 드러냅니다. 이 때문에 최근에는 메시지 전달을 넘어, 잘못에 대해 마땅히 취해야 할 수행적 태도 그 자체에 주목하는 새로운 이론들이 등장하게 됩니다.</p><h3>Chapter 5. 단절적 응보주의와 비난 기반 접근의 모색</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 더프의 소통적 형벌론이 참회와 교화, 그리고 화해를 목표로 삼고 2024년 저작에서는 부차적인 억제 효과까지 인정했음에도, 여전히 가혹한 처우와 비례성을 설명하기 어렵다는 지적이 나옵니다. 구체적으로 어떤 비판들이 제기되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 가장 먼저 제기되는 비판은 낙인과 소외의 문제입니다. 니콜라 레이시와 한나 피카드는 범죄자를 비난하고 낙인찍는 행위가 오히려 그들을 사회로부터 더욱 소외시키고, 스스로를 구원받을 수 있는 존재로 여길 가능성마저 꺾어버린다고 지적합니다. 또한 더프 스스로도 인정하듯, 도덕적 소통이라는 목적을 달성하기 위해 왜 하필 자유를 박탈하는 가혹한 처우가 필수적인지, 그리고 죄가 무거워질수록 왜 처벌의 강도 역시 비례해서 높아져야 하는지는 소통 이론만으로 온전히 해명되지 않습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 이런 표현과 소통의 한계를 넘어서기 위해 등장한 &#x27;단절적 응보주의&#x27;는 형벌을 어떤 행위로 바라보나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 단절적 응보주의는 처벌의 의무를, 타인의 유책한 잘못으로부터 우리가 적절히 거리를 두고 단절해야 할 이차적 의무에서 찾습니다. 이 흐름 안에서 크리스토퍼 베넷은 여전히 표현적 관점을 유지하며 형벌을 일종의 제도화된 사죄 의식으로 봅니다. 국가가 죄를 지은 이에게 속죄의 부담을 지움으로써, 처벌자가 그 잘못과 단절되었음을 상징적으로 드러내고 가해자 역시 스스로를 그 잘못으로부터 분리하는 의식을 치르게 한다는 것입니다. 흥미로운 점은 베넷이 자신의 이론을 응보주의로 분류하면서도, 도덕적 응분이라는 개념을 처벌의 정당화 근거에서 단호히 배제한다는 사실입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 베넷의 이론이 여전히 상징과 표현에 기대고 있다면, 피터 차우 같은 비평가들이 &#x27;상징적 필요성만으로 개인의 권리를 침해하는 가혹한 부담을 정당화할 수 없다&#x27;고 비판할 여지가 남겠군요. 이 지점에서 레오라 다한 카츠의 이론은 어떤 차이를 보이나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 다한 카츠는 표현이나 소통을 중심에 놓는 기존 이론들이 오히려 사건의 본질을 놓치고 있다고 비판합니다. 그녀가 제시하는 핵심은 타인의 존엄을 훼손한 잘못에 대해, 그와 관계를 맺고 있는 우리가 부정적으로 반응하지 않고 이전과 똑같이 관계를 이어간다면, 그것은 곧 그 잘못을 묵인하고 동조하는 이차적 잘못이 된다는 점입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 가만히 있는 것 자체가 일종의 묵인이 된다는 말씀이군요. 다한 카츠가 이 논리를 설명하기 위해 든 구체적인 비유가 있나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 물에 빠진 사람을 보고도 그냥 지나치는 방관자의 비유를 듭니다. 우리가 물에 빠진 사람을 구하기 위해 물속에 뛰어드는 것은, 인간의 생명이 소중하다는 메시지를 표현하기 위해서가 아닙니다. 생명을 존중하는 태도 그 자체를 실천하고 수행하기 위해서입니다. 마찬가지로 형벌 역시 잘못을 묵인하지 않고 단절하겠다는 도덕적 태도를 실제로 구현하는 수행적 행위로서 정당화된다는 것이 다한 카츠의 핵심 주장입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 단절을 위한 수행적 행위라는 설명은 설득력이 있지만, 그렇다고 해서 모든 단절이 반드시 가혹한 형벌이어야 할 필요는 없지 않을까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 다한 카츠 역시 단절의 방식은 맥락에 따라 달라진다고 봅니다. 어떤 경우에는 단순한 비난이나 부정적 감정 표현만으로 충분할 수 있고, 어떤 경우에는 권리 박탈이나 고통 같은 더 무거운 부담이 필요할 수도 있습니다. 게다가 그녀는 처벌자에게 독립적인 의무론적 제약과 함께, 응보적 관행을 가능한 한 완화해야 할 의무가 따른다고 강조합니다. 다만 형사 처벌의 맥락에서 구체적으로 어떤 관계적 조건이 갖춰져야 기본권 박탈까지 허용되는지는 아직 더 정교하게 규명해야 할 과제로 남아 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 지금까지 살펴본 이론들 외에, 문헌의 마지막 부분에서는 &#x27;비난&#x27;에 기반한 접근법도 비중 있게 다루고 있습니다. 형법을 하나의 비난 제도로 본다는 것은 어떤 의미인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 앤드루 시메스터가 지적했듯, 현대 자유주의 법체계에서 형법은 본질적으로 행위자의 범죄 행위나 부작위에 대해 비난을 가하는 &#x27;비난 제도&#x27;로 작동합니다. 과거 니체 같은 사상가들은 응보주의가 원한이나 분노 같은 비합리적 감정에 뿌리를 두고 있다고 깎아내렸지만, 1962년 피터 스트로슨이 발표한 논문 &#x27;자유와 분개&#x27; 이후 철학계의 시각이 크게 달라졌습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 스트로슨의 반응적 태도 개념이 응보적 형벌 철학에 어떤 새로운 돌파구를 열어주었나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 스트로슨은 우리가 타인에게 책임을 물을 때 느끼는 분개나 원망, 감사 같은 감정 실린 태도를 &#x27;반응적 태도&#x27;라고 불렀습니다. 그의 핵심 통찰은, 이러한 감정적·대인적 책임 관행이 우리가 일상적으로 서로를 대하는 방식 그 자체에서 &#x27;내부적으로&#x27; 정당화될 수 있다는 점입니다. 즉, 인간에게 형이상학적인 자유의지가 있는가 하는 까다로운 외부적 조건이 완벽히 증명되지 않더라도, 우리가 서로를 도덕적 주체로 대우하며 책임을 묻는 비난의 관행 자체는 규범적으로 충분히 옹호될 수 있다는 새로운 연구 방향을 열어젖힌 것입니다.</p><h3>클로징</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 오늘 살펴본 것처럼 응보적 정의는 단순히 개인의 복수심을 제도화하거나 눈에는 눈으로 갚는 동해복수법으로 환원될 수 없는 깊은 철학적 체계를 갖추고 있습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. 응분 없는 처벌과 과잉 처벌을 모두 배제하는 비례성 원칙을 지키면서도, 소극적 응보주의의 논리적 모순을 피해 가기 위해 현대 응보주의는 끊임없이 진화해 왔습니다. &#x27;고통의 내재적 선&#x27;이라는 고전적 직관에만 머무르지 않고, 순수 의무론적 접근과 피해자 가치 복권, 소통적 참회, 수행적 단절, 그리고 스트로슨식 반응적 비난 태도에 이르기까지 다양한 규범적 기초를 모색하며 비판에 응답하고 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 결국 형벌을 통해 무엇을 지키고 무엇을 회복할 것인가에 대한 이 치열한 논쟁은, 오늘날 국가 형벌권의 정당성을 묻는 가장 근본적인 기준이 되고 있습니다. 오늘 심층 브리핑은 여기서 마치겠습니다.</p></div></details>
+      </main>
+    </article>
+  </div>
+
+  <script>
+(function(){
+  var modeBtn = document.getElementById('color-mode-btn');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', function(){
+      var root = document.documentElement;
+      var current = root.getAttribute('data-color-mode');
+      var isDark = current ? current === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = isDark ? 'light' : 'dark';
+      root.setAttribute('data-color-mode', next);
+      try { localStorage.setItem('briefing-color-mode', next); } catch (e) {}
+    });
+  }
+  document.querySelectorAll('[data-copy-rss]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = btn.getAttribute('data-copy-rss');
+      if (!url || !navigator.clipboard) return;
+      var orig = btn.textContent;
+      navigator.clipboard.writeText(url).then(function(){
+        btn.textContent = 'RSS 주소 복사됨';
+        setTimeout(function(){ btn.textContent = orig; }, 1800);
+      });
+    });
+  });
+  document.querySelectorAll('[data-speed]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var rate = parseFloat(btn.getAttribute('data-speed') || '1');
+      var container = btn.closest('.audio-deck') || document;
+      var audio = container.querySelector('audio');
+      if (audio) audio.playbackRate = rate;
+      container.querySelectorAll('[data-speed]').forEach(function(b){
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+})();
+</script>
+  <script>
+  (function(){
+    var bar = document.getElementById('reading-progress');
+    window.addEventListener('scroll', function(){
+      if (!bar) return;
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      bar.style.width = max > 0 ? Math.min(100, (doc.scrollTop / max) * 100) + '%' : '0%';
+    }, { passive: true });
+
+    var tocList = document.getElementById('toc-list');
+    var mainEl = document.getElementById('article-main');
+    if (tocList && mainEl) {
+      var secs = Array.prototype.slice.call(mainEl.querySelectorAll('section, details.transcript'));
+      var links = [];
+      secs.forEach(function(sec, idx){
+        if (!sec.id) sec.id = 'auto-sec-' + (idx + 1);
+        var label = sec.getAttribute('data-toc');
+        if (!label) {
+          var h = sec.querySelector('h2, summary');
+          label = h ? h.textContent.replace(/^[^가-힣a-zA-Z0-9]+/, '').trim() : ('섹션 ' + (idx + 1));
+        }
+        if (label.length > 22) label = label.slice(0, 22) + '…';
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.className = 'toc-link';
+        a.href = '#' + sec.id;
+        a.textContent = label;
+        li.appendChild(a);
+        tocList.appendChild(li);
+        links.push({ sec: sec, link: a });
+      });
+
+      if ('IntersectionObserver' in window && links.length) {
+        var obs = new IntersectionObserver(function(entries){
+          entries.forEach(function(entry){
+            if (entry.isIntersecting) {
+              links.forEach(function(item){
+                item.link.classList.toggle('active', item.sec === entry.target);
+              });
+            }
+          });
+        }, { rootMargin: '-15% 0px -72% 0px' });
+        links.forEach(function(item){ obs.observe(item.sec); });
+      }
+    }
+
+    var tf = document.getElementById('transcript-search');
+    if (tf) {
+      tf.addEventListener('input', function(){
+        var q = tf.value.trim().toLowerCase();
+        document.querySelectorAll('.transcript-body .turn').forEach(function(p){
+          p.classList.toggle('hidden', Boolean(q) && p.textContent.toLowerCase().indexOf(q) === -1);
+        });
+      });
+    }
+  })();
+  </script>
+</body>
+</html>

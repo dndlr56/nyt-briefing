@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[종합과학·뇌인지] 사고의 에너지: 마음의 모델이 놓쳐 온 대사의 물리적 제약 | 2026.11.28 — Deep Dive Knowledge Briefing</title>
+  <link rel="alternate" type="application/rss+xml" title="Deep Dive Knowledge Briefing" href="../feed.xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" />
+  <script>
+(function(){
+  try {
+    var saved = localStorage.getItem('briefing-color-mode');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-color-mode', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+  <style>
+    
+    :root {
+      --surface-page: #F5F7FA;
+      --surface-sheet: #FFFFFF;
+      --surface-subtle: #EDF1F6;
+      --ink-primary: #0F172A;
+      --ink-secondary: #334155;
+      --ink-muted: #64748B;
+      --accent: #1E40AF;
+      --accent-hover: #1E3A8A;
+      --accent-soft: #EBF2FF;
+      --speaker-alt: #0F766E;
+      --border: #D8E0EA;
+      --border-strong: #BAC6D6;
+      --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif;
+      --font-serif: "Noto Serif KR", Georgia, serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) {
+        --surface-page: #0B1018;
+        --surface-sheet: #121A26;
+        --surface-subtle: #1A2434;
+        --ink-primary: #E6EDF6;
+        --ink-secondary: #B4C2D4;
+        --ink-muted: #7C8FA6;
+        --accent: #7FB3FF;
+        --accent-hover: #A5C8FF;
+        --accent-soft: #172742;
+        --speaker-alt: #5EEAD4;
+        --border: #233044;
+        --border-strong: #33455F;
+      }
+    }
+    :root[data-color-mode="dark"] {
+      --surface-page: #0B1018;
+      --surface-sheet: #121A26;
+      --surface-subtle: #1A2434;
+      --ink-primary: #E6EDF6;
+      --ink-secondary: #B4C2D4;
+      --ink-muted: #7C8FA6;
+      --accent: #7FB3FF;
+      --accent-hover: #A5C8FF;
+      --accent-soft: #172742;
+      --speaker-alt: #5EEAD4;
+      --border: #233044;
+      --border-strong: #33455F;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      line-height: 1.78;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .masthead {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .masthead-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .channel-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--surface-subtle);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .channel-tab {
+      padding: 0.38rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-decoration: none;
+    }
+    .channel-tab:hover { color: var(--ink-primary); text-decoration: none; }
+    .channel-tab.active {
+      background: var(--surface-sheet);
+      color: var(--accent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .masthead-tools {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .tool-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-secondary);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.36rem 0.72rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tool-btn:hover { border-color: var(--border-strong); color: var(--ink-primary); }
+
+    .progress-track {
+      position: fixed; top: 0; left: 0; right: 0; height: 3px;
+      background: transparent; z-index: 40; pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%; width: 0%; background: var(--accent);
+      transition: width 80ms linear;
+    }
+    .reader-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4.5rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2.25rem;
+    }
+    @media (min-width: 1040px) {
+      .reader-shell {
+        grid-template-columns: 210px minmax(0, 740px);
+        justify-content: space-between;
+        align-items: start;
+      }
+    }
+    .toc-rail {
+      display: none;
+    }
+    @media (min-width: 1040px) {
+      .toc-rail {
+        display: block;
+        position: sticky;
+        top: 1.5rem;
+        padding-right: 0.75rem;
+        border-right: 1px solid var(--border);
+      }
+    }
+    .toc-heading {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--ink-muted);
+      margin: 0 0 0.65rem;
+    }
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .toc-link {
+      display: block;
+      font-size: 0.83rem;
+      line-height: 1.4;
+      color: var(--ink-muted);
+      padding: 0.25rem 0.45rem;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+    .toc-link:hover { color: var(--ink-primary); text-decoration: none; background: var(--surface-subtle); }
+    .toc-link.active { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+    .paper-sheet {
+      background: var(--surface-sheet);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.25rem 2.25rem 2.75rem;
+    }
+    @media (max-width: 640px) {
+      .paper-sheet { padding: 1.4rem 1.15rem 2rem; border-radius: 10px; }
+    }
+    .date-meta {
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-muted);
+      margin-bottom: 0.55rem;
+    }
+    h1 {
+      font-size: clamp(1.5rem, 2.8vw, 1.95rem);
+      line-height: 1.32;
+      letter-spacing: -0.025em;
+      margin: 0 0 0.9rem;
+      color: var(--ink-primary);
+    }
+    .meta-tags, .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.75rem 0 0.9rem;
+    }
+    .tag, .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.22rem 0.62rem;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      border: 1px solid var(--border);
+    }
+    .tag.primary, .badge:first-child {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: transparent;
+    }
+    .tag.muted, .badge.outline {
+      background: transparent;
+      color: var(--ink-muted);
+    }
+    .wos-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.1rem 0.44rem;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      vertical-align: middle;
+    }
+    .subtitle {
+      font-family: var(--font-serif);
+      font-size: 1.06rem;
+      line-height: 1.7;
+      color: var(--ink-secondary);
+      margin: 0.6rem 0 1.4rem;
+    }
+    .audio-deck {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1.05rem;
+      margin: 1.25rem 0 1.75rem;
+    }
+    .audio-deck-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .audio-title {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-primary);
+    }
+    .speed-group { display: inline-flex; gap: 0.25rem; }
+    .speed-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.18rem 0.48rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) .speed-btn.active { color: #0B1018; }
+    }
+    :root[data-color-mode="dark"] .speed-btn.active { color: #0B1018; }
+    audio { width: 100%; height: 38px; display: block; }
+    main { max-width: 68ch; }
+    .tldr-box {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 1.05rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0 2rem;
+    }
+    .tldr-box h2 {
+      margin: 0 0 0.55rem;
+      padding: 0;
+      border: none;
+      font-size: 1.02rem;
+      color: var(--accent);
+    }
+    .tldr-box ul { margin: 0; padding-left: 1.2rem; }
+    .tldr-box li { margin-bottom: 0.4rem; }
+    .tldr-box li:last-child { margin-bottom: 0; }
+    section { margin: 2.15rem 0; scroll-margin-top: 1.2rem; }
+    section > h2 {
+      font-size: 1.2rem;
+      letter-spacing: -0.015em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      margin: 0 0 0.95rem;
+      color: var(--ink-primary);
+    }
+    section p { margin: 0 0 0.9rem; color: var(--ink-primary); }
+    section p:last-child { margin-bottom: 0; }
+    .body-sec {
+      margin: 1.4rem 0;
+      padding-left: 0.85rem;
+      border-left: 2px solid var(--border);
+    }
+    .body-sec h3 {
+      font-size: 1.04rem;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .sec-idx { color: var(--accent); margin-right: 0.2rem; }
+    .table-wrap { overflow-x: auto; margin: 1rem 0; }
+    .analysis-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      border-top: 2px solid var(--border-strong);
+      border-bottom: 2px solid var(--border-strong);
+    }
+    .analysis-table th, .analysis-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .analysis-table thead th {
+      background: var(--surface-subtle);
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+    .analysis-table tbody th {
+      width: 27%;
+      font-weight: 600;
+      color: var(--ink-primary);
+      background: transparent;
+    }
+    .quote-block {
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--border-strong);
+      margin: 1.1rem 0;
+      padding: 1rem 1.2rem;
+      border-radius: 0 8px 8px 0;
+    }
+    .quote-en {
+      font-family: var(--font-serif);
+      font-size: 0.96rem;
+      line-height: 1.68;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .quote-kr {
+      font-size: 0.94rem;
+      margin: 0 0 0.4rem;
+      color: var(--ink-secondary);
+    }
+    .quote-block footer {
+      font-size: 0.81rem;
+      color: var(--ink-muted);
+    }
+    .chapter-list, .source-list { padding-left: 1.25rem; }
+    .chapter-list li, .source-list li { margin-bottom: 0.45rem; }
+    .src-venue, .sep { color: var(--ink-muted); }
+    .usage-meta {
+      margin-top: 2rem;
+      padding-top: 0.9rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+    .transcript {
+      margin-top: 2.5rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-subtle);
+      overflow: hidden;
+    }
+    .transcript summary {
+      cursor: pointer;
+      padding: 0.95rem 1.15rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--ink-primary);
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .transcript summary::-webkit-details-marker { display: none; }
+    .transcript summary::after {
+      content: "펼치기";
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .transcript[open] summary::after { content: "접기"; }
+    .transcript-body {
+      padding: 0.25rem 1.2rem 1.35rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .transcript-filter {
+      width: 100%;
+      margin: 0.9rem 0 1rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      font-family: inherit;
+      font-size: 0.86rem;
+    }
+    .cast-box {
+      background: var(--surface-subtle);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.85rem 0 1.2rem;
+      font-size: 0.88rem;
+    }
+    .cast-reason { color: var(--ink-muted); font-size: 0.83rem; margin-top: 0.2rem; }
+    .transcript-body h3 {
+      font-size: 1rem;
+      margin: 1.4rem 0 0.6rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .turn { margin: 0.7rem 0; line-height: 1.74; font-size: 0.94rem; }
+    .turn.hidden { display: none; }
+    .speaker {
+      display: inline-block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-right: 0.4rem;
+    }
+    .speaker.s2 { color: var(--speaker-alt); }
+  </style>
+</head>
+<body>
+  <div class="progress-track" aria-hidden="true"><div class="progress-bar" id="reading-progress"></div></div>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <nav class="channel-tabs" aria-label="브리핑 채널 전환">
+        <a class="channel-tab" href="../../index.html">글로벌 모닝 뉴스</a>
+        <a class="channel-tab active" href="../index.html">Deep Dive 심층 연구</a>
+      </nav>
+      <div class="masthead-tools">
+        <button type="button" class="tool-btn" data-copy-rss="https://dndlr56.github.io/nyt-briefing/deep/feed.xml">RSS 주소 복사</button>
+        <button type="button" class="tool-btn" id="color-mode-btn">화면 테마 전환</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="reader-shell">
+    <aside class="toc-rail" aria-label="문서 목차">
+      <a class="back-link" href="../index.html">아카이브 목록으로</a>
+      <p class="toc-heading">문서 구성</p>
+      <ul class="toc-list" id="toc-list"></ul>
+    </aside>
+
+    <article class="paper-sheet">
+      <header>
+        <div class="date-meta">2026년 11월 28일 (Sat) KST</div>
+        <h1>사고의 에너지: 마음의 모델이 놓쳐 온 대사의 물리적 제약</h1>
+      </header>
+      <div class="audio-deck">
+          <div class="audio-deck-top">
+            <span class="audio-title">오디오 브리핑 / 2인 대화 (지수(진행), 현수(해설)) (00:16:57)</span>
+            <div class="speed-group" role="group" aria-label="재생 배속">
+              <button type="button" class="speed-btn active" data-speed="1">1.0x</button>
+              <button type="button" class="speed-btn" data-speed="1.25">1.25x</button>
+              <button type="button" class="speed-btn" data-speed="1.5">1.5x</button>
+              <button type="button" class="speed-btn" data-speed="1.75">1.75x</button>
+            </div>
+          </div>
+          <audio controls preload="metadata" src="../episodes/deep_dive_2026-11-28_science_mind_191408.mp3"></audio>
+        </div>
+      <main id="article-main">
+        <div class="meta-tags">
+  <span class="tag primary">🧠 종합과학·뇌인지</span>
+  <span class="tag">심리철학·인지과학</span>
+  <span class="tag muted">1편 심층 분석</span>
+</div>
+<p class="subtitle">신경 신호와 추상적 계산 규칙만으로는 설명할 수 없는 에너지 획득·항상성 유지·노폐물 배출의 대사 제약이 기억·정신적 노력·인공지능 모델의 타당성을 어떻게 판가름하는지 분석한다.</p>
+
+
+<section id="sec-tldr" class="tldr-box" data-toc="핵심 요약">
+  <h2>핵심 요약</h2>
+  <ul><li>성인 체중의 약 2퍼센트에 불과한 뇌는 신체 열량의 약 20퍼센트를 소비하면서도 평균 약 20와트로 작동하며, 전체 에너지의 60퍼센트만 활동전위(16퍼센트)와 시냅스 전달(44퍼센트)에 쓰고 나머지 40퍼센트는 세포 유지·수리에 투입한다.</li><li>선형 비커 모델이 열역학적 평형이라는 생물학적 사멸 상태에 도달하는 것과 달리, 시냅스 1비트 저장에 약 50만 ATP를 쓰는 비평형 순환 모델은 낮은 유지 비용과 능동적 상태 유지를 통해 기억 간섭과 분자 교체 문제를 함께 설명한다.</li><li>정신적 노력 연구에서 단순 포도당 고갈설은 고된 과제 중 뇌 포도당 소모가 거의 변하지 않는다는 대사적 근거로 기각되었으나, 전대상피질의 비용·편익 계산에도 에너지가 들므로 노력감과 피로는 에너지 상한선 내 대사 변화나 신경 노폐물 청소 신호로 재해석된다.</li><li>인공지능 역시 추상적 최적화만 볼 것이 아니라 규모·학습 데이터·전력망 인프라를 반영한 바닥부터의 에너지 모델링이 필요하며, 설계 변경이 가능한 인공지능 실험은 매체 독립성 가설을 검증하는 시험대가 된다.</li></ul>
+</section>
+
+<section id="sec-1" data-toc="1. 문제 제기 및 핵심 테제">
+  <h2>1. 문제 제기 및 핵심 테제</h2>
+  <p>마음의 작동을 해명하려는 수많은 인지과학적·철학적 모델은 컴퓨터의 계산 규칙이나 신경세포의 신호 전달에만 초점을 맞춘 채, 뇌가 에너지를 획득하고 항상성을 유지하며 노폐물을 배출하는 대사 작용을 체계적으로 누락해 왔다. 1960년대 힐러리 퍼트넘이 제시한 다중 실현 가능성과 존 하우글랜드의 매체 독립성 개념은 동일한 정신 상태가 서로 다른 물리적 기질에서도 구현될 수 있다고 보아, 소프트웨어를 하드웨어와 분리하듯 마음을 생물학적 기반에서 떼어놓는 이론적 근거로 작동했다.</p><p>심지어 신경과학의 중요성을 역설한 패트리샤 처칠랜드나 생물학적 메커니즘을 강조한 칼 크레이버 같은 철학자들조차 신호를 유지하는 화학과 에너지를 설명의 핵심이 아닌 단순한 배경 조건으로만 취급했다. 데이비드 콜라코와 필리프 하우이스는 대사 제약을 모델링의 중심에 놓음으로써 생물학적 시스템이 감당할 수 없는 비현실적 가설을 걸러내고, 다중 실현 가능성 같은 형이상학적 전제를 경험적 검증 대상이 되는 작업 가설로 전환해야 한다고 주장한다.</p>
+</section>
+
+<section id="sec-2" data-toc="2. 분석 프레임워크 및 근거 구조">
+  <h2>2. 분석 프레임워크 및 근거 구조</h2>
+  <p>생물학적 시스템의 생존 조건인 대사가 근육·폐·면역계 모델을 제약하듯 사고 과정 모델 역시 제약한다는 전제 아래, 저자들은 최근 25년간 축적된 뇌 에너지 수지 데이터와 정보처리당 정량적 대사 비용을 핵심 분석 틀로 삼는다. 버지니아대학 윌리엄 레비와 빅토리아 캘버트의 측정에 따르면 평균 약 20와트로 작동하는 뇌에서 정보 전달 스파이크에는 약 3.5와트, 시냅스 형성과 강화에는 약 1.3와트만이 소요된다.</p><p>또한 엘리자베스 잉글과 데이비드 애트웰의 2015년 연구는 전체의 40퍼센트에 달하는 유지·수리 에너지가 정보 부호화와 처리 속도의 시간적 상한을 제한함을 보였고, 얀 카르보프스키 연구진은 시냅스에 정보 1비트를 저장하는 데 약 50만 ATP가 든다고 산출했다. 저자들은 이 정량적 대사 근거를 시냅스 기억, 정신적 노력, 인공신경망이라는 세 영역에 적용해 기존 인지 모델의 성립 가능성을 따진다.</p>
+</section>
+
+<section id="sec-3" data-toc="3. 본문 핵심 논증">
+  <h2>3. 본문 핵심 논증</h2>
+  <div class='body-sec'><h3><span class='sec-idx'>1.</span> 뇌의 20와트 예산과 매체 독립성 가설의 재검토</h3><p>뇌는 성인 체중의 약 2퍼센트를 차지하면서 전체 칼로리의 약 20퍼센트를 소모하지만, 먹이를 찾고 포식자를 피하는 진화적 선택 압력 속에서 백열전구 하나보다 적은 평균 약 20와트로 작동하는 고효율 기관으로 발달했다. 뇌의 에너지 배분 비율을 보면 활동전위 생성에 약 16퍼센트, 시냅스의 화학적 신호 전달에 약 44퍼센트를 배정해 정보 신호 처리 자체에는 60퍼센트만 쓰고, 나머지 40퍼센트는 신경세포가 무너지지 않도록 유지·수리하는 데 투입한다.</p><p>마즈비타 치리무타, 코리 말리, 로사 차오 등은 뇌의 정보처리가 신호 진폭과 대사 분자, 에너지 공급에 긴밀히 의존한다는 점을 지적해 왔다. 대사 제약을 중시한다고 해서 마음이 반드시 뇌라는 단일 기질에서만 실현된다고 단정하는 것은 아니며, 실리콘 기반 디지털 컴퓨터든 생물학적 뇌든 에너지 사용·유지·노폐물 배출의 한계를 넘어서는 모델은 성립할 수 없다. 따라서 다중 실현 가능성과 매체 독립성은 연구에서 물리적 기반을 배제하는 교리가 아니라, 대사 연구를 통해 설명력을 검증받아야 할 작업 가설로 재정립된다.</p></div><div class='body-sec'><h3><span class='sec-idx'>2.</span> 비평형 열역학으로 푼 시냅스 기억의 간섭과 교체 문제</h3><p>도널드 헵의 학습 원리에 기반한 주류 시냅스 기억 이론은 새 기억을 쉽게 저장할수록 옛 기억을 덮어쓰는 간섭 문제와, 시냅스를 이루는 분자가 며칠 만에 교체되는데도 기억이 평생 지속되는 오토 노이라트의 배와 같은 교체 문제를 안고 있다. 2016년 스테파노 푸시와 마르쿠스 베나는 관으로 연결된 일련의 비커를 상정해, 앞선 비커의 액체 수위 변화가 느리게 차오르는 뒤쪽 비커로 확산되며 단기 학습과 장기 보존을 양립시키는 수학적 모델을 제안했다. 그러나 시간이 흐르면서 액체 수위가 결국 균등해지는 선형 비커 모델은 열역학적 평형에 도달하는 시스템을 상정하며, 에르빈 슈뢰딩거가 지적했듯 생물계에서 평형은 곧 조직 상실과 죽음을 의미하므로 실제 신경세포에서는 작동할 수 없다.</p><p>이와 달리 카르보프스키는 생물계가 결코 평형 상태에 머물지 않는다는 점에 착안해 비평형 열역학 수학으로 시냅스 기억의 순환 모델을 구축했다. 이 모델에서는 시냅스의 생화학적 과정이 선형이 아니라 ATP가 상태 전이를 구동하는 순환 고리로 얽혀 있으며, 각 상태 변화 속도가 달라 평형에 이르지 않은 채 새 기억을 형성하고 기존 기억을 유지한다. 여기에 시냅스 1비트당 약 50만 ATP라는 비용 계산을 결합하면 새 기억 부호화와 장기 유지의 에너지 부담이 매우 낮아 옛 기억을 지우지 않고도 공존시킬 수 있고, 기억이 특정 분자가 아니라 시냅스가 능동적으로 유지하는 상태에 담김으로써 분자 교체 문제도 해결된다.</p></div><div class='body-sec'><h3><span class='sec-idx'>3.</span> 정신적 노력의 실체: 포도당 고갈설을 넘어 노폐물 신호까지</h3><p>아침에는 수월하던 업무가 수백 통의 이메일과 연이은 회의 뒤에는 힘겨워지는 정신적 노력의 비용을 설명하기 위해, 로이 바우마이스터 등은 유한한 뇌 포도당이 소진되어 수행력이 떨어진다는 자아 고갈 모델을 제시했다. 그러나 이 모델은 재현성 난항과 더불어, 고된 인지 과제를 수행해도 뇌의 포도당 소모량이 거의 변하지 않아 오후의 자기통제만으로 자원이 고갈될 수 없다는 대사적 증거에 부딪혀 설득력을 잃었다. 이에 로버트 커즈번 등은 뇌가 과제 유지와 전환의 비용·편익을 계산한다는 순수 계산 모델로 전환하며 대사를 논의에서 배제했다.</p><p>하지만 아미타이 셴하브, 매튜 보트비닉, 클레이 홀로이드가 전대상피질에서 수행된다고 보는 비용·편익 계산 자체 역시 에너지를 지불해야 하는 물리적 작업이므로 계산 모델과 자원 모델의 대립은 거짓 대립에 가깝다. 알렉상드르 제농 등은 인지적 노력이 더 많은 정보처리를 요구해 에너지를 미세하게 더 쓰며, 뇌 에너지 총량에 엄격한 상한선이 있어 다른 과제의 지출을 줄여야 하는 상황에서 주관적 노력감은 대사 변화의 축적 속도를, 피로는 그 변화가 계속되리라는 예상을 반영한다고 설명한다. 더 나아가 홀로이드의 통제권역 모델은 지속적인 인지 통제가 신경세포 내에 노폐물을 쌓이게 한다는 실증 연구를 토대로, 노력감을 손상이 일어나기 전에 고강도 통제 과제를 멈추고 노폐물을 청소하라는 뇌의 경고 신호로 해석한다.</p></div><div class='body-sec'><h3><span class='sec-idx'>4.</span> 인공지능의 바닥부터 에너지 모델링과 대사적 전환</h3><p>1943년 워런 매컬럭과 월터 피츠의 신경망 모델이나 1958년 프랭크 로젠블랫의 퍼셉트론에서 출발해 거대언어모델에 이른 인공지능 연구에서도, 매체 독립성 관점은 루크 커스턴과 레너드 덩 등이 주장하듯 추상적 계산만 같다면 실리콘 시스템이 인간의 마음을 복제할 수 있다는 시각을 낳았다. 그러나 뇌의 20와트 작동과 달리 막대한 전력을 쓰는 초대형 데이터센터의 현실을 볼 때, 뇌에서는 에너지 제약 자체가 어떤 계산을 수행할지 결정하므로 칩과 뇌가 동일한 계산을 수행한다고 섣불리 단정할 수 없다. 로사 차오와 다니엘 야민스가 시각 자극 반응을 비교하며 에너지 제약의 차이를 인정하고도 이를 추상적인 효율성과 최적화 문제로만 다룬 점 역시 구체적 메커니즘을 놓치는 한계를 보인다.</p><p>저자들은 과제 최적화에만 매몰되지 말고 인공지능의 규모, 학습 데이터, 전력망 인프라의 세부 조건까지 반영하는 바닥부터의 에너지 모델링이 필요하다고 제안한다. 뇌와 달리 인공지능은 인간이 직접 설계를 바꾸어 에너지 사용 방식이 계산과 인지적 차이를 어떻게 낳는지 실험할 수 있는 대상이기 때문이다. 이미 메건 피터스 같은 인지과학자들이 뇌 대사 연구를 토대로 AI 에너지 효율을 높이는 프로젝트를 진행하고 있으며, 패트리크 맥기번이 명명한 이 대사적 전환은 인공지능 공학의 실용적 난제를 푸는 동시에 매체 독립성 가설을 시험하는 이론적 도구가 된다.</p></div>
+</section>
+
+<section id="sec-4" data-toc="4. 주요 지표·쟁점 요약표">
+  <h2>4. 주요 지표·쟁점 요약표</h2>
+  <div class="table-wrap">
+    <table class="analysis-table">
+      <thead><tr><th scope="col">항목</th><th scope="col">원문 핵심 내용</th></tr></thead>
+      <tbody><tr><th scope='row'>뇌 에너지 소비와 배분</th><td>성인 체중 약 2%로 전체 열량의 약 20% 소비, 평균 약 20W 작동(스파이크 약 3.5W, 시냅스 강화 약 1.3W). 활동전위 생성 16%, 시냅스 화학 전달 44%(신호 총 60%), 신경세포 유지·수리 40% 배분</td></tr><tr><th scope='row'>시냅스 기억 저장 비용</th><td>시냅스에 정보 1비트 저장 시 약 500,000 ATP 소요. 부호화와 장기 유지 비용이 낮아 기존 기억을 지우지 않고 새 기억과 공존 가능(얀 카르보프스키 연구)</td></tr><tr><th scope='row'>선형 비커 모델 vs 비평형 순환 모델</th><td>푸시·베나의 비커 모델은 열역학적 평형(생물학적 죽음)에 도달해 부적합. 카르보프스키의 ATP 구동 순환 모델은 비평형 상태를 유지하며 간섭과 분자 교체 문제를 동시 해소</td></tr><tr><th scope='row'>정신적 노력과 피로 기전</th><td>고된 과제 중 뇌 포도당 소모량 변화가 미미해 바우마이스터의 자아 고갈설 반박. 에너지 상한 내 대사 변화 축적(제농 등) 및 신경 노폐물 청소 신호(홀로이드의 통제권역 모델) 제시</td></tr><tr><th scope='row'>인공지능과 매체 독립성</th><td>초대형 데이터센터의 막대한 전력 소비는 뇌(20W)와 상이. 규모·학습 데이터·전력망 인프라를 반영한 바닥부터의 에너지 모델링으로 계산·인지 차이와 매체 독립성 검증 가능</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sec-5" data-toc="5. 원문 핵심 문장 발췌">
+  <h2>5. 원문 핵심 문장 발췌</h2>
+  <blockquote class='quote-block'><p class='quote-en'>“A model of memory is not viable if it requires a system to do more than its metabolism can support, and studying metabolism is how we find out where that limit lies.”</p><p class='quote-kr'>기억 모델이 시스템의 대사가 감당할 수 있는 것 이상을 요구한다면 그 모델은 타당하지 않으며, 대사를 연구하는 것이야말로 그 한계가 어디에 있는지 알아내는 방법이다.</p><footer>David Colaço &amp; Philipp Haueis, &#x27;The energy of thought&#x27; (Aeon)</footer></blockquote><blockquote class='quote-block'><p class='quote-en'>“If a memory is held in a state that the synapse actively maintains, rather than in any particular molecules, it can outlast the molecules themselves, much as Neurath’s ship stays afloat precisely because it is constantly being rebuilt.”</p><p class='quote-kr'>기억이 특정 분자가 아니라 시냅스가 능동적으로 유지하는 상태에 담겨 있다면 분자 자체보다 오래 지속될 수 있으며, 이는 노이라트의 배가 끊임없이 재건되기 때문에 바로 물 위에 떠 있을 수 있는 것과 같다.</p><footer>David Colaço &amp; Philipp Haueis, &#x27;The energy of thought&#x27; (Aeon)</footer></blockquote><blockquote class='quote-block'><p class='quote-en'>“How an AI system uses energy is a modelling problem, which depends on scale, training data and details of grid infrastructure, just as the brain’s energy use depends on the details of its metabolism.”</p><p class='quote-kr'>인공지능 시스템이 에너지를 사용하는 방식은 규모, 학습 데이터, 전력망 인프라의 세부 사항에 달려 있는 모델링 문제이며, 이는 마치 뇌의 에너지 사용이 대사의 세부 사항에 달려 있는 것과 같다.</p><footer>David Colaço &amp; Philipp Haueis, &#x27;The energy of thought&#x27; (Aeon)</footer></blockquote>
+</section>
+
+<section id="sec-6" data-toc="6. 트레이드오프·반론 및 한계">
+  <h2>6. 트레이드오프·반론 및 한계</h2>
+  <ul><li>뇌가 평균 약 20와트라는 극도로 적은 에너지로 이토록 방대한 작업을 수행하는 구체적 원리는 아직 완전히 해명되지 않았으며, 진화적 선택 이점만으로는 세부 기전 전체를 설명할 수 없다.</li><li>활동전위 16퍼센트, 시냅스 전달 44퍼센트, 유지·수리 40퍼센트 같은 거시적 에너지 수지 데이터만으로는 개별 인지 능력을 모델링하기에 너무 거칠기 때문에, 비트당 ATP 소모량 같은 정량적 비용 수치가 보완되어야 한다.</li><li>대사 제약을 중시하는 관점이 다중 실현 가능성이나 매체 독립성을 결정적으로 반증하거나 마음이 오직 뇌에서만 구현된다고 확정하는 것은 아니며, 실리콘 기반 컴퓨터 같은 비생물학적 매체 역시 에너지·유지·노폐물 제약을 동일하게 받는다.</li></ul>
+</section>
+
+<section id="sec-7" data-toc="7. 결론 및 정책·전략적 제언">
+  <h2>7. 결론 및 정책·전략적 제언</h2>
+  <ul><li>다중 실현 가능성과 매체 독립성을 형이상학적 교리로 고수할 것이 아니라, 뇌 대사와 에너지 제약 연구를 통해 경험적으로 수정·검증해야 할 작업 가설로 재정립해야 한다.</li><li>기억이나 정신적 노력 같은 인지 모델은 ATP 구동 비평형 순환, 에너지 예산 상한선, 신경 노폐물 축적 및 제거 같은 대사 변수를 배경 조건이 아니라 모델의 핵심 구조로 직접 통합해야 한다.</li><li>인공지능 시스템의 규모·학습 데이터·전력망 인프라를 반영한 바닥부터의 에너지 모델링은 AI의 에너지 효율을 개선하는 공학적 이익과 함께 AI와 인간 마음의 계산적·인지적 차이를 가르는 이론적 시험대를 제공한다.</li></ul>
+</section>
+
+<section id="sec-8" data-toc="8. 오디오 챕터 구성">
+  <h2>8. 오디오 챕터 구성</h2>
+  <ol class="chapter-list"><li><strong>Ch.1. 뇌의 20와트 예산과 매체 독립성의 빈틈</strong> — 마음의 작동 모델에서 신경 신호와 계산 규칙만 강조되고 에너지 획득·유지·노폐물 배출이 배제된 철학적 배경을 짚는다. 뇌의 총에너지 사용량과 세부 배분 수치를 통해 왜 대사가 인지 모델의 타당성을 가르는 기준이 되는지 설명한다.</li><li><strong>Ch.2. 시냅스 기억의 역설: 비커 모델 대 비평형 순환 모델</strong> — 새 기억이 기존 기억을 덮어쓰는 간섭 문제와 시냅스 분자가 수일 만에 교체되는 노이라트의 배 문제를 다룬다. 푸시·베나의 선형 비커 모델이 열역학적 평형이라는 생물학적 불가능성에 부딪히는 이유와 카르보프스키의 순환 모델이 이를 해결하는 원리를 비교한다.</li><li><strong>Ch.3. 정신적 노력과 피로: 포도당 고갈을 넘어 노폐물 신호로</strong> — 장시간 인지 작업 뒤 업무가 버거워지는 현상을 두고 포도당 고갈설이 반박된 대사적 이유와 순수 계산 모델의 한계를 짚는다. 전대상피질의 비용·편익 계산에도 에너지가 든다는 점과 제농·홀로이드의 대사 통합 모델을 설명한다.</li><li><strong>Ch.4. 인공지능의 에너지 모델링과 대사적 전환</strong> — 초기 신경망부터 거대언어모델까지 이어진 매체 독립성 가정이 뇌(20와트)와 초대형 데이터센터 사이의 에너지 격차를 간과한 문제를 살펴본다. 설계 변경이 가능한 인공지능에서 바닥부터 에너지 사용을 모델링할 때 얻는 공학적·철학적 함의를 정리한다.</li></ol>
+</section>
+
+<section id="sec-sources" data-toc="원문 출처">
+  <h2>원문 출처</h2>
+  <ul class="source-list"><li><strong>The energy of thought</strong> <span class='src-venue'>(Aeon Essays, Fri, 27 Nov 2026 11:00:00 GMT)</span> <a href='https://aeon.co/essays/all-our-models-of-how-the-mind-functions-are-missing-something' target='_blank' rel='noopener'>원문 보기</a></li></ul>
+</section>
+
+<div class='usage-meta'><hr/><p><small><strong>📊 이번 회차 생성 리포트</strong><br/>• Gemini API (<code>gemini-4-hydrogen, gemini-3.8-flash-tts</code>): 입력 31,102 + 출력 45,900 (추론 11,073 포함) = 총 77,002 토큰<br/>• 예상 API 비용: 무료 5회($0) + 유료 우회 4회 약 $0.1946 (약 273원 추정 · 전체 유료 환산 $0.4250)<br/>• 음성 합성(TTS): gemini_tts / <code>gemini-3.8-flash-tts</code> (<code>S1=Kore, S2=Charon</code>) · 7,378자 (무료 티어 $0 (유료 환산 $0.2303))</small></p></div>
+        <details class='transcript' id='sec-transcript' data-toc='전체 대화 대본'><summary>전체 대화 대본 (7,378자 / 42턴)</summary><div class='transcript-body'><div class='cast-box'><div><strong>진행 구성:</strong> 2인 대화 (지수(진행), 현수(해설))</div><div class='cast-reason'>단일 에세이가 철학·신경과학·인지심리학·인공지능을 가로지르며 &#x27;대사적 전환&#x27;이라는 일관된 논지를 전개하므로, 진행자가 핵심 질문을 이끌고 해설자가 구체적 수치와 작동 원리를 짚는 2인 구성이 적합하다.</div></div><input type='search' id='transcript-search' class='transcript-filter' placeholder='대본 내 키워드 검색' aria-label='대본 내 키워드 검색' /><h3>오프닝</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 오늘 살펴볼 글은 에이온 에세이에 실린 데이비드 콜라코와 필리프 하우이스의 사고의 에너지입니다. 지금까지 철학자와 과학자들은 마음을 컴퓨터의 계산 규칙이나 신경세포의 전기 신호로 설명하는 수많은 모델을 만들어 왔습니다. 그런데 저자들은 이 모델들이 뇌가 에너지를 얻고 항상성을 유지하며 노폐물을 배출하는 대사 작용을 빠뜨렸다고 지적합니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 대사 제약을 빼놓고 마음을 모델링하면 현실에서 작동할 수 없는 가설을 세우게 된다는 것이 핵심 논지입니다. 오늘 브리핑에서는 먼저 뇌의 에너지 예산과 철학적 배경을 짚어보고, 이어서 시냅스 기억 모델과 정신적 노력, 그리고 인공지능의 에너지 모델링까지 대사 관점이 어떻게 기존 이론을 검증하고 바꾸는지 차례로 살펴보겠습니다.</p><h3>Chapter 1. 뇌의 20와트 예산과 매체 독립성의 빈틈</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 마음을 이해하려 할 때 신경 신호나 계산 규칙만으로도 충분해 보이는데, 왜 하필 대사 작용에 주목해야 하는 건가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 대사는 뇌를 포함한 모든 생물학적 시스템이 살아남기 위해 수행하는 활동 전체를 말합니다. 에너지를 쓰는 것뿐만 아니라 세포를 유지하고 조절하며 노폐물을 치우는 일까지 포함하죠. 우리가 달릴 때 근육이 어떻게 작동하는지, 숨을 쉴 때 폐가 어떻게 움직이는지 설명할 때는 대사를 당연히 고려합니다. 마찬가지로 인간이 생각할 때 뇌가 어떻게 작동하는지 설명하는 모델에서도 대사가 빠질 수 없다는 것입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 뇌가 에너지를 많이 쓴다는 이야기는 익숙한데, 구체적으로 어느 정도 규모이고 어떻게 배분되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 성인 기준으로 뇌는 체중의 약 2퍼센트밖에 되지 않지만, 전체 칼로리의 약 20퍼센트를 소비합니다. 그러면서도 평균 약 20와트 수준으로 작동하는데, 백열전구 하나보다 적은 전력입니다. 버지니아 대학교의 윌리엄 레비와 빅토리아 캘버트 연구에 따르면 정보를 전달하는 전기 신호인 스파이크에 약 3.5와트, 정보를 저장하기 위해 시냅스를 만들고 강화하는 데 약 1.3와트가 쓰입니다. 세부 배분을 보면 활동전위를 생성하는 데 16퍼센트, 시냅스에서 화학적으로 신호를 전달하는 데 44퍼센트가 들어갑니다. 나머지 40퍼센트는 신경세포를 유지하고 수리하는 데 쓰입니다. 즉, 전체 에너지의 60퍼센트만 신호 전달에 쓰이고 40퍼센트는 신경 장치가 망가지지 않게 지키는 데 투입되는 셈입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 신호 전달 외에 유지와 수리에 40퍼센트나 쓰인다는 점이 인상적이네요. 그런데 왜 그동안 많은 철학자와 인지과학자들이 이런 대사 과정을 모델에서 제외해 왔을까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 심리철학과 인지과학에 깊이 자리 잡은 두 가지 관점 때문입니다. 첫째는 1960년대 힐러리 퍼트넘이 제시한 다중 실현 가능성입니다. 같은 정신 상태라도 서로 다른 신경 상태로 구현될 수 있으므로, 중요한 것은 무엇으로 만들어졌느냐가 아니라 무엇을 하느냐라는 입장입니다. 둘째는 존 하우글랜드의 매체 독립성 개념입니다. 정신 상태를 일종의 계산으로 본다면, 같은 소프트웨어가 다른 하드웨어에서 돌아가듯 동일한 계산 규칙이 다양한 매체에서 구현될 수 있다는 생각입니다. 이 두 관점이 결합하면서 마음을 생물학적 기반인 뇌에서 분리해 독립적으로 연구해도 된다는 인식이 퍼졌습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 뇌과학을 적극적으로 수용한 철학자들은 대사를 중요하게 다뤘을 것 같은데, 실제로는 어땠나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 신경과학을 배우자고 촉구했던 패트리샤 처칠랜드조차 1988년 공저 논문에서 계산신경과학의 목표를 뇌 신호가 정보를 표상하고 처리하는 방식의 해명으로 정의하면서, 그 신호를 유지하는 화학 작용은 논의에서 놓쳤습니다. 생물학적 메커니즘을 강조한 칼 크레이버 역시 신경전달물질이 수용체에 결합하는 과정에는 주목했지만, 그 활동을 가능하게 하는 에너지는 설명의 핵심이 아니라 단순한 배경 조건으로만 취급했습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 대사 제약을 모델링의 중심에 놓는다는 것이 다중 실현 가능성이나 매체 독립성 자체를 부정하자는 뜻인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 저자들은 그렇게 극단적으로 보지 않습니다. 기억 저장을 예로 들면, 뇌의 다른 과정을 거치든 실리콘 기반의 디지털 컴퓨터를 쓰든 모든 물리적 시스템은 에너지 사용과 유지, 노폐물 배출이라는 제약 아래 놓입니다. 대사가 감당할 수 없는 수준의 작업을 요구하는 모델은 타당하지 않다는 뜻이죠. 따라서 다중 실현 가능성과 매체 독립성을 절대적인 형이상학적 교리로 고수할 것이 아니라, 대사 연구를 통해 경험적으로 검증하고 수정할 수 있는 작업 가설로 삼아야 한다고 제안합니다.</p><h3>Chapter 2. 시냅스 기억의 역설: 비커 모델 대 비평형 순환 모델</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 대사 제약이 실제로 어떤 인지 모델의 타당성을 가려내는지 구체적인 사례로 들어가 보겠습니다. 먼저 기억 모델에서는 어떤 문제가 제기되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 신경과학의 주류 이론은 기억이 뉴런과 뉴런이 만나는 시냅스에 저장된다고 봅니다. 새 기억이 형성되면 시냅스가 변하고 신호 전달 방식이 달라지는 것이죠. 그런데 이 시냅스 기억 이론에는 두 가지 큰 난제가 있습니다. 첫째는 간섭 문제입니다. 새 기억을 잘 저장하려면 시냅스가 쉽게 변해야 하는데, 그러면 기존에 저장된 오래된 기억을 덮어써 버릴 위험이 커집니다. 둘째는 교체 문제입니다. 시냅스를 구성하는 분자들은 며칠 만에 새것으로 바뀌는데, 어떻게 어떤 기억은 평생 유지될 수 있는가 하는 점입니다. 마치 항해 중에 널빤지를 하나씩 갈아 끼우는 오토 노이라트의 배처럼, 모든 부품이 교체되는 시스템에서 정보가 어떻게 살아남는지 설명해야 합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 이 간섭 문제를 풀기 위해 2016년에 스테파노 푸시와 마르쿠스 베나가 제시한 비커 모델이 유명하죠. 어떤 방식이었나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 푸시와 베나는 시냅스의 화학 과정을 관으로 연결된 여러 개의 비커에 비유했습니다. 첫 번째 비커의 액체 높이가 시냅스의 강도인데, 액체를 넣으면 강해지고 빼면 약해집니다. 시간이 지나면 첫 번째 비커의 액체가 관을 통해 뒤쪽의 다른 비커들로 천천히 퍼져 나갑니다. 안쪽 비커들은 채워지고 비워지는 속도가 훨씬 느리기 때문에 과거의 변화 흔적을 오래 간직하고, 첫 번째 비커를 예전 높이로 되돌리는 힘을 발휘합니다. 덕분에 새 기억은 빠르게 형성되면서도 오래된 기억은 천천히 사라지게 된다는 수학적 모델입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 직관적이고 깔끔한 설명처럼 들리는데, 왜 대사 관점에서는 이 비커 모델이 성립할 수 없다고 보나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 비커 모델은 액체가 한쪽에서 다른 쪽으로 흐르다가 결국 모든 비커의 수위가 같아지는 평형 상태에 도달하는 선형 시스템입니다. 하지만 생물학에서 열역학적 평형 상태에 도달한다는 것은 곧 죽음을 의미합니다. 물리학자 에르빈 슈뢰딩거가 말했듯 살아 있는 물질은 평형으로의 붕괴를 피해야 합니다. 뉴런은 살아남기 위해 끊임없이 이온과 분자를 들이고 내보내야 합니다. 만약 뉴런이 평형에 이르면 조직화를 잃고 시냅스에 기억을 저장하는 기능 자체를 수행할 수 없게 됩니다. 대사를 제약 조건으로 두면 선형 비커 모델은 실제 생물학적 시스템에서 작동 불가능하다는 결론이 나옵니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 대사 작용을 모델에 직접 통합했을 때는 어떤 대안이 나오나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 이론신경과학자 얀 카르보프스키가 개발한 비평형 순환 모델이 그 해답을 보여줍니다. 카르보프스키는 생물 시스템이 결코 평형에 있지 않다는 점에 착안해 비평형 열역학의 수학을 적용했습니다. 비커 모델처럼 일직선으로 흐르는 대신 시냅스의 생화학 과정을 순환 고리로 연결하고, 세포의 연료인 ATP가 이 순환 고리 안의 상태 전환을 직접 구동하도록 설계했습니다. 각 단계의 변화 속도가 다르기 때문에 시냅스는 평형에 빠지지 않고도 새 기억을 형성하고 오래 유지할 수 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그 순환 모델에 구체적인 에너지 비용까지 계산해 넣으면 간섭 문제와 분자 교체 문제가 어떻게 풀리나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 카르보프스키 연구팀의 계산에 따르면 시냅스에 정보 1비트를 저장하는 데는 약 50만 ATP가 듭니다. 수치로 보면 새 기억을 부호화하는 비용도 저렴하고, 특정 조건에서는 그 기억을 오랫동안 유지하는 비용도 매우 낮습니다. 오래된 기억을 붙잡아 두는 데 에너지가 거의 들지 않기 때문에, 시냅스가 새 기억을 쓰면서도 기존 기억을 지우지 않고 감당할 수 있는 것입니다. 또한 기억이 특정 분자 자체에 박혀 있는 것이 아니라 시냅스가 에너지를 써서 능동적으로 유지하는 상태에 담겨 있다고 보면, 구성 분자가 며칠 만에 교체되더라도 기억은 그보다 훨씬 오래 살아남을 수 있습니다. 노이라트의 배가 끊임없이 널빤지를 교체하기 때문에 오히려 물 위에 떠 있을 수 있는 것과 같은 이치입니다.</p><h3>Chapter 3. 정신적 노력과 피로: 포도당 고갈을 넘어 노폐물 신호로</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 기억에 이어서 우리가 일상에서 자주 겪는 정신적 노력과 피로 문제도 대사 관점에서 볼 수 있을까요? 아침에는 맑은 정신으로 일을 시작하다가도, 이메일을 수백 통 쓰고 회의를 여러 번 거치면 평소에 쉽던 일도 유독 버겁게 느껴지곤 합니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 바로 그 지점이 대사 제약이 인지 모델의 타당성을 가르는 두 번째 사례입니다. 심리학자 로이 바우마이스터 연구팀은 이를 설명하기 위해 자아 고갈 모델을 제시했습니다. 집중력과 자제력을 쓰는 고된 작업을 하면 뇌 속의 포도당이라는 유한한 자원이 고갈되고, 그 결과 수행 능력이 떨어진다고 본 것입니다. 하지만 이 모델은 후속 연구에서 재현이 어렵다는 점과 함께 결정적인 대사적 반박에 부딪혔습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 뇌가 에너지를 많이 쓰는 기관이니 포도당이 줄어든다는 가설이 직관적으로는 그럴듯해 보이는데, 실제 측정에서는 다르게 나왔나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. 실제로 뇌의 포도당 소모량을 측정해 보니, 고된 인지 과제를 수행하는 동안에도 뇌의 포도당 사용량은 거의 변하지 않았습니다. 오후 내내 자제력을 발휘한다고 해서 뇌의 포도당이 바닥날 정도는 아니었던 것입니다. 이 결과는 대사적 증거가 뇌에서 실제로 작동할 수 없는 모델을 걸러낸 사례입니다. 그러자 로버트 커즈번 같은 연구자들은 뇌가 현재 과제에 머무를 때의 편익과 다른 활동으로 옮겨갈 때의 비용을 계산한다는 순수 계산 모델로 방향을 돌렸고, 대사는 정신적 노력을 설명하는 데 무관하다고 결론지었습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 하지만 비용과 편익을 따져 보는 그 계산 과정 자체도 물리적인 뇌에서 일어나는 일이라면, 역시 에너지가 들지 않을까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 정확합니다. 자원 고갈 모델과 계산 모델을 서로 대립하는 것으로 보는 시각 자체가 잘못된 것입니다. 아미타이 셰나브, 매튜 보트비닉, 클레이 홀로이드 같은 신경과학자들은 바로 그 비용과 편익을 계산하는 과정이 뇌의 전대상피질이라는 영역에서 일어난다고 봅니다. 그런데 이 계산 역시 물리적 작업이므로 반드시 에너지 비용을 치러야 합니다. 따라서 사용 가능한 에너지에 관한 근거를 바탕으로 이 계산 과정의 모델이 실제로 가능한지 따져볼 수 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 대사를 배제하지 않고 정신적 노력과 피로를 직접 통합해 설명하는 모델들도 이미 나와 있나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 두 가지 대표적인 접근이 있습니다. 먼저 알렉상드르 제농 연구팀은 노력이 필요한 과제를 수행할 때 뇌가 더 많은 정보를 처리해야 하므로 에너지를 조금 더 쓰게 된다고 봅니다. 뇌의 에너지 예산에는 넘을 수 없는 상한선이 있기 때문에, 한쪽에 에너지를 더 쓰면 다른 과제에 쓸 에너지는 줄여야 합니다. 제농 연구팀은 우리가 주관적으로 느끼는 노력의 감각이 바로 이 대사 변화가 얼마나 빠르게 축적되는지를 반영하며, 피로감은 이런 변화가 계속될 것이라는 예측을 반영한다고 설명합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 에너지 상한선 안에서 자원을 배분하는 과정에서 노력과 피로가 느껴진다는 거군요. 노폐물 배출과 연결한 설명도 있다고 들었습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 클레이 홀로이드가 제시한 통제권역 모델이 바로 노폐물에 주목합니다. 뇌가 행동을 통제하는 원리에서 출발해, 지속적인 정신적 노력이 신경세포에 노폐물을 쌓이게 한다는 경험적 연구 결과를 결합한 모델입니다. 이 관점에서는 노력으로 인한 피로감이 곧 뇌에 보내는 정지 신호가 됩니다. 노폐물이 신경세포를 손상하기 전에 청소할 시간을 벌기 위해 높은 통제력이 필요한 작업을 멈추라고 알리는 생물학적 안전장치인 셈입니다.</p><h3>Chapter 4. 인공지능의 에너지 모델링과 대사적 전환</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 지금까지는 생물학적 뇌를 중심으로 살펴봤는데, 최근 폭발적으로 발전하고 있는 인공지능 분야에서도 이러한 대사적 관점이 유효할까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 물론입니다. 인공지능과 뇌의 연결고리는 1943년 워런 매컬럭과 월터 피츠가 제시한 최초의 신경망 모델이나 1958년 프랭크 로젠블랫의 퍼셉트론까지 거슬러 올라갈 만큼 오래되었습니다. 최근에는 거대언어모델이 등장하면서 인공지능이 정말로 지능이나 의식을 가질 수 있는지에 대한 근본적인 질문이 다시 불붙었습니다. 저자들은 바로 이 지점에서 대사와 에너지 사용이 논의의 출발점이 되어야 한다고 말합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 실제로 초대형 데이터센터가 쓰는 막대한 전력과 인간 뇌의 20와트 사이에는 엄청난 격차가 있는데, 기존 인지과학에서는 이를 어떻게 바라봤나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 철학과 인지과학에서는 앞서 말씀드린 매체 독립성 관점 때문에 인공지능을 추상적이고 형식적인 계산 규칙으로만 바라보는 경향이 강했습니다. 물리적 기반은 달라도 수행하는 계산 자체는 같다고 본 것입니다. 그래서 루크 커스텐이나 레너드 덩 같은 철학자들은 원리상 인공지능이 인간의 마음을 복제할 수 있다고 주장하기도 합니다. 하지만 생물학적 뇌에서는 에너지 제약이 애초에 어떤 계산을 수행할지 자체를 결정합니다. 만약 인공 시스템에서도 같은 원리가 적용된다면, 컴퓨터 칩과 뇌가 정말로 같은 계산을 수행하고 있는지는 막연히 가정할 것이 아니라 경험적으로 밝혀내야 할 문제가 됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 인공지능의 에너지 문제를 단순히 전력 효율을 높이는 공학적 과제가 아니라, 모델링의 핵심 문제로 다뤄야 한다는 뜻인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 예를 들어 로사 차오와 신경과학자 대니얼 야민스는 인공지능이 뇌의 시각 자극 처리 메커니즘을 어떻게 추상적으로 구현하는지 연구하면서, 뇌와 인공지능이 서로 다른 에너지 제약에 놓여 있다는 점은 인정했습니다. 하지만 그들은 에너지 문제를 효율성이나 최적화라는 추상적 차원에서만 다뤘습니다. 반면 이 글의 저자들은 인공지능의 에너지 사용을 바닥부터 다시 모델링하자고 제안합니다. 뇌의 에너지 사용이 대사 작용의 세부 사항에 달려 있듯이, 인공지능의 에너지 사용 역시 모델의 규모와 학습 데이터, 그리고 전력망 인프라의 세부 조건에 좌우되는 모델링 문제라는 것입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 인간 뇌와 달리 인공지능은 우리가 직접 설계할 수 있다는 점에서 연구 방식에도 차이가 생길 것 같습니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 바로 그 점이 큰 강점입니다. 뇌와 달리 인공지능은 우리가 직접 설계하기 때문에, 에너지를 사용하는 방식을 의도적으로 바꾸어 보고 그에 따라 계산이나 인지적 특성이 어떻게 달라지는지 실험할 수 있습니다. 이미 메건 피터스 같은 인지과학자들은 뇌의 대사 원리를 참고해 인공지능의 에너지 효율을 개선하는 연구를 진행하고 있습니다. 이처럼 인공지능에서 에너지를 바닥부터 모델링하는 작업은 전력 효율을 높이는 공학적 이익뿐만 아니라, 매체 독립성 같은 철학적 가설을 실제로 검증하는 이론적 시험대 역할도 수행합니다.</p><h3>클로징</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 결국 마음을 이해하는 연구가 대사적 전환을 맞이해야 한다는 것이 저자들의 핵심 메시지군요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 그렇습니다. 다중 실현 가능성이나 매체 독립성을 무조건적인 형이상학적 교리로 받아들이기보다, 뇌 대사와 에너지 제약 연구를 통해 검증하고 수정해야 할 작업 가설로 재정립해야 합니다. 기억과 정신적 노력 모델에 비평형 순환과 에너지 상한, 노폐물 제거 같은 대사 변수를 직접 통합하고, 인공지능 역시 바닥부터 에너지를 모델링할 때 우리는 비로소 마음의 작동 원리에 한 걸음 더 다가갈 수 있을 것입니다.</p></div></details>
+      </main>
+    </article>
+  </div>
+
+  <script>
+(function(){
+  var modeBtn = document.getElementById('color-mode-btn');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', function(){
+      var root = document.documentElement;
+      var current = root.getAttribute('data-color-mode');
+      var isDark = current ? current === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = isDark ? 'light' : 'dark';
+      root.setAttribute('data-color-mode', next);
+      try { localStorage.setItem('briefing-color-mode', next); } catch (e) {}
+    });
+  }
+  document.querySelectorAll('[data-copy-rss]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = btn.getAttribute('data-copy-rss');
+      if (!url || !navigator.clipboard) return;
+      var orig = btn.textContent;
+      navigator.clipboard.writeText(url).then(function(){
+        btn.textContent = 'RSS 주소 복사됨';
+        setTimeout(function(){ btn.textContent = orig; }, 1800);
+      });
+    });
+  });
+  document.querySelectorAll('[data-speed]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var rate = parseFloat(btn.getAttribute('data-speed') || '1');
+      var container = btn.closest('.audio-deck') || document;
+      var audio = container.querySelector('audio');
+      if (audio) audio.playbackRate = rate;
+      container.querySelectorAll('[data-speed]').forEach(function(b){
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+})();
+</script>
+  <script>
+  (function(){
+    var bar = document.getElementById('reading-progress');
+    window.addEventListener('scroll', function(){
+      if (!bar) return;
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      bar.style.width = max > 0 ? Math.min(100, (doc.scrollTop / max) * 100) + '%' : '0%';
+    }, { passive: true });
+
+    var tocList = document.getElementById('toc-list');
+    var mainEl = document.getElementById('article-main');
+    if (tocList && mainEl) {
+      var secs = Array.prototype.slice.call(mainEl.querySelectorAll('section, details.transcript'));
+      var links = [];
+      secs.forEach(function(sec, idx){
+        if (!sec.id) sec.id = 'auto-sec-' + (idx + 1);
+        var label = sec.getAttribute('data-toc');
+        if (!label) {
+          var h = sec.querySelector('h2, summary');
+          label = h ? h.textContent.replace(/^[^가-힣a-zA-Z0-9]+/, '').trim() : ('섹션 ' + (idx + 1));
+        }
+        if (label.length > 22) label = label.slice(0, 22) + '…';
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.className = 'toc-link';
+        a.href = '#' + sec.id;
+        a.textContent = label;
+        li.appendChild(a);
+        tocList.appendChild(li);
+        links.push({ sec: sec, link: a });
+      });
+
+      if ('IntersectionObserver' in window && links.length) {
+        var obs = new IntersectionObserver(function(entries){
+          entries.forEach(function(entry){
+            if (entry.isIntersecting) {
+              links.forEach(function(item){
+                item.link.classList.toggle('active', item.sec === entry.target);
+              });
+            }
+          });
+        }, { rootMargin: '-15% 0px -72% 0px' });
+        links.forEach(function(item){ obs.observe(item.sec); });
+      }
+    }
+
+    var tf = document.getElementById('transcript-search');
+    if (tf) {
+      tf.addEventListener('input', function(){
+        var q = tf.value.trim().toLowerCase();
+        document.querySelectorAll('.transcript-body .turn').forEach(function(p){
+          p.classList.toggle('hidden', Boolean(q) && p.textContent.toLowerCase().indexOf(q) === -1);
+        });
+      });
+    }
+  })();
+  </script>
+</body>
+</html>

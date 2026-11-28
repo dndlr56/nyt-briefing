@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[경제·금융·지정학] 합리적 부주의 이론: 인지 한계 속 정보 선택과 경제적 의사결정 | 2026.11.26 — Deep Dive Knowledge Briefing</title>
+  <link rel="alternate" type="application/rss+xml" title="Deep Dive Knowledge Briefing" href="../feed.xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" />
+  <script>
+(function(){
+  try {
+    var saved = localStorage.getItem('briefing-color-mode');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-color-mode', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+  <style>
+    
+    :root {
+      --surface-page: #F5F7FA;
+      --surface-sheet: #FFFFFF;
+      --surface-subtle: #EDF1F6;
+      --ink-primary: #0F172A;
+      --ink-secondary: #334155;
+      --ink-muted: #64748B;
+      --accent: #1E40AF;
+      --accent-hover: #1E3A8A;
+      --accent-soft: #EBF2FF;
+      --speaker-alt: #0F766E;
+      --border: #D8E0EA;
+      --border-strong: #BAC6D6;
+      --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif;
+      --font-serif: "Noto Serif KR", Georgia, serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) {
+        --surface-page: #0B1018;
+        --surface-sheet: #121A26;
+        --surface-subtle: #1A2434;
+        --ink-primary: #E6EDF6;
+        --ink-secondary: #B4C2D4;
+        --ink-muted: #7C8FA6;
+        --accent: #7FB3FF;
+        --accent-hover: #A5C8FF;
+        --accent-soft: #172742;
+        --speaker-alt: #5EEAD4;
+        --border: #233044;
+        --border-strong: #33455F;
+      }
+    }
+    :root[data-color-mode="dark"] {
+      --surface-page: #0B1018;
+      --surface-sheet: #121A26;
+      --surface-subtle: #1A2434;
+      --ink-primary: #E6EDF6;
+      --ink-secondary: #B4C2D4;
+      --ink-muted: #7C8FA6;
+      --accent: #7FB3FF;
+      --accent-hover: #A5C8FF;
+      --accent-soft: #172742;
+      --speaker-alt: #5EEAD4;
+      --border: #233044;
+      --border-strong: #33455F;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      line-height: 1.78;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .masthead {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .masthead-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .channel-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--surface-subtle);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .channel-tab {
+      padding: 0.38rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-decoration: none;
+    }
+    .channel-tab:hover { color: var(--ink-primary); text-decoration: none; }
+    .channel-tab.active {
+      background: var(--surface-sheet);
+      color: var(--accent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .masthead-tools {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .tool-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-secondary);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.36rem 0.72rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tool-btn:hover { border-color: var(--border-strong); color: var(--ink-primary); }
+
+    .progress-track {
+      position: fixed; top: 0; left: 0; right: 0; height: 3px;
+      background: transparent; z-index: 40; pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%; width: 0%; background: var(--accent);
+      transition: width 80ms linear;
+    }
+    .reader-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4.5rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2.25rem;
+    }
+    @media (min-width: 1040px) {
+      .reader-shell {
+        grid-template-columns: 210px minmax(0, 740px);
+        justify-content: space-between;
+        align-items: start;
+      }
+    }
+    .toc-rail {
+      display: none;
+    }
+    @media (min-width: 1040px) {
+      .toc-rail {
+        display: block;
+        position: sticky;
+        top: 1.5rem;
+        padding-right: 0.75rem;
+        border-right: 1px solid var(--border);
+      }
+    }
+    .toc-heading {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--ink-muted);
+      margin: 0 0 0.65rem;
+    }
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .toc-link {
+      display: block;
+      font-size: 0.83rem;
+      line-height: 1.4;
+      color: var(--ink-muted);
+      padding: 0.25rem 0.45rem;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+    .toc-link:hover { color: var(--ink-primary); text-decoration: none; background: var(--surface-subtle); }
+    .toc-link.active { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+    .paper-sheet {
+      background: var(--surface-sheet);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.25rem 2.25rem 2.75rem;
+    }
+    @media (max-width: 640px) {
+      .paper-sheet { padding: 1.4rem 1.15rem 2rem; border-radius: 10px; }
+    }
+    .date-meta {
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-muted);
+      margin-bottom: 0.55rem;
+    }
+    h1 {
+      font-size: clamp(1.5rem, 2.8vw, 1.95rem);
+      line-height: 1.32;
+      letter-spacing: -0.025em;
+      margin: 0 0 0.9rem;
+      color: var(--ink-primary);
+    }
+    .meta-tags, .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.75rem 0 0.9rem;
+    }
+    .tag, .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.22rem 0.62rem;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      border: 1px solid var(--border);
+    }
+    .tag.primary, .badge:first-child {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: transparent;
+    }
+    .tag.muted, .badge.outline {
+      background: transparent;
+      color: var(--ink-muted);
+    }
+    .wos-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.1rem 0.44rem;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      vertical-align: middle;
+    }
+    .subtitle {
+      font-family: var(--font-serif);
+      font-size: 1.06rem;
+      line-height: 1.7;
+      color: var(--ink-secondary);
+      margin: 0.6rem 0 1.4rem;
+    }
+    .audio-deck {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1.05rem;
+      margin: 1.25rem 0 1.75rem;
+    }
+    .audio-deck-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .audio-title {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-primary);
+    }
+    .speed-group { display: inline-flex; gap: 0.25rem; }
+    .speed-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.18rem 0.48rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) .speed-btn.active { color: #0B1018; }
+    }
+    :root[data-color-mode="dark"] .speed-btn.active { color: #0B1018; }
+    audio { width: 100%; height: 38px; display: block; }
+    main { max-width: 68ch; }
+    .tldr-box {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 1.05rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0 2rem;
+    }
+    .tldr-box h2 {
+      margin: 0 0 0.55rem;
+      padding: 0;
+      border: none;
+      font-size: 1.02rem;
+      color: var(--accent);
+    }
+    .tldr-box ul { margin: 0; padding-left: 1.2rem; }
+    .tldr-box li { margin-bottom: 0.4rem; }
+    .tldr-box li:last-child { margin-bottom: 0; }
+    section { margin: 2.15rem 0; scroll-margin-top: 1.2rem; }
+    section > h2 {
+      font-size: 1.2rem;
+      letter-spacing: -0.015em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      margin: 0 0 0.95rem;
+      color: var(--ink-primary);
+    }
+    section p { margin: 0 0 0.9rem; color: var(--ink-primary); }
+    section p:last-child { margin-bottom: 0; }
+    .body-sec {
+      margin: 1.4rem 0;
+      padding-left: 0.85rem;
+      border-left: 2px solid var(--border);
+    }
+    .body-sec h3 {
+      font-size: 1.04rem;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .sec-idx { color: var(--accent); margin-right: 0.2rem; }
+    .table-wrap { overflow-x: auto; margin: 1rem 0; }
+    .analysis-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      border-top: 2px solid var(--border-strong);
+      border-bottom: 2px solid var(--border-strong);
+    }
+    .analysis-table th, .analysis-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .analysis-table thead th {
+      background: var(--surface-subtle);
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+    .analysis-table tbody th {
+      width: 27%;
+      font-weight: 600;
+      color: var(--ink-primary);
+      background: transparent;
+    }
+    .quote-block {
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--border-strong);
+      margin: 1.1rem 0;
+      padding: 1rem 1.2rem;
+      border-radius: 0 8px 8px 0;
+    }
+    .quote-en {
+      font-family: var(--font-serif);
+      font-size: 0.96rem;
+      line-height: 1.68;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .quote-kr {
+      font-size: 0.94rem;
+      margin: 0 0 0.4rem;
+      color: var(--ink-secondary);
+    }
+    .quote-block footer {
+      font-size: 0.81rem;
+      color: var(--ink-muted);
+    }
+    .chapter-list, .source-list { padding-left: 1.25rem; }
+    .chapter-list li, .source-list li { margin-bottom: 0.45rem; }
+    .src-venue, .sep { color: var(--ink-muted); }
+    .usage-meta {
+      margin-top: 2rem;
+      padding-top: 0.9rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+    .transcript {
+      margin-top: 2.5rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-subtle);
+      overflow: hidden;
+    }
+    .transcript summary {
+      cursor: pointer;
+      padding: 0.95rem 1.15rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--ink-primary);
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .transcript summary::-webkit-details-marker { display: none; }
+    .transcript summary::after {
+      content: "펼치기";
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .transcript[open] summary::after { content: "접기"; }
+    .transcript-body {
+      padding: 0.25rem 1.2rem 1.35rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .transcript-filter {
+      width: 100%;
+      margin: 0.9rem 0 1rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      font-family: inherit;
+      font-size: 0.86rem;
+    }
+    .cast-box {
+      background: var(--surface-subtle);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.85rem 0 1.2rem;
+      font-size: 0.88rem;
+    }
+    .cast-reason { color: var(--ink-muted); font-size: 0.83rem; margin-top: 0.2rem; }
+    .transcript-body h3 {
+      font-size: 1rem;
+      margin: 1.4rem 0 0.6rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .turn { margin: 0.7rem 0; line-height: 1.74; font-size: 0.94rem; }
+    .turn.hidden { display: none; }
+    .speaker {
+      display: inline-block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-right: 0.4rem;
+    }
+    .speaker.s2 { color: var(--speaker-alt); }
+  </style>
+</head>
+<body>
+  <div class="progress-track" aria-hidden="true"><div class="progress-bar" id="reading-progress"></div></div>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <nav class="channel-tabs" aria-label="브리핑 채널 전환">
+        <a class="channel-tab" href="../../index.html">글로벌 모닝 뉴스</a>
+        <a class="channel-tab active" href="../index.html">Deep Dive 심층 연구</a>
+      </nav>
+      <div class="masthead-tools">
+        <button type="button" class="tool-btn" data-copy-rss="https://dndlr56.github.io/nyt-briefing/deep/feed.xml">RSS 주소 복사</button>
+        <button type="button" class="tool-btn" id="color-mode-btn">화면 테마 전환</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="reader-shell">
+    <aside class="toc-rail" aria-label="문서 목차">
+      <a class="back-link" href="../index.html">아카이브 목록으로</a>
+      <p class="toc-heading">문서 구성</p>
+      <ul class="toc-list" id="toc-list"></ul>
+    </aside>
+
+    <article class="paper-sheet">
+      <header>
+        <div class="date-meta">2026년 11월 26일 (Thu) KST</div>
+        <h1>합리적 부주의 이론: 인지 한계 속 정보 선택과 경제적 의사결정</h1>
+      </header>
+      <div class="audio-deck">
+          <div class="audio-deck-top">
+            <span class="audio-title">오디오 브리핑 / 2인 대화 (지수(진행), 현수(해설)) (00:27:12)</span>
+            <div class="speed-group" role="group" aria-label="재생 배속">
+              <button type="button" class="speed-btn active" data-speed="1">1.0x</button>
+              <button type="button" class="speed-btn" data-speed="1.25">1.25x</button>
+              <button type="button" class="speed-btn" data-speed="1.5">1.5x</button>
+              <button type="button" class="speed-btn" data-speed="1.75">1.75x</button>
+            </div>
+          </div>
+          <audio controls preload="metadata" src="../episodes/deep_dive_2026-11-26_econ_geopolitics_080221.mp3"></audio>
+        </div>
+      <main id="article-main">
+        <div class="meta-tags">
+  <span class="tag primary">🌐 경제·금융·지정학</span>
+  <span class="tag">행동거시경제학·정보경제학</span>
+  <span class="tag muted">1편 심층 분석</span>
+</div>
+<p class="subtitle">경제 주체가 제한된 인지 능력 아래에서 어떤 정보를 선택해 처리할지 최적화할 때 나타나는 행동 편향, 거시·금융·노동 현상, 그리고 정책 함의를 집대성한 리뷰</p>
+
+
+<section id="sec-tldr" class="tldr-box" data-toc="핵심 요약">
+  <h2>핵심 요약</h2>
+  <ul><li>인간이 주어진 모든 정보를 소화할 수 없다는 전제 아래 주체가 어떤 신호 형태든 자유롭게 고르되 상호정보량에 비례하는 정보 비용을 치른다고 가정하면, 완전 정보 대비 완만하고 지연된 반응과 확률적 오차가 합리적 선택의 결과로 도출된다.</li><li>이산 선택에서는 사전 믿음과 대안 집합에 따라 내생적 편향 α(i)=λ log P(i)가 붙는 일반화된 로짓 모형이 성립하며, 연속 가격 설정에서는 가우시안 신호 가중치 ξ=max(0, 1 - λ/(2ra²σx²))가 충격의 탄력성과 불확실성에 비례해 반응성을 증폭시킨다.</li><li>평시 기업과 가계가 거시경제와 통화정책에 주의를 거의 기울이지 않는 현상이 통화정책 전달 경로와 선제적 안내의 제한적 효과를 설명하며, 고인플레이션기에는 생산 활동에 쓸 주의를 물가 추적에 소진하는 사회적 비용이 발생한다.</li><li>단순히 개인 정보를 더 제공하는 방식은 결정권자가 읽지 않을 수 있어 주의 차별을 줄이지 못하므로 익명 전형이나 초기 면접 할당제가 필요하며, 유한책임 아래 희귀 위기 대비가 과소해지는 문제를 보완하기 위해 도드-프랭크법의 정리계획서 의무화 같은 제도 개입이 정당화된다.</li></ul>
+</section>
+
+<section id="sec-1" data-toc="1. 핵심 문제의식 및 테제">
+  <h2>1. 핵심 문제의식 및 테제</h2>
+  <p>허버트 사이먼이 1971년 지적했듯 정보의 풍요는 주의를 소비하는 자원의 빈곤을 낳는다. 전통 경제학은 주체가 완전한 정보를 보유하거나 외부에서 일방적으로 주어진 형태의 불완전 정보에만 의존해 행동한다고 보았으나, 오늘날처럼 인터넷 등을 통해 방대한 정보가 열려 있는 환경에서는 어떤 정보가 주어졌느냐보다 주체가 무엇에 주의를 기울이기로 선택하느냐가 행동의 성격을 결정한다.</p><p>크리스토퍼 심스가 2003년 정식화하고 마츠코비악·마테이카·비더홀트가 종합한 합리적 부주의 이론은 이러한 인지적 처리 한계와 신고전파 경제학의 최적화 원리를 결합한다. 주체가 더 나은 결정을 위해 정보를 처리하는 편익과 정신적 노력 비용 사이의 트레이드오프를 최적화할 때, 가격 경직성, 자산시장 간 전염, 노동시장의 주의 차별, 희귀 위기에 대한 과소 대비가 비합리적 변칙이 아닌 환경 맞춤형 정보 전략의 산물로 설명된다.</p>
+</section>
+
+<section id="sec-2" data-toc="2. 연구 설계 및 검증 구조">
+  <h2>2. 연구 설계 및 검증 구조</h2>
+  <p>본 문헌은 합리적 부주의 이론의 수리적 구조, 분야별 응용, 그리고 정책 설계에 주는 시사점을 체계적으로 정리한 학술 리뷰 논문이다. 저자들은 정태 벤치마크 모형에서 주체가 사전 확률분포 g(x)를 바탕으로 임의의 블랙웰 실험 형태인 신호 전략 f(y|x)를 선택하되, 섀넌의 상호정보량 I(y;x)에 한계 정보 비용 λ를 곱한 비용을 차감해 기대 효용을 극대화하는 최적화 문제를 정식화한다.</p><p>이 최적화 조건에서 도출된 일반화 로짓 해와 이차-가우시안 닫힌 해를 통해 행동의 10가지 핵심 성질을 연역하고, 채용 심사 수치 모형과 드브뢰의 빨간 버스-파란 버스 사고실험으로 기존 로짓 모형과의 결정적 차이를 대조한다. 이어 통화정책(파시엘로-비더홀트), 주의 차별(바르토시 등), 희귀 위기 대비(마츠코비악-비더홀트), 시장 효율성(앙겔레토스-사스트리, 에베르-라오) 등 선행 이론·실증 문헌을 종합해 모형의 적용 조건과 엔트로피 비용 가정의 경계를 평가한다.</p>
+</section>
+
+<section id="sec-3" data-toc="3. 본문 핵심 분석 및 메커니즘">
+  <h2>3. 본문 핵심 분석 및 메커니즘</h2>
+  <div class='body-sec'><h3><span class='sec-idx'>1.</span> 정태 최적화 모형과 주의 선택이 낳는 10가지 행동 원리</h3><p>정태 합리적 부주의 모형에서 주체는 미지의 상태 x에 대해 1단계로 신호 분포 fsx(s|x)를 선택해 베이지안 갱신으로 사후 믿음을 형성하고, 2단계로 효용 U(y,x)의 기댓값을 극대화하는 행동 y를 고른다. 서로 다른 두 신호가 같은 행동을 유발한다면 주체는 행동 변화 없는 구분에 정보 비용을 낭비하는 셈이므로 최적 전략에서는 신호와 행동이 일대일로 대응하며, 문제 전체가 결합분포 f(y,x)를 선택해 기대 효용에서 λI(y;x)를 뺀 값을 극대화하는 형태로 단순화된다.</p><p>1계 조건의 해는 내생적 편향 α(i)=λ log P(i)가 가산된 일반화 로짓 확률로 표현되며, 이로부터 10가지 행동 특징이 도출된다. 주체는 상태 x에 대해 확률적으로 실수를 저지르고(F1), 이해관계가 커지거나 정보 비용 λ가 낮아질수록 반응성이 높아지며(F2), 사전 매력도가 높은 대안으로 편향 α(i)가 내생적으로 형성된다(F3). 또한 상대 탄력성 격차가 완전 정보보다 증폭되고(F5), 변동성이 큰 변수에 더 많은 주의를 기울이며(F6), 연속적 행동 공간에서도 정규가와 할인가처럼 소수의 이산적 대안만 고려하고(F7), 선택 집합 변화에 따라 주의 전략이 바뀌어 이행성 등 현시선호 공리를 위배하거나(F8), 다차원 충격을 단일 지수로 단순화해(F10) 서로 무관한 시장 간 전염을 일으킨다.</p></div><div class='body-sec'><h3><span class='sec-idx'>2.</span> 이산 채용과 연속 가격 설정에서의 수치적 작동 메커니즘</h3><p>이진 채용 모형에서 지원자 품질 x에 대한 채용 효용을 x, 거절 효용을 유보 효용 R이라 두면, 대칭적 사전 믿음 아래서 고용주는 x가 R보다 훨씬 크거나 작을 때는 실수를 거의 하지 않고 경계선 x≈R 부근에서만 오판을 집중시킨다. 반면 성별·인종 등으로 사전 믿음이 비대칭적일 때는 내생적 편향 α(1)-α(0)가 작동하는데, 그림 2의 수치 예시에서 특정 집단의 기대 품질 E[x]-R이 0.2만큼 높을 때 주의 기반 편향이 약 0.1 추가되고 0.35 높을 때는 편향이 0.5까지 급증하며, 약 0.4에 이르면 주의를 전혀 쓰지 않고 사전 믿음만으로 채용 여부를 단정한다. 이 구조는 기차(1/2)와 빨간 버스(1/2) 대안에 파란 버스를 추가할 때 표준 로짓이 각 1/3을 배분해 비판을 받았던 드브뢰의 무관한 대안으로부터의 독립성 문제를 해결해, 합리적으로 부주의한 주체가 두 버스를 구별하는 데 인지 용량을 쓰지 않고 기차 1/2, 각 버스 1/4을 선택하게 만든다.</p><p>연속 선택인 이차-가우시안 가격 설정 모형에서는 효용이 U(y,x)=-r(ax-y)²이고 사전 분포가 x~N(0,σx²)일 때 가우시안 신호 s=x+ε가 유일한 최적 해가 된다. 이때 최적 주의 가중치 ξ=max(0, 1 - λ/(2ra²σx²))가 도출되어 실현 가격은 y=(aξ)x+(aξ)ε로 움직이므로, 0&lt;ξ&lt;1 구간에서 충격에 완만하게 과소 반응하고 행동에 무작위 잡음 (aξ)ε가 섞이며 두 재화의 탄력성 비율도 a1ξ(a1)/(a2ξ(a2)) &gt; a1/a2로 볼록하게 증폭된다. 한편 은행 계좌 잔고가 마이너스일 때 높은 수수료를 무는 비대칭 손실 구조에서는 평균 잔고보다 음수 구간에 주의를 집중해 해당 구간의 사후 믿음을 더 정밀하게 형성한다.</p></div><div class='body-sec'><h3><span class='sec-idx'>3.</span> 합리적 부주의의 적용 전제와 엔트로피 비용 가정의 경계</h3><p>표준 합리적 부주의 모형은 정보가 다양한 형태로 제공되어 주체가 임의의 블랙웰 실험을 설계할 수 있다는 가정(A1), 정보를 최적으로 선택한다는 가정(A2), 정보 비용이 상호정보량으로 측정된다는 가정(A3) 위에 서 있다. 인터넷으로 금융·거시·정치 데이터를 검색하거나 구조화된 이력서에서 원하는 항목만 골라 읽고 전문가에게 맞춤 질문을 던지는 환경에서는 (A1)이 잘 성립하며, 오랜 경험이나 반복 학습으로 최적 정보 전략을 터득한 일상 소비, 수백 통의 이력서 검토, 익숙한 도로 운전 등에서는 &#x27;마치 최적화한 것처럼&#x27; 작동하는 기준 모형으로 기능한다.</p><p>반면 앞차가 갑자기 타이어가 펑크 나 회전하는 돌발 상황 같은 일회성·신규 결정에서는 (A2)가 깨지며, 지하 매장 여부를 확인하기 위해 직접 시추공을 뚫어야 하는 석유 탐사처럼 물리적 관측 비용만 존재하고 신호 형태를 바꿀 수 없는 경우에는 (A1)이 위배된다. 주체의 사전 믿음이 실제 분포와 달라도 모형 자체는 그대로 작동하지만 잘못된 사전 믿음이 주의 배분 전략까지 왜곡해 손실을 키울 수 있다. 또한 섀넌 엔트로피 비용은 콥-더글라스 생산함수처럼 수학적 취급이 용이하고 최적 부호화 원리에 부합하는 유용한 기준선이지만, 신호가 이례적 위치에 등장할수록 피험자의 오차가 커진다는 쇼-쇼의 1977년 지각 실험은 위치 확률과 무관하게 비용을 매기는 엔트로피 가정의 한계를 보여준다.</p></div><div class='body-sec'><h3><span class='sec-idx'>4.</span> 거시·노동·금융 위기 대비에 대한 정책적 함의</h3><p>거시경제에서 대부분의 기업과 가계는 평소 통화정책과 총물가 추적에 주의를 거의 쓰지 않으며, 가격 조정의 물리적 비용이 아니라 이 정보적 마찰이 통화정책의 실물 파급 경로를 만든다. 인플레이션이 높고 변동성이 커지면 주체들이 다른 생산 활동에 쓸 주의를 물가 추적에 돌리게 되어 사회적 비용이 발생하며, 파시엘로와 비더홀트(2014)는 기술 충격 같은 효율적 변동에는 중앙은행이 이윤극대화 가격을 완전 안정화해 기업의 가격 조정 실수와 주의 비용을 없애고, 마크업 충격 같은 비효율적 변동에는 이윤극대화 가격의 분산을 줄여 기업이 아예 주의를 기울이지 않도록 유도하는 것이 최적 통화정책임을 보인다. 이러한 주의 배분 구조는 금융시장 참가자와 달리 일반 가계가 단순 정책 발표조차 무시해 중앙은행의 선제적 안내 효과가 제한되는 이유도 설명한다.</p><p>노동시장과 위기 관리에서도 단순 정보 제공 이상의 제도 설계가 요구된다. 바르토시 등(2016)에 따르면 평가자가 소수집단 지원자의 서류를 아예 읽지 않기로 선택할 수 있기 때문에 개별 정보를 더 많이 제공해도 통계적·선호 기반 차별과 결합한 주의 차별이 해소되지 않으며, 이름·인종·성별을 가린 블라인드 양식이나 초기 면접 할당제를 통해 초기 단계의 주의 배분 자체를 강제 균등화해야 한다. 또한 마츠코비악과 비더홀트(2018)는 유한책임 아래에서 민간 주체의 희귀 위기 대비가 사회적 최적 수준에 못 미침을 보여 도드-프랭크법상 시스템 중요 금융기관의 정리계획서 의무화에 이론적 근거를 제공하며, 앙겔레토스-사스트리(2019)와 에베르-라오(2020)는 엔트로피 비용 함수에서 한 주체의 주의 선택이 타인의 주의 비용에 영향을 미치지 않을 때 균형이 비기초적 변동성 없이 제약된 효율성을 달성함을 입증한다.</p></div>
+</section>
+
+<section id="sec-4" data-toc="4. 주요 수치·내용 요약표">
+  <h2>4. 주요 수치·내용 요약표</h2>
+  <div class="table-wrap">
+    <table class="analysis-table">
+      <thead><tr><th scope="col">항목</th><th scope="col">원문 핵심 내용</th></tr></thead>
+      <tbody><tr><th scope='row'>이차-가우시안 주의 가중치 (ξ) 및 가격 반응</th><td>ξ=max(0, 1 - λ/(2ra²σx²))로 결정되며, 가격 y=(aξ)x+(aξ)ε는 완전 정보(ax)보다 완만하게 반응하고 잡음을 포함함</td></tr><tr><th scope='row'>이진 채용 모형의 내생적 편향 (α) 수치 예시</th><td>집단 기대 품질(E[x]-R)이 0.2 상승 시 편향 약 0.1 추가, 0.35 상승 시 0.5로 확대되며, 약 0.4 이상에서는 정보 처리 없이 사전 믿음만으로 결정함</td></tr><tr><th scope='row'>빨간 버스-파란 버스 문제 (IIA 위배 해소 책정치값 차이 비교 예시 등 포함? -&gt; 원문 내용에 충실한 수치 요약) </th><td>기존 로짓은 기차·빨간 버스·파란 버스에 각 1/3을 배분하나, 합리적 부주의 주체는 두 버스를 구별하지 않아 기차 1/2, 각 버스 1/4의 확률로 선택함</td></tr><tr><th scope='row'>최적 통화정책 (파시엘로-비더홀트, 2014) </th><td>효율적 기술 충격 시 이윤극대화 가격을 완전 안정화해 기업의 주의 비용을 제거하고, 비효율적 마크업 충격 시 가격 분산을 줄여 기업의 주의를 0으로 유도함</td></tr><tr><th scope='row'>주의 차별과 노동시장 개입 (바르토시 등, 2016) </th><td>지원자 정보 추가 제공은 결정권자가 읽지 않아 실패할 수 있으며, 블라인드 양식과 초기 면접 할당제가 집단 간 주의 배분을 동등하게 만듦</td></tr><tr><th scope='row'>희귀 위기 대비와 시장 효율성 조건 </th><td>유한책임으로 인한 과소 대비는 도드-프랭크법 정리계획서 의무화를 정당화하며, 엔트로피 비용 구조에서는 타인의 정보 비용을 건드리지 않아 제약된 효율성이 성립함</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sec-5" data-toc="5. 원문 핵심 문장 발췌">
+  <h2>5. 원문 핵심 문장 발췌</h2>
+  <blockquote class='quote-block'><p class='quote-en'>“Which form of imperfect information we possess and act upon is thus largely not determined by which information is given to us, but by which information we choose to attend to.”</p><p class='quote-kr'>우리가 보유하고 행동의 근거로 삼는 불완전 정보의 형태는 우리에게 어떤 정보가 주어졌느냐가 아니라, 우리가 어떤 정보에 주의를 기울이기로 선택하느냐에 따라 크게 결정된다.</p><footer>Maćkowiak, Matějka &amp; Wiederholt (2021/2023), Section 1 Motivation</footer></blockquote><blockquote class='quote-block'><p class='quote-en'>“The actions of a rationally inattentive agent are dampened and delayed relative to the actions of an agent who acts based on complete information (think of prices responding weakly and slowly to a macroeconomic disturbance).”</p><p class='quote-kr'>합리적으로 부주의한 주체의 행동은 완전 정보를 바탕으로 행동하는 주체에 비해 완만하고 지연되어 나타난다(예컨대 거시경제 충격에 가격이 약하고 느리게 반응하는 현상을 떠올려 보라).</p><footer>Maćkowiak, Matějka &amp; Wiederholt (2021/2023), Non-Technical Summary</footer></blockquote><blockquote class='quote-block'><p class='quote-en'>“Decisions depend on the subjective perception of the state of the world, not the objective state of the world. The theory of rational inattention assumes that agents choose what kind of information to process and that they are fairly unconstrained in doing so.”</p><p class='quote-kr'>의사결정은 세계의 객관적 상태가 아니라 세계 상태에 대한 주관적 인식에 의존한다. 합리적 부주의 이론은 주체가 어떤 종류의 정보를 처리할지 스스로 선택하며, 그 선택 방식에 거의 제약을 받지 않는다고 가정한다.</p><footer>Maćkowiak, Matějka &amp; Wiederholt (2021/2023), Section 6 Conclusion</footer></blockquote>
+</section>
+
+<section id="sec-6" data-toc="6. 원문이 밝힌 한계 및 경계 조건">
+  <h2>6. 원문이 밝힌 한계 및 경계 조건</h2>
+  <ul><li>합리적 부주의는 정보가 풍부하고 최적 전략을 학습·반복할 수 있는 의사결정에는 잘 맞지만, 앞차가 갑자기 회전하는 돌발 교통사고처럼 새롭고 즉각적인 일회성 결정에서는 최적 정보 선택 가정(A2)이 충족되지 않는다.</li><li>지하 매장량을 알기 위해 시추공을 직접 뚫어야 하는 석유 탐사나 벼룩시장 상품의 외관 확인처럼 물리적 관측 비용이 핵심이거나 신호 형태를 임의로 설계할 수 없는 환경에서는 신호 자유 선택 가정(A1)이 적용되지 않는다.</li><li>섀넌 엔트로피 비용은 발생 확률이 드문 위치에서 지각 오류가 커진다는 쇼-쇼(1977)의 실험 결과와 어긋나므로 지각적 의사결정 등 일부 영역에서는 대안적 정보 비용 함수가 더 적합할 수 있다.</li><li>세계의 실제 상태, 주체의 주의 배분, 주관적 믿음, 그리고 최종 행동을 동시에 일관되게 측정해 이론을 검증하는 실증적 과제가 아직 초기 단계에 머물러 있다.</li></ul>
+</section>
+
+<section id="sec-7" data-toc="7. 결론 및 연구·실천적 함의">
+  <h2>7. 결론 및 연구·실천적 함의</h2>
+  <ul><li>경제 주체의 행동은 객관적 세계 상태가 아니라 제한된 주의 선택을 거쳐 형성된 주관적 인식에 의존하며, 정보 무시·관성·이산적 선택·다차원 단순화는 인지 한계 아래 최적화의 자연스러운 결과다.</li><li>인플레이션 급등 시 주체들이 생산 활동에서 물가 추적으로 주의를 이동시키는 것이 사회적 비용의 원천이므로, 중앙은행은 충격의 효율성 여부에 따라 가격 변동 유인을 제거하거나 분산시켜 사회적 주의 배분을 최적화해야 한다.</li><li>중앙은행 소통이나 차별 시정 정책에서는 정보를 더 많이 제공하는 것만으로는 주의를 이끌어낼 수 없으므로, 계층별 주의 격차를 전제하거나 블라인드 전형·초기 할당제·정리계획서 의무화처럼 주의 선택 유인 자체를 바꾸는 제도 설계가 필요하다.</li></ul>
+</section>
+
+<section id="sec-8" data-toc="8. 오디오 챕터 구성">
+  <h2>8. 오디오 챕터 구성</h2>
+  <ol class="chapter-list"><li><strong>Ch.1. 정보의 풍요가 낳은 주의의 빈곤과 합리적 부주의의 출발점</strong> — 허버트 사이먼의 문제의식과 크리스토퍼 심스의 이론적 제안을 통해 합리적 부주의가 기존 불완전 정보 모형과 어떻게 다른지 짚는다. 행동이 완만하고 지연되며 이산적으로 나타나는 직관적 배경과 거시·금융·노동 분야의 핵심 질문을 개관한다.</li><li><strong>Ch.2. 상호정보량 비용과 내생적 편향을 낳는 정태 최적화 구조</strong> — 사전 믿음과 신호 전략 선택이 결합분포 f(y,x) 최적화로 환원되는 수리적 메커니즘을 설명한다. 한계 조건에서 도출되는 일반화 로짓 해와 10가지 행동 특징(F1~F10)이 어떻게 도출되는지 정리한다.</li><li><strong>Ch.3. 채용 심사 편향과 가격 경직성 모형으로 확인하는 수치적 작동 원리</strong> — 이진 채용 모형과 이차-가우시안 가격 설정 모형을 통해 내생적 주의 편향과 반응 탄력성이 구체적 수치와 수식으로 어떻게 나타나는지 살펴본다. 드브뢰의 버스 역설 해결과 비대칭 손실 구조에서의 주의 집중 현상을 확인한다.</li><li><strong>Ch.4. 모형의 적용 경계와 통화·노동·금융 위기 정책의 설계 원칙</strong> — 합리적 부주의 가정이 성립하는 조건과 엔트로피 비용 함수의 실험적 한계를 검토한다. 이어 최적 통화정책, 노동시장의 주의 차별 시정, 희귀 위기 대비 규제에 관한 정책적 결론과 향후 실증 과제를 정리한다.</li></ol>
+</section>
+
+<section id="sec-sources" data-toc="원문 출처">
+  <h2>원문 출처</h2>
+  <ul class="source-list"><li><span class='wos-badge'>SSCI</span> <strong>Rational Inattention: A Review</strong> <span class='src-venue'>(Journal of Economic Literature (OpenAlex OA), 2023-03-01)</span> <a href='https://sciencespo.hal.science/hal-03878692' target='_blank' rel='noopener'>원문 보기</a> <span class='sep'>/</span> <a href='https://sciencespo.hal.science/hal-03878692/document' target='_blank' rel='noopener'>PDF 원문</a></li></ul>
+</section>
+
+<div class='usage-meta'><hr/><p><small><strong>📊 이번 회차 생성 리포트</strong><br/>• Gemini API (<code>gemini-4-hydrogen, gemini-3.8-flash-tts</code>): 입력 94,255 + 출력 68,228 (추론 14,289 포함) = 총 162,483 토큰<br/>• 예상 API 비용: 무료 7회($0) + 유료 우회 5회 약 $0.3382 (약 474원 추정 · 전체 유료 환산 $0.7079)<br/>• 음성 합성(TTS): gemini_tts / <code>gemini-3.8-flash-tts</code> (<code>S1=Kore, S2=Charon</code>) · 11,673자 (무료 티어 $0 (유료 환산 $0.3697))</small></p></div>
+        <details class='transcript' id='sec-transcript' data-toc='전체 대화 대본'><summary>전체 대화 대본 (11,673자 / 62턴)</summary><div class='transcript-body'><div class='cast-box'><div><strong>진행 구성:</strong> 2인 대화 (지수(진행), 현수(해설))</div><div class='cast-reason'>단일 리뷰 논문의 수리적 최적화 원리와 거시·노동·금융 분야의 정책적 함의를 질의응답 형식으로 차분하게 풀어내기 위해 진행자와 해설자 2인 구성을 선택했습니다.</div></div><input type='search' id='transcript-search' class='transcript-filter' placeholder='대본 내 키워드 검색' aria-label='대본 내 키워드 검색' /><h3>오프닝</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 오늘 살펴볼 문헌은 바르토시 마츠코비악, 필립 마테이카, 미르코 비더홀트가 2023년 저널 오브 이코노믹 리터러처에 게재한 합리적 부주의 이론 리뷰 논문입니다. 정보가 넘쳐나는 시대에 경제 주체가 제한된 인지 능력 아래 무엇에 주의를 기울일지 선택할 때 어떤 행동과 시장 현상이 나타나는지 집대성한 연구죠.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 이번 브리핑에서는 크게 네 가지 흐름으로 논문을 짚어봅니다. 먼저 합리적 부주의가 기존 경제학 모형과 어떻게 다른지 출발점을 확인하고, 이어 상호정보량 비용을 활용한 정태 최적화 구조와 채용 심사 및 가격 설정 사례를 통해 수치적 작동 원리를 살펴본 뒤, 마지막으로 통화정책과 노동시장, 위기 대비 규제에 관한 정책적 함의를 정리하겠습니다.</p><h3>Chapter 1. 정보의 풍요가 낳은 주의의 빈곤과 합리적 부주의의 출발점</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 논문은 1971년 허버트 사이먼의 유명한 문장으로 시작합니다. 정보의 풍요가 오히려 주의의 빈곤을 낳는다는 지적을 경제학에서는 어떻게 이론화하게 되었나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 사이먼이 짚었듯 정보는 수신자의 주의를 소비하기 때문에, 정보가 많아질수록 그 주의를 효율적으로 배분해야 하는 희소성의 문제가 발생합니다. 경제학은 본래 희소성에 대한 조정을 다루는 학문인데, 크리스토퍼 심스가 2003년 제안한 합리적 부주의 이론은 바로 이 주의의 희소성에 대한 경제 주체의 적응을 모형화한 것입니다. 모든 의사결정 상황에서 주체는 더 나은 결정을 내리기 위해 정보를 더 처리하는 편익과, 그 과정에서 드는 정신적 노력 비용 사이의 트레이드오프에 직면합니다. 인간은 가용한 모든 정보를 처리할 수 없지만, 이 인지적 한계를 어떻게 다룰지는 스스로 선택할 수 있다는 점이 이론의 출발점입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 기존 경제학에서도 불완전 정보나 정보 획득을 다룬 모형들은 이미 많지 않았나요? 합리적 부주의는 그들과 어떤 점에서 결정적으로 다른가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 전통적인 경제학은 주체가 완전한 정보를 가지고 행동하거나, 아니면 외부에서 일방적으로 주어진 특정 형태의 불완전 정보에 의존해 행동한다고 가정했습니다. 기존의 정보 획득 모형들 역시 어떤 형태의 정보를 얻을 수 있는지에 대해 매우 강한 제약을 두었습니다. 하지만 인터넷을 비롯해 온갖 정보가 열려 있는 오늘날에는 어떤 정보가 주어졌느냐보다 주체가 무엇에 주의를 기울이기로 선택하느냐가 불완전 정보의 형태를 결정합니다. 합리적 부주의 모형에서는 주체가 어떤 종류의 정보를 얼마나 흡수할지 유연하게 선택하고, 그렇게 선택한 정보에 기초해 최적의 행동을 내립니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 가용한 정보는 무한한데 처리 능력이 제한되어 있고, 주체가 최적의 정보 획득 전략을 실험하거나 고민할 시간이 충분한 상황일수록 이 모형이 잘 들어맞겠군요. 구체적으로 주체의 행동은 완전 정보일 때와 비교해 어떻게 달라지나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 합리적 부주의를 따르는 주체의 행동은 완전 정보에 기반해 행동하는 주체에 비해 크게 네 가지 특징을 보입니다. 첫째, 행동이 완만하고 지연됩니다. 예를 들어 거시경제적 충격이 발생했을 때 기업이 가격을 즉각적이고 큰 폭으로 바꾸지 않고 약하고 느리게 반응하는 현상이 나타납니다. 둘째, 이러한 둔화와 지연의 정도는 고정된 것이 아니라 경제 환경에 따라 달라집니다. 환경이 변하면 정보를 처리할 유인 자체가 바뀌기 때문입니다. 셋째, 행동에 무작위적인 요소, 즉 잡음이 섞이게 됩니다. 넷째, 경제적 충격이 연속적으로 변하더라도 주체의 행동은 이산적으로 나타날 수 있는데, 일정 기간 가격이 문자 그대로 전혀 변하지 않고 고정되어 있는 현상이 대표적입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 주체가 정보를 선택해서 처리하다 보면, 아예 서로 다른 시장이나 시점의 정보를 구분하지 못하는 일도 벌어질 것 같은데요. 금융시장에서 말하는 전염 현상도 이와 관련이 있나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 최적의 정보 획득 전략을 세울 때 주체는 다차원의 복잡한 경제 상태를 단순화해 요약하는 방식을 택합니다. 이 과정에서 현재 경제 상태에 관한 뉴스와 미래 상태에 관한 뉴스를 완벽하게 구분하지 못하거나, 한 금융시장에 관한 뉴스와 다른 금융시장에 관한 뉴스를 분리해 처리하지 못하게 됩니다. 그 결과 펀더멘털이 서로 무관한 시장들 사이에서도 한쪽의 충격이 다른 쪽으로 번지는 전염 현상이 발생할 수 있습니다. 또한 투자자가 수많은 자산 정보를 모두 추적하는 대신 제한된 주의만 기울이기 때문에 포트폴리오를 충분히 분산하지 않는 현상도 비합리적 변칙이 아니라 정보 비용을 고려한 최적 선택으로 설명됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 거시경제에서 통화정책이 실물경제에 영향을 미치는 경로와 인플레이션의 사회적 비용도 이 이론으로 새롭게 해석된다고 들었습니다. 물리적 가격 조정 비용이 없어도 화폐가 중립적이지 않은 이유가 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 거시경제학의 핵심 질문 중 하나는 통화정책이 왜 실물에 영향을 미치며 인플레이션이 왜 사회적으로 비용을 유발하는가입니다. 합리적 부주의 모형에서는 시시각각 변하는 경제 상태를 추적하는 데 희소한 주의가 필요합니다. 대부분의 기업과 가계는 평소 통화정책을 포함한 거시경제 전반의 상태에 주의를 거의 기울이지 않습니다. 가격표를 물리적으로 바꾸는 비용이 아니라 바로 이 정보적 마찰이 통화정책 전달 경로의 핵심이 됩니다. 그런데 인플레이션이 높아지고 변동성이 커지면 주체들에게는 통화정책과 물가 수준에 주의를 기울이는 것이 훨씬 중요해집니다. 사람들이 다른 생산적인 활동에 쓰던 주의를 거시적 물가 수준을 추적하는 데로 이동시키면서, 바로 그 주의의 이탈이 인플레이션의 사회적 비용을 만들어내는 것입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 평소 물가가 안정된 환경에서는 거시 충격에 둔감하다가도, 기업 고유의 충격이나 변동성이 큰 변수에는 민감하게 반응하는 현상도 설명이 되겠네요. 다른 경제학 분야에서는 어떤 질문들을 던지고 있나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 노동경제학에서는 채용 담당자가 지원자의 모든 이력을 꼼꼼히 보지 않고 사전 믿음에 따라 주의를 차별적으로 배분하는 주의 차별 이론으로 이어집니다. 이는 기존의 통계적 차별이나 선호에 의한 차별을 더욱 증폭시키는 기제로 작동합니다. 행동경제학에서는 주체가 어떤 단순화 전략을 선택하느냐에 따라 체계적인 의사결정 편향이 나타나는 원리를 설명하고, 정치경제학에서는 개인의 이해관계가 작을 때 유권자가 사실 확인에 주의를 기울이지 않아 민주주의에서 체계적 왜곡이 발생하는 현상을 다룹니다. 나아가 금융위기나 팬데믹 같은 희귀한 사건에 대해 민간 주체와 정책 입안자가 왜 과소 대비하는지까지 폭넓게 설명합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 결국 심리학과 행동경제학이 인간의 인지적 한계를 밝혀냈다면, 합리적 부주의는 그 한계를 스스로 인지한 주체가 어떻게 최적화로 대응하는지를 신고전파 경제학의 틀 안으로 끌어온 셈이군요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 정확합니다. 사람들은 정보 부족으로 인한 실수를 피할 수 없지만, 무엇에 대해 생각하고 어떤 수준의 세부 사항까지 주의를 기울일지, 즉 어떤 유형의 실수를 최소화할지는 선택할 수 있습니다. 합리적 부주의는 바로 이 인지적 제약과 최적화 원리를 결합해 고전 경제학과 행동경제학의 간극을 좁히는 일반화된 분석 틀을 제공합니다.</p><h3>Chapter 2. 상호정보량 비용과 내생적 편향을 낳는 정태 최적화 구조</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 이제 본격적으로 이 이론이 수학적으로 어떻게 작동하는지 들여다보겠습니다. 주체가 무엇에 주의를 기울일지 스스로 선택한다는 아이디어가 구체적으로 어떤 최적화 문제로 정식화되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 가장 기본이 되는 정태 모형부터 살펴보면, 주체는 알 수 없는 세계의 상태 x에 대해 사전 믿음 g(x)를 가지고 두 단계의 결정을 내립니다. 첫 번째는 상태 x가 실현되었을 때 어떤 신호 s를 받을지 정보 전략을 선택하는 것이고, 두 번째는 그 신호를 받아 베이즈 업데이트로 사후 믿음을 형성한 뒤 기대 효용을 극대화하는 행동 y를 고르는 것입니다. 주체의 목표는 기대 효용에서 정보 처리 비용을 뺀 값을 최대화하는 것입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 정보 전략과 행동 전략이라는 두 가지를 동시에 선택해야 한다면 문제가 상당히 복잡해질 것 같은데요. 이 두 전략이 어떻게 하나의 결합분포 최적화로 단순화되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 핵심은 두 번째 단계의 행동과 첫 번째 단계의 신호 사이에 일대일 대응이 성립한다는 점입니다. 만약 서로 다른 두 신호가 결국 똑같은 행동으로 이어진다면, 주체는 행동을 바꾸지도 않을 신호들을 구별하느라 값비싼 정보 처리 비용을 낭비한 셈이 됩니다. 따라서 최적 전략 아래에서는 각 행동마다 하나의 신호만 대응하게 되고, 결국 주체는 상태 x와 행동 y의 결합분포 f(y, x) 하나만을 직접 선택하는 문제로 환원할 수 있습니다. 이때 사전 믿음과 사후 믿음의 일관성을 보장하는 베이즈 합리성 제약만 지키면 됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇군요. 행동을 바꾸지 않는 불필요한 정보는 아예 걸러낸다는 직관이 수리적으로도 깔끔하게 떨어지네요. 그렇다면 이때 주체가 지불하는 정보 처리 비용은 어떻게 측정하나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 심스 이후 표준적으로 쓰이는 비용 함수는 정보 이론에서 가져온 섀넌 상호정보량입니다. 상호정보량 I(y; x)는 행동 y를 관찰함으로써 상태 x에 대한 불확실성, 즉 엔트로피가 평균적으로 얼마나 줄어드는지를 측정합니다. 여기에 정보의 단위 비용인 람다를 곱한 값이 총 정보 비용이 됩니다. 쉽게 말해, 상태에 맞춰 행동을 정밀하게 바꿀수록 상태와 행동 사이의 상호정보량이 커지고, 그만큼 더 많은 정신적 노력과 비용을 치러야 한다는 뜻입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 이 최적화 문제의 1계 조건을 풀면 구체적으로 어떤 형태의 선택 확률이 도출되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 놀랍게도 효용 함수나 사전 믿음의 형태와 무관하게, 행동은 확률적으로 나타나며 정확히 일반화된 로짓 모형을 따릅니다. 이산적인 선택지가 주어진 경우를 보면, 특정 상태 x에서 대안 i를 선택할 확률은 각 대안의 효용 U(i, x)에 내생적 편향 항인 알파(i)를 더한 뒤 비용 람다로 나눈 지수 함수에 비례합니다. 여기서 알파(i)는 람다에 대안 i의 무조건부 선택 확률 P(i)의 로그를 취한 값으로 정의됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 단순한 표준 로짓 모형과 달리 알파(i)라는 편향 항이 추가된다는 점이 흥미롭습니다. 이 편향 항이 경제학적으로 어떤 중요한 차이를 만들어내나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 만약 모든 대안이 사전적으로 똑같이 매력적이라면 알파 값이 모두 같아져서 표준 로짓과 동일한 형태가 됩니다. 하지만 특정 대안 i가 사전적으로 더 매력적으로 보인다면, 주체는 그 대안에 유리한 방향으로 주의를 기울이게 되고, 그 결과 알파(i)가 양의 효용 충격처럼 작동해 모든 상태에서 그 대안을 선택할 확률을 높입니다. 중요한 것은 이 편향 알파가 상태 x와는 무관하지만, 선택 집합이나 사전 믿음, 효용 함수, 정보 비용이 바뀔 때마다 내생적으로 함께 변한다는 점입니다. 이것이 합리적 부주의 로짓을 고정된 정보 획득 모형과 구분 짓는 핵심입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 원문에서는 이 로짓 해와 결합분포 최적화에서 도출되는 주체의 행동 특징을 열 가지로 정리해 두었는데요. 그중에서도 기존 경제학의 직관과 가장 크게 대비되는 특징들은 무엇인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 먼저 첫 번째와 두 번째 특징으로, 주체의 선택은 결정론적이지 않고 무작위 실수를 포함하는 확률적 선택이 되며, 이해관계가 커지거나 정보 비용이 낮아질수록 상태 변화에 대한 반응성이 높아집니다. 다섯 번째와 여섯 번째 특징도 중요한데, 주체는 중요한 변수나 변동성이 큰 변수에 주의를 집중하기 때문에, 완전 정보 아래에서보다 중요 변수 간의 상대 탄력성이 오히려 더 크게 증폭됩니다. 또한 사전 불확실성이 클수록 주의를 더 많이 기울여 반응이 탄력적으로 변합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 변동성이 큰 변수에 주의를 집중한다는 점은 이해가 되는데, 일곱 번째 특징인 범주화와 고려 집합 축소, 그리고 여덟 번째 특징인 현시선호 위배는 조금 더 구체적인 설명이 필요해 보입니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 일곱 번째 특징은 주체가 연속적인 행동 집합을 가질 때조차 소수의 이산적인 행동만을 고려하는 것이 최적이 되는 경우가 많다는 것입니다. 예를 들어 가격을 자유롭게 정할 수 있는 관리자라도 작은 변화에 정보 용량을 낭비하지 않기 위해 정상가와 할인가 두 수준만 번갈아 사용하는 식입니다. 정보 비용이 아주 크거나 사전 믿음이 강하면 아예 하나의 행동만 고려하기도 합니다. 여덟 번째 현시선호 위배는, 선택지가 바뀌면 주체가 주의를 기울이는 방식 자체를 최적화해 바꾸기 때문에 선택의 이행성이 깨지고 겉보기에 비합리적인 선택이 나타날 수 있음을 뜻합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 마지막으로 아홉 번째 사후 불변성과 열 번째 다차원 단순화 특징은 어떻게 이해하면 될까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 사후 불변성은 가능한 상태의 수가 대안의 수보다 많지 않다면, 사전 믿음이 조금 변하더라도 주체가 획득하는 사후 믿음의 집합 자체는 변하지 않는다는 성질로 모형을 풀 때 매우 유용합니다. 열 번째 다차원 단순화 또는 지수화는 여러 충격에 동시에 대응해야 할 때 주체가 환경을 단순화해 인식한다는 뜻입니다. 예를 들어 투자자가 모든 개별 자산 가격을 일일이 보는 대신 내생적으로 구성된 특정 지수의 선형 결합에만 주의를 기울여 포트폴리오 전체를 매매하는 현상을 설명해 줍니다.</p><h3>Chapter 3. 채용 심사 편향과 가격 경직성 모형으로 확인하는 수치적 작동 원리</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 앞에서 살펴본 일반화 로짓 해와 열 가지 행동 특징들이 실제 경제 상황에서는 어떻게 구현되는지 궁금합니다. 원문에서 제시한 첫 번째 구체적 사례인 이진 채용 모형부터 살펴볼까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 네, 한 고용주가 일자리 지원자를 채용할지 말지 결정하는 상황을 가정해 봅시다. 지원자의 실제 역량 x는 미지수이고, 채용 시 효용은 x, 거절 시 유보 효용은 R입니다. 만약 지원자 역량에 대한 사전 분포가 R을 중심으로 좌우 대칭이라면, 고용주는 사전적으로 합격과 불합격 확률이 같다고 보므로 편향 항이 사라진 표준 로짓 형태로 행동합니다. 완전 정보라면 x가 R을 넘는 순간 확률이 0에서 1로 수직 상승하겠지만, 합리적 부주의 아래에서는 확률이 완만하게 증가합니다. 고용주는 아주 뛰어나거나 아주 형편없는 지원자에게는 거의 실수를 하지 않지만, 경계선인 R 근처의 지원자에게는 잦은 실수를 저지르게 됩니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 만약 고용주가 지원자의 성별이나 인종 같은 사전 정보 때문에 특정 집단의 기대 역량이 R보다 높거나 낮다고 믿는 비대칭적 사전 분포를 가진다면 어떤 일이 벌어지나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그때 바로 내생적 주의 편향인 알파(1) 마이너스 알파(0)가 작동합니다. 원문의 수치 예시를 보면, 특정 집단의 기대 역량이 유보 효용 R보다 0.2만큼 높을 때 주의에 의해 유발되는 추가 편향은 약 0.1 수준입니다. 그런데 이 기대 품질 격차가 0.35로 벌어지면 추가적인 주의 편향은 0.5까지 급격히 커집니다. 즉, 원래의 역량 차이 이상으로 합격 확률이 증폭되는 것입니다. 더 나아가 이 격차가 약 0.4 수준에 도달해 임계점을 넘어가면, 고용주는 아예 지원자에 대해 정보를 수집하는 주의 자체를 포기하고 사전 믿음만으로도 무조건 채용하거나 무조건 거절해 버립니다. 다른 대안은 고려 집합에서 완전히 배제되는 셈입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 기대 격차가 0.4만 되어도 아예 검증을 포기한다는 점이 인상적이네요. 그런데 이 로짓 모형이 선택 이론의 고전적인 난제인 드브뢰의 빨간 버스, 파란 버스 문제도 해결한다고 들었습니다. 어떤 원리인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 드브뢰는 기차와 버스를 각각 2분의 1 확률로 선택하던 사람에게 색깔만 다른 두 번째 버스를 추가했을 때, 표준 로짓 모형은 무관한 대안으로부터의 독립성 가정 때문에 세 대안의 확률을 모두 3분의 1로 예측하는 비현실적 결과를 낳는다고 비판했습니다. 하지만 합리적 부주의 주체는 색깔만 다를 뿐 기능적으로 동일한 두 버스를 구별하기 위해 값비싼 주의를 낭비할 이유가 없습니다. 따라서 두 버스를 하나의 묶음으로 취급해 정보를 처리하고, 그 결과 기차를 탈 확률은 여전히 2분의 1로 유지되면서 빨간 버스와 파란 버스를 탈 확률이 각각 4분의 1씩으로 도출됩니다. 드브뢰가 직관적으로 옳다고 본 확률 배분이 최적화의 결과로 자연스럽게 나오는 것입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 이번에는 연속적인 행동을 다루는 두 번째 사례인 이차-가우시안 가격 설정 모형으로 넘어가 보겠습니다. 여기서는 기업의 가격 경직성과 반응 탄력성이 어떻게 설명되나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 관리자가 시장 충격 x에 맞춰 가격 y를 정할 때, 목표 가격은 ax이고 효용 손실은 목표 가격과의 차이 제곱에 이해관계 척도 r을 곱한 음수 형태라고 합시다. 이때 사전 불확실성 g(x)가 평균 0, 분산 시그마 제곱을 따르는 가우시안 분포라면, 최적의 신호 역시 가우시안 신호가 유일한 해로 도출됩니다. 관리자는 신호를 받아 베이즈 업데이트를 한 뒤 가격을 정하는데, 이때 실제 가격 반응은 목표 탄력성 a에 주의 가중치 크시(xi)를 곱한 값으로 나타납니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그 주의 가중치 크시가 구체적으로 어떤 수식으로 결정되고, 어떤 경제적 함의를 갖나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 주의 가중치 크시는 0과 1 사이의 값을 가지며, 구체적으로는 1에서 정보 비용 람다를 2 곱하기 r 곱하기 a 제곱 곱하기 사전 분산 시그마 제곱으로 나눈 값을 뺀 것과 0 중 큰 값으로 결정됩니다. 정보 비용 람다가 양수인 한 크시는 1보다 작기 때문에, 실제 가격은 평균적으로 목표 가격보다 덜 움직이는 과소 반응, 즉 가격 경직성이 나타납니다. 또한 이해관계 r이나 사전 불확실성 시그마 제곱이 클수록, 정보 비용 람다가 작을수록 크시가 커져 반응성이 높아집니다. 특히 탄력성이 다른 두 재화 a1과 a2를 비교하면, 크시 자체가 a의 증가 함수이기 때문에 실현된 상대 탄력성 비율이 완전 정보일 때보다 훨씬 더 크게 벌어지는 볼록 탄력성 증폭 현상이 나타납니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 그렇다면 이차 효용 함수처럼 손실이 대칭적이지 않고, 특정 상황에서 손실이 훨씬 큰 비대칭적 구조에서는 주체가 주의를 어떻게 배분하나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 이차 효용에서는 사후 분산만 중요하기 때문에 주체가 상태 x의 모든 수준에 균등하게 주의를 기울입니다. 하지만 손실이 비대칭적이라면 주의 배분도 달라집니다. 예를 들어 은행 계좌 잔액 x를 확인하는 상황을 생각해 봅시다. 잔액이 마이너스가 되면 높은 연체 수수료를 물어야 하므로 음수 구간에서의 손실이 훨씬 큽니다. 이 경우 합리적 부주의 주체는 계좌 잔액이 마이너스 기호로 시작하거나 빨간 글씨로 적혀 있을 때 훨씬 더 세밀하게 주의를 기울여 읽게 됩니다. 결과적으로 사후 믿음의 정밀도는 손실이 큰 음수 영역에서 훨씬 더 높게 형성되며, 이처럼 주체는 자신의 손실 구조에 맞춰 정보의 정밀도까지 맞춤형으로 설계합니다.</p><h3>Chapter 4. 모형의 적용 경계와 통화·노동·금융 위기 정책의 설계 원칙</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 앞선 모형들은 주체가 자신의 손실 구조에 맞춰 정보 전략을 아주 정교하게 짠다고 가정하는데요. 현실의 모든 의사결정 상황에서 이런 합리적 부주의 가정이 그대로 성립한다고 볼 수 있을까요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 저자들은 합리적 부주의 모형이 가장 잘 들어맞는 영역과 그렇지 않은 영역을 명확히 구분합니다. 인터넷처럼 방대한 형태의 정보가 열려 있고 주체가 원하는 신호를 유연하게 선택할 수 있으며, 결정을 반복적으로 내리는 상황일수록 모형이 잘 작동합니다. 예컨대 매일의 소비 결정이나 하루 수백 장의 이력서를 검토하는 인사 담당자, 익숙한 도로를 운전할 때는 한 번 최적의 정보 전략을 익혀 두면 큰 추가 노력 없이 반복 적용할 수 있습니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 반대로 모형의 가정이 깨지는 경우는 어떤 상황인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 크게 두 가지입니다. 첫째는 낯설고 일회적인 돌발 상황입니다. 운전 중에 앞차가 타이어가 펑크 나 통제력을 잃는 순간에는 어떤 정보가 가장 유용한지 즉각 최적 선택을 내리기 어렵습니다. 둘째는 정보의 형태가 물리적으로 제한된 경우입니다. 심스가 2010년에 든 예시처럼, 지하에 석유가 있는지 확인하려면 시추공을 뚫어보는 것 외에는 다른 신호를 선택할 수 없고, 비용도 인지적 노력이 아니라 물리적 시추 비용이 지배적입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 비용 함수로 쓰인 엔트로피, 즉 상호정보량 가정에도 한계가 있지 않나요? 지각 실험 같은 곳에서는 다른 결과가 나올 법도 한데요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 엔트로피 비용은 정보가 최적으로 코딩되어 있고 주체가 원하는 질문을 자유롭게 던질 수 있을 때는 훌륭한 기준점이 됩니다. 하지만 우드퍼드가 2012년에 논의한 쇼와 쇼의 1977년 지각 실험을 보면, 피험자들은 신호가 평소와 다른 이례적인 위치에 나타났을 때 더 큰 오류를 범했습니다. 엔트로피 비용만 따른다면 위치의 발생 확률과 무관하게 오류가 일정해야 하는데 그렇지 않았던 겁니다. 이는 지각적 상황에서는 정보 선택의 최적성이나 엔트로피 비용 가정이 어긋날 수 있음을 보여줍니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 이런 이론적 경계를 염두에 두고, 이제 정책 설계로 넘어가 보겠습니다. 통화정책에서 중앙은행은 합리적 부주의를 어떻게 다뤄야 하나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 파시엘로와 비더홀트가 2014년에 분석한 경기변동 모형이 핵심 원칙을 잘 보여줍니다. 경제에는 두 가지 총충격이 있습니다. 기술 충격처럼 완전한 주의 아래에서 효율적인 변동을 일으키는 충격이 있고, 마크업 충격처럼 비효율적인 변동을 일으키는 충격이 있습니다. 기술 충격이 올 때 중앙은행은 이윤 극대화 가격을 완전히 안정시켜 기업들이 가격을 바꿀 필요조차 없게 만들어야 합니다. 반대로 마크업 충격이 올 때는 이윤 극대화 가격의 분산을 줄여서, 기업들이 아예 그 충격에 주의를 기울이지 않도록 유도하는 것이 사회적 최적 주의 배분과 일치합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 중앙은행이 앞으로의 정책 방향을 미리 알려주는 선제적 안내도 주체가 주의를 기울이지 않으면 효과가 떨어지겠군요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 그렇습니다. 비더홀트와 앙겔레토스, 리안 등의 연구가 지적하듯, 중앙은행 소통에 대한 부주의는 선제적 안내의 힘이 제한적인 가장 단순한 설명입니다. 게다가 인구에 따라 주의 수준이 크게 다릅니다. 금융시장 참여자들은 중앙은행 발표의 미세한 뉘앙스까지 샅샅이 살피지만, 일반 가계나 기업은 단순한 정책 발표조차 거의 주의를 기울이지 않습니다. 따라서 정책 당국은 정보를 더 많이 내놓는 것만으로는 기대를 바꾸기 어렵다는 점을 전제해야 합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 노동시장의 차별 문제에서도 단순히 지원자 정보를 더 많이 제공하는 식의 대책이 통하지 않을 수 있겠네요.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 바르토시 등이 2016년에 제시한 주의 차별 이론이 바로 그 지점을 짚습니다. 면접관이 사전 믿음이나 선호 때문에 특정 집단에 주의를 덜 기울이면, 통계적 차별이나 선호 기반 차별이 더욱 증폭됩니다. 이때 지원자 개인에 관한 정보를 더 많이 제공해도 면접관이 아예 읽지 않기로 선택하면 소용이 없습니다. 그래서 저자들은 이름이나 인종, 성별을 가리는 블라인드 전형을 도입해 사전 믿음과 주의 배분을 동일선상에 놓거나, 면접 초기 단계에 소수자 할당제를 두어 최종 채용 선택은 자유롭게 두면서도 초기 주의만큼은 공평하게 배분하도록 유인 구조를 바꿔야 한다고 제언합니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 금융 위기나 팬데믹처럼 아주 드물게 발생하는 거대 위험에 대해서도 민간이나 정책 당국이 과소 대비하는 경향이 있는데, 이것도 주의 선택의 결과인가요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 마츠코비악과 비더홀트가 2018년에 보였듯, 유한책임 구조 아래에서는 민간 주체들이 희귀 사건에 대비해 기울이는 주의와 준비 수준이 사회적 최적 수준보다 낮아집니다. 실패 비용의 일부를 사회가 떠안기 때문에 굳이 높은 인지 비용을 들여 드문 위기를 추적할 유인이 떨어지는 것입니다. 저자들은 이 결과를 도드-프랭크법의 정리계획서 의무화 조항의 근거로 봅니다. 시스템적으로 중요한 금융기관이 파산 시 질서 있는 정리 계획을 미리 세우도록 법으로 강제함으로써, 부족한 위기 대비 주의를 제도적으로 보완한다는 뜻입니다.</p><p class='turn'><strong class='speaker'>지수 (진행)</strong> 마지막으로, 이 논문은 합리적 부주의 연구가 앞으로 어떤 과제를 해결해야 한다고 보나요?</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 저자들은 이론의 우아함보다 다양한 분야의 데이터와 부합하고 정책 질문에 답하는 것이 중요하다고 말합니다. 특히 가장 큰 개념적, 실증적 과제로는 세계의 객관적 상태, 주체의 주의 선택, 사후 믿음, 그리고 최종 행동을 동시에 측정하는 일을 꼽습니다. 이 변수들의 일부라도 정교하게 측정해 이론을 검증해 나간다면, 정책 설계에 대한 함의도 훨씬 더 구체화될 것입니다.</p><h3>클로징</h3><p class='turn'><strong class='speaker'>지수 (진행)</strong> 오늘 살펴본 합리적 부주의 이론은 인간의 인지 한계를 단순한 비합리성으로 치부하지 않고, 제한된 주의라는 자원을 최적화하는 과정으로 재해석했다는 점이 인상적입니다.</p><p class='turn'><strong class='speaker s2'>현수 (해설)</strong> 맞습니다. 경제 주체의 행동은 객관적 세계가 아니라 주의 선택을 거쳐 형성된 주관적 인식에 따르며, 정보 무시나 관성, 이산적 선택은 모두 환경에 맞춘 최적화의 결과입니다. 따라서 정책 역시 정보를 단순히 더 많이 제공하는 데 그치지 않고, 블라인드 전형이나 정리계획서 의무화처럼 주체가 어디에 주의를 기울일지 유인 자체를 설계하는 방향으로 나아가야 한다는 것이 이 논문의 핵심 메시지입니다.</p></div></details>
+      </main>
+    </article>
+  </div>
+
+  <script>
+(function(){
+  var modeBtn = document.getElementById('color-mode-btn');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', function(){
+      var root = document.documentElement;
+      var current = root.getAttribute('data-color-mode');
+      var isDark = current ? current === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = isDark ? 'light' : 'dark';
+      root.setAttribute('data-color-mode', next);
+      try { localStorage.setItem('briefing-color-mode', next); } catch (e) {}
+    });
+  }
+  document.querySelectorAll('[data-copy-rss]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = btn.getAttribute('data-copy-rss');
+      if (!url || !navigator.clipboard) return;
+      var orig = btn.textContent;
+      navigator.clipboard.writeText(url).then(function(){
+        btn.textContent = 'RSS 주소 복사됨';
+        setTimeout(function(){ btn.textContent = orig; }, 1800);
+      });
+    });
+  });
+  document.querySelectorAll('[data-speed]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var rate = parseFloat(btn.getAttribute('data-speed') || '1');
+      var container = btn.closest('.audio-deck') || document;
+      var audio = container.querySelector('audio');
+      if (audio) audio.playbackRate = rate;
+      container.querySelectorAll('[data-speed]').forEach(function(b){
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+})();
+</script>
+  <script>
+  (function(){
+    var bar = document.getElementById('reading-progress');
+    window.addEventListener('scroll', function(){
+      if (!bar) return;
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      bar.style.width = max > 0 ? Math.min(100, (doc.scrollTop / max) * 100) + '%' : '0%';
+    }, { passive: true });
+
+    var tocList = document.getElementById('toc-list');
+    var mainEl = document.getElementById('article-main');
+    if (tocList && mainEl) {
+      var secs = Array.prototype.slice.call(mainEl.querySelectorAll('section, details.transcript'));
+      var links = [];
+      secs.forEach(function(sec, idx){
+        if (!sec.id) sec.id = 'auto-sec-' + (idx + 1);
+        var label = sec.getAttribute('data-toc');
+        if (!label) {
+          var h = sec.querySelector('h2, summary');
+          label = h ? h.textContent.replace(/^[^가-힣a-zA-Z0-9]+/, '').trim() : ('섹션 ' + (idx + 1));
+        }
+        if (label.length > 22) label = label.slice(0, 22) + '…';
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.className = 'toc-link';
+        a.href = '#' + sec.id;
+        a.textContent = label;
+        li.appendChild(a);
+        tocList.appendChild(li);
+        links.push({ sec: sec, link: a });
+      });
+
+      if ('IntersectionObserver' in window && links.length) {
+        var obs = new IntersectionObserver(function(entries){
+          entries.forEach(function(entry){
+            if (entry.isIntersecting) {
+              links.forEach(function(item){
+                item.link.classList.toggle('active', item.sec === entry.target);
+              });
+            }
+          });
+        }, { rootMargin: '-15% 0px -72% 0px' });
+        links.forEach(function(item){ obs.observe(item.sec); });
+      }
+    }
+
+    var tf = document.getElementById('transcript-search');
+    if (tf) {
+      tf.addEventListener('input', function(){
+        var q = tf.value.trim().toLowerCase();
+        document.querySelectorAll('.transcript-body .turn').forEach(function(p){
+          p.classList.toggle('hidden', Boolean(q) && p.textContent.toLowerCase().indexOf(q) === -1);
+        });
+      });
+    }
+  })();
+  </script>
+</body>
+</html>

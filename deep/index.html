@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deep Dive Knowledge Briefing</title>
+  <link rel="alternate" type="application/rss+xml" title="Deep Dive Knowledge Briefing" href="feed.xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" />
+  <script>
+(function(){
+  try {
+    var saved = localStorage.getItem('briefing-color-mode');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-color-mode', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+  <style>
+    
+    :root {
+      --surface-page: #F5F7FA;
+      --surface-sheet: #FFFFFF;
+      --surface-subtle: #EDF1F6;
+      --ink-primary: #0F172A;
+      --ink-secondary: #334155;
+      --ink-muted: #64748B;
+      --accent: #1E40AF;
+      --accent-hover: #1E3A8A;
+      --accent-soft: #EBF2FF;
+      --speaker-alt: #0F766E;
+      --border: #D8E0EA;
+      --border-strong: #BAC6D6;
+      --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif;
+      --font-serif: "Noto Serif KR", Georgia, serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) {
+        --surface-page: #0B1018;
+        --surface-sheet: #121A26;
+        --surface-subtle: #1A2434;
+        --ink-primary: #E6EDF6;
+        --ink-secondary: #B4C2D4;
+        --ink-muted: #7C8FA6;
+        --accent: #7FB3FF;
+        --accent-hover: #A5C8FF;
+        --accent-soft: #172742;
+        --speaker-alt: #5EEAD4;
+        --border: #233044;
+        --border-strong: #33455F;
+      }
+    }
+    :root[data-color-mode="dark"] {
+      --surface-page: #0B1018;
+      --surface-sheet: #121A26;
+      --surface-subtle: #1A2434;
+      --ink-primary: #E6EDF6;
+      --ink-secondary: #B4C2D4;
+      --ink-muted: #7C8FA6;
+      --accent: #7FB3FF;
+      --accent-hover: #A5C8FF;
+      --accent-soft: #172742;
+      --speaker-alt: #5EEAD4;
+      --border: #233044;
+      --border-strong: #33455F;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      line-height: 1.78;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .masthead {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .masthead-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .channel-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--surface-subtle);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .channel-tab {
+      padding: 0.38rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-decoration: none;
+    }
+    .channel-tab:hover { color: var(--ink-primary); text-decoration: none; }
+    .channel-tab.active {
+      background: var(--surface-sheet);
+      color: var(--accent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .masthead-tools {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .tool-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-secondary);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.36rem 0.72rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tool-btn:hover { border-color: var(--border-strong); color: var(--ink-primary); }
+
+    .page-wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 2.25rem 1.25rem 4.5rem;
+    }
+    .hero {
+      margin-bottom: 1.75rem;
+      padding-bottom: 1.35rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero h1 {
+      margin: 0 0 0.45rem;
+      font-size: clamp(1.6rem, 3vw, 2.05rem);
+      letter-spacing: -0.025em;
+    }
+    .hero-desc {
+      margin: 0 0 1rem;
+      color: var(--ink-secondary);
+      font-size: 0.96rem;
+      max-width: 66ch;
+    }
+    .feed-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 0.9rem;
+      font-size: 0.84rem;
+      color: var(--ink-muted);
+    }
+    .controls-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+    .search-input {
+      width: 100%;
+      padding: 0.62rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-sheet);
+      color: var(--ink-primary);
+      font-family: inherit;
+      font-size: 0.92rem;
+    }
+    .search-input::placeholder { color: var(--ink-muted); }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .pill {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-secondary);
+      font-family: inherit;
+      padding: 0.38rem 0.78rem;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .pill:hover { border-color: var(--border-strong); color: var(--ink-primary); }
+    .pill.active {
+      background: var(--accent);
+      color: #FFFFFF;
+      border-color: var(--accent);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) .pill.active,
+      :root:not([data-color-mode="light"]) .latest-tag { color: #0B1018; }
+    }
+    :root[data-color-mode="dark"] .pill.active { color: #0B1018; }
+    .pill .count {
+      font-size: 0.75rem;
+      opacity: 0.82;
+      font-variant-numeric: tabular-nums;
+    }
+    .card {
+      background: var(--surface-sheet);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 0.95rem;
+    }
+    .card.featured {
+      border-color: var(--accent);
+      border-width: 1.5px;
+    }
+    .card.hidden { display: none; }
+    .card-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .latest-tag {
+      background: var(--accent);
+      color: #FFFFFF;
+      font-size: 0.73rem;
+      font-weight: 700;
+      padding: 0.16rem 0.5rem;
+      border-radius: 4px;
+    }
+    :root[data-color-mode="dark"] .latest-tag { color: #0B1018; }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem 0.55rem;
+      font-size: 0.81rem;
+      color: var(--ink-muted);
+    }
+    .meta-date { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-secondary); }
+    .meta-chip {
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      padding: 0.14rem 0.48rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .meta-chip.subtle { background: transparent; border: 1px solid var(--border); font-weight: 500; }
+    .meta-chip.wos { background: var(--accent-soft); color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+    .card h2 {
+      margin: 0 0 0.45rem;
+      font-size: 1.22rem;
+      line-height: 1.38;
+      letter-spacing: -0.015em;
+    }
+    .card h2 a { color: var(--ink-primary); text-decoration: none; }
+    .card h2 a:hover { color: var(--accent); }
+    .sub {
+      font-family: var(--font-serif);
+      color: var(--ink-secondary);
+      margin: 0 0 0.95rem;
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+    .audio-deck.compact { margin: 0 0 0.85rem; }
+    .audio-deck.compact audio { width: 100%; height: 36px; }
+    .actions { display: flex; align-items: center; }
+    .read-btn {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--accent);
+      padding: 0.34rem 0.72rem;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      text-decoration: none;
+    }
+    .read-btn:hover { text-decoration: none; opacity: 0.9; }
+    .empty-state {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--ink-muted);
+      background: var(--surface-sheet);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <nav class="channel-tabs" aria-label="브리핑 채널 전환">
+        <a class="channel-tab" href="../index.html">글로벌 모닝 뉴스</a>
+        <a class="channel-tab active" href="index.html">Deep Dive 심층 연구</a>
+      </nav>
+      <div class="masthead-tools">
+        <button type="button" class="tool-btn" data-copy-rss="https://dndlr56.github.io/nyt-briefing/feed.xml">통합 RSS 복사</button>
+        <button type="button" class="tool-btn" data-copy-rss="https://dndlr56.github.io/nyt-briefing/deep/feed.xml">Deep Dive 단독 RSS 복사</button>
+        <button type="button" class="tool-btn" id="color-mode-btn">화면 테마 전환</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-wrap">
+    <section class="hero">
+      <h1>Deep Dive Knowledge Briefing</h1>
+      <p class="hero-desc">학술 저널(Nature·Science·PMC OA·arXiv), 정책·경제 연구소(NBER·BIS·Brookings), 주요 대법원 판례와 심층 에세이를 원문 근거 중심으로 해부하는 일간 연구 브리핑입니다.</p>
+      <div class="feed-bar">
+        <span>매일 오전 07:30 KST 발행</span>
+        <span>통합 RSS: <a href="https://dndlr56.github.io/nyt-briefing/feed.xml">https://dndlr56.github.io/nyt-briefing/feed.xml</a></span>
+      </div>
+    </section>
+
+    <section class="controls-bar" aria-label="아카이브 검색 및 분야 필터">
+      <input type="search" id="archive-search" class="search-input" placeholder="논문 제목, 세부 주제, 핵심 키워드로 검색" aria-label="브리핑 검색" />
+      <div class="filters"><button type='button' class='pill active' data-theme='all'>전체 <span class='count'>9</span></button><button type='button' class='pill' data-theme='ai_tech'>🤖 AI·기술·사회 <span class='count'>2</span></button><button type='button' class='pill' data-theme='science_mind'>🧠 종합과학·뇌인지 <span class='count'>2</span></button><button type='button' class='pill' data-theme='health_medicine'>🫀 의학·건강·장수 <span class='count'>3</span></button><button type='button' class='pill' data-theme='econ_geopolitics'>🌐 경제·금융·지정학 <span class='count'>1</span></button><button type='button' class='pill' data-theme='humanities_society'>🏛️ 인문·철학·역사·제도 <span class='count'>1</span></button></div>
+    </section>
+
+    <section id="cards"><article class='card featured' data-theme='science_mind' data-search='사고의 에너지: 마음의 모델이 놓쳐 온 대사의 물리적 제약 신경 신호와 추상적 계산 규칙만으로는 설명할 수 없는 에너지 획득·항상성 유지·노폐물 배출의 대사 제약이 기억·정신적 노력·인공지능 모델의 타당성을 어떻게 판가름하는지 분석한다. 심리철학·인지과학  신경 신호와 추상적 계산 규칙만으로는 설명할 수 없는 에너지 획득·항상성 유지·노폐물 배출의 대사 제약이 기억·정신적 노력·인공지능 모델의 타당성을 어떻게 판가름하는지 분석한다. — 성인 체중의 약 2퍼센트에 불과한 뇌는 신체 열량의 약 20퍼센트를 소비하면서도 평균 약 20와트로 작동하며, 전체 에너지의 60퍼센트만 활동전위(16퍼센트)와 시냅스 전달(44퍼센트)에 쓰고 나머지 40퍼센트는 세포 유지·수리에 투입한다. / 선형 비커 모델이 열역학적 평형이라는 생물학적 사멸 상태에 도달하는 것과 달리, 시냅스 1비트 저장에 약 50만 atp를 쓰는 비평형 순환 모델은 낮은 유지 비용과 능동적 상태 유지를 통해 기억 간섭과 분자 교체 문제를 함께 설명한다.'><div class='card-top'><span class='latest-tag'>최신 브리핑</span><div class='meta-row'><span class='meta-date'>2026.11.28</span><span class='meta-chip'>🧠 종합과학·뇌인지</span><span class='meta-chip subtle'>심리철학·인지과학</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:16:57</span></div></div><h2><a href='posts/2026-11-28_science_mind_the-energy-of-thought.html'>사고의 에너지: 마음의 모델이 놓쳐 온 대사의 물리적 제약</a></h2><p class='sub'>신경 신호와 추상적 계산 규칙만으로는 설명할 수 없는 에너지 획득·항상성 유지·노폐물 배출의 대사 제약이 기억·정신적 노력·인공지능 모델의 타당성을 어떻게 판가름하는지 분석한다.</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-28_science_mind_191408.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-28_science_mind_the-energy-of-thought.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='humanities_society' data-search='응보적 정의의 세 원칙과 현대 형벌 철학의 정당화 논쟁 도덕적 응분, 내재적 선, 비례성의 결합을 둘러싼 고전·현대 응보주의의 이론적 분화와 한계 법철학·윤리학·형법이론  도덕적 응분, 내재적 선, 비례성의 결합을 둘러싼 고전·현대 응보주의의 이론적 분화와 한계 — 응보적 정의는 유책한 범죄자에 대한 비례적 처벌의 응분, 파생적 선과 무관한 처벌의 도덕적 옳음, 응분 초과·부재 시 처벌 금지라는 세 원칙에 기초한다. / 강간범의 열대 섬 휴양 사고실험은 억제나 무력화 효과가 전무해도 중대 범죄를 처벌해야 한다는 응보적 직관을 보여주지만, 자유의지 부재와 고통의 내재적 선에 대한 혐오감이라는 반론에 직면한다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.27</span><span class='meta-chip'>🏛️ 인문·철학·역사·제도</span><span class='meta-chip subtle'>법철학·윤리학·형법이론</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:29:45</span></div></div><h2><a href='posts/2026-11-27_humanities_society_retributive-justice.html'>응보적 정의의 세 원칙과 현대 형벌 철학의 정당화 논쟁</a></h2><p class='sub'>도덕적 응분, 내재적 선, 비례성의 결합을 둘러싼 고전·현대 응보주의의 이론적 분화와 한계</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-27_humanities_society_193244.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-27_humanities_society_retributive-justice.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='econ_geopolitics' data-search='합리적 부주의 이론: 인지 한계 속 정보 선택과 경제적 의사결정 경제 주체가 제한된 인지 능력 아래에서 어떤 정보를 선택해 처리할지 최적화할 때 나타나는 행동 편향, 거시·금융·노동 현상, 그리고 정책 함의를 집대성한 리뷰 행동거시경제학·정보경제학 ssci 경제 주체가 제한된 인지 능력 아래에서 어떤 정보를 선택해 처리할지 최적화할 때 나타나는 행동 편향, 거시·금융·노동 현상, 그리고 정책 함의를 집대성한 리뷰 — 인간이 주어진 모든 정보를 소화할 수 없다는 전제 아래 주체가 어떤 신호 형태든 자유롭게 고르되 상호정보량에 비례하는 정보 비용을 치른다고 가정하면, 완전 정보 대비 완만하고 지연된 반응과 확률적 오차가 합리적 선택의 결과로 도출된다. / 이산 선택에서는 사전 믿음과 대안 집합에 따라 내생적 편향 α(i)=λ log p(i)가 붙는 일반화된 로짓 모형이 성립하며, 연속 가격 설정에서는 가우시안 신호 가중치 ξ=max(0, 1 - λ/(2ra²σx²))가 충격의 탄력성과 불확실성에 비례해 반응성을 증폭시킨다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.26</span><span class='meta-chip'>🌐 경제·금융·지정학</span><span class='meta-chip subtle'>행동거시경제학·정보경제학</span><span class='meta-chip wos'>SSCI</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:27:12</span></div></div><h2><a href='posts/2026-11-26_econ_geopolitics_rational-inattention-a-review.html'>합리적 부주의 이론: 인지 한계 속 정보 선택과 경제적 의사결정</a></h2><p class='sub'>경제 주체가 제한된 인지 능력 아래에서 어떤 정보를 선택해 처리할지 최적화할 때 나타나는 행동 편향, 거시·금융·노동 현상, 그리고 정책 함의를 집대성한 리뷰</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-26_econ_geopolitics_080221.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-26_econ_geopolitics_rational-inattention-a-review.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='health_medicine' data-search='대사 질환의 분자적 기전과 다학제적 치료 개입 전략 진화적 불일치와 유전·심리·영양 요인이 대사 항상성을 무너뜨리는 경로 및 운동·정밀 영상·세포 치료의 근거와 한계 대사건강·장수의학  진화적 불일치와 유전·심리·영양 요인이 대사 항상성을 무너뜨리는 경로 및 운동·정밀 영상·세포 치료의 근거와 한계 — 지난 30년간 전 세계 비만 유병률이 약 두 배 증가해 과체중·비만 인구가 저체중 인구를 추월했고, 비알코올성 지방간 질환이 세계 인구의 25%, 당뇨병이 5~20%를 차지하며 2035년에는 세계 gdp의 3% 규모 손실을 유발할 것으로 추산된다. / 농경·산업화 이후 급변한 고당질·좌식 환경과 거의 변하지 않은 인간 유전체 사이의 진화적 불일치가 대사 균형을 붕괴시키며, 불쾌한 내면 경험을 피하려 초가공식품을 소비하는 경험 회피 심리가 도파민 보상 회로를 자극해 과식과 대사 손상의 악순환을 고정한다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.25</span><span class='meta-chip'>🫀 의학·건강·장수</span><span class='meta-chip subtle'>대사건강·장수의학</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:25:10</span></div></div><h2><a href='posts/2026-11-25_health_medicine_new-insights-and-potential-therapeutic-int.html'>대사 질환의 분자적 기전과 다학제적 치료 개입 전략</a></h2><p class='sub'>진화적 불일치와 유전·심리·영양 요인이 대사 항상성을 무너뜨리는 경로 및 운동·정밀 영상·세포 치료의 근거와 한계</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-25_health_medicine_082358.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-25_health_medicine_new-insights-and-potential-therapeutic-int.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='science_mind' data-search='인지부하 이론의 재정의: 교육신경과학과 ai 기반 적응형 학습의 결합 103편의 실증 연구를 체계적으로 고찰하여 전통적 인지부하 이론과 교육신경과학, 그리고 실시간 ai 적응형 학습이 인간의 학습 효능감을 어떻게 최적화하는지 규명한 종설 논문입니다. 학습·기억·인지부하 이론  103편의 실증 연구를 체계적으로 고찰하여 전통적 인지부하 이론과 교육신경과학, 그리고 실시간 ai 적응형 학습이 인간의 학습 효능감을 어떻게 최적화하는지 규명한 종설 논문입니다. — 2014년부터 2024년까지 발표된 실증 연구 103편을 종합한 결과, ai와 기계학습을 활용한 적응형 학습 시스템은 학습자의 인지부하를 실시간으로 조절해 학습 효능감과 기억 유지를 유의미하게 높였습니다. / eeg와 fnirs 등 신경생리학적 지표를 딥러닝 모델과 결합하면 내재적·외재적·본유적 인지부하를 높은 정확도로 실시간 판별하여 맞춤형 난이도 조절과 즉각적 피드백을 제공할 수 있습니다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.24</span><span class='meta-chip'>🧠 종합과학·뇌인지</span><span class='meta-chip subtle'>학습·기억·인지부하 이론</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:21:15</span></div></div><h2><a href='posts/2026-11-24_science_mind_challenging-cognitive-load-theory-the-role.html'>인지부하 이론의 재정의: 교육신경과학과 AI 기반 적응형 학습의 결합</a></h2><p class='sub'>103편의 실증 연구를 체계적으로 고찰하여 전통적 인지부하 이론과 교육신경과학, 그리고 실시간 AI 적응형 학습이 인간의 학습 효능감을 어떻게 최적화하는지 규명한 종설 논문입니다.</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-24_science_mind_083154.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-24_science_mind_challenging-cognitive-load-theory-the-role.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='ai_tech' data-search='ai 정렬 종합 서베이: 핵심 원리와 정렬 순환 프레임워크 고도화되는 ai 시스템이 인간의 의도와 가치에 부합하도록 훈련·검증·거버넌스 체계를 통합한 순방향 및 역방향 정렬 프레임워크를 분석한다. ai 안전성·정렬(alignment)  고도화되는 ai 시스템이 인간의 의도와 가치에 부합하도록 훈련·검증·거버넌스 체계를 통합한 순방향 및 역방향 정렬 프레임워크를 분석한다. — 이 서베이 논문은 ai 정렬의 4대 핵심 목표로 견고성, 해석 가능성, 제어 가능성, 윤리성을 뜻하는 rice 원칙을 제시하고, 이를 정렬 훈련인 순방향 정렬과 평가·거버넌스인 역방향 정렬이 반복되는 &#x27;정렬 순환&#x27; 구조로 체계화했다. / 미정렬의 주요 실패 양상은 잘못 설계된 보상 함수를 악용하는 보상 해킹과 분포 변화 환경에서 의도와 다른 목표를 추구하는 목표 오일반화로 구분되며, 상황 인식이나 광범위한 목표 같은 &#x27;양날의 검&#x27; 요소가 위험을 증폭시킬 수 있다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.23</span><span class='meta-chip'>🤖 AI·기술·사회</span><span class='meta-chip subtle'>AI 안전성·정렬(Alignment)</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:23:45</span></div></div><h2><a href='posts/2026-11-23_ai_tech_ai-alignment-a-contemporary-survey.html'>AI 정렬 종합 서베이: 핵심 원리와 정렬 순환 프레임워크</a></h2><p class='sub'>고도화되는 AI 시스템이 인간의 의도와 가치에 부합하도록 훈련·검증·거버넌스 체계를 통합한 순방향 및 역방향 정렬 프레임워크를 분석한다.</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-23_ai_tech_081047.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-23_ai_tech_ai-alignment-a-contemporary-survey.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='health_medicine' data-search='네트워크 과학은 의학과 영양학을 어떻게 바꾸고 있는가 네트워크 과학의 탄생 원리부터 질병 모듈 기반 정밀의학, 그리고 식품 속 13만 5,000종의 영양 암흑 물질을 탐구하는 푸돔 프로젝트까지 살펴본다. 네트워크 과학·정밀의학  네트워크 과학의 탄생 원리부터 질병 모듈 기반 정밀의학, 그리고 식품 속 13만 5,000종의 영양 암흑 물질을 탐구하는 푸돔 프로젝트까지 살펴본다. — 실제 세계의 네트워크는 무작위로 연결되는 것이 아니라 지속적인 성장과 연결이 많은 노드로 쏠리는 선호적 연결을 통해 소수의 거대 허브가 형성되는 척도 없는 구조를 보인다. / 시판 약물의 85%는 질병 유전자나 질병 단백질 자체에 결합하지 않고 하류 경로에 작용하며, 질병 관련 유전자들은 세포 연결망 내 특정 &#x27;질병 모듈&#x27; 구역에 모여 있다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.22</span><span class='meta-chip'>🫀 의학·건강·장수</span><span class='meta-chip subtle'>네트워크 과학·정밀의학</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:20:15</span></div></div><h2><a href='posts/2026-11-22_health_medicine_can-network-science-transform-health-and-n.html'>네트워크 과학은 의학과 영양학을 어떻게 바꾸고 있는가</a></h2><p class='sub'>네트워크 과학의 탄생 원리부터 질병 모듈 기반 정밀의학, 그리고 식품 속 13만 5,000종의 영양 암흑 물질을 탐구하는 푸돔 프로젝트까지 살펴본다.</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-22_health_medicine_080948.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-22_health_medicine_can-network-science-transform-health-and-n.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='ai_tech' data-search='계산 윤리학: 인지과학과 알고리즘의 언어로 여는 ai 윤리 인간의 도덕적 의사결정 연구를 알고리즘으로 정형화하여 윤리적 ai 설계와 인간 도덕 인지의 이해를 동시에 도모하는 계산 윤리학 프레임워크를 제안합니다. ai 윤리·인지과학·법철학  인간의 도덕적 의사결정 연구를 알고리즘으로 정형화하여 윤리적 ai 설계와 인간 도덕 인지의 이해를 동시에 도모하는 계산 윤리학 프레임워크를 제안합니다. — 철학, 컴퓨터공학, 법학, 경제학 중심의 기존 ai 윤리 논의에 인간 도덕 판단을 탐구하는 인지과학의 시각을 결합한 계산 윤리학 프레임워크를 제시합니다. / 데이비드 마의 계산적 시각 연구에서 영감을 받아, 규범 윤리와 사실적 기술 윤리를 알고리즘이라는 공통 언어로 정형화할 것을 제안합니다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.21</span><span class='meta-chip'>🤖 AI·기술·사회</span><span class='meta-chip subtle'>AI 윤리·인지과학·법철학</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:27:37</span></div></div><h2><a href='posts/2026-11-21_ai_tech_computational-ethics.html'>계산 윤리학: 인지과학과 알고리즘의 언어로 여는 AI 윤리</a></h2><p class='sub'>인간의 도덕적 의사결정 연구를 알고리즘으로 정형화하여 윤리적 AI 설계와 인간 도덕 인지의 이해를 동시에 도모하는 계산 윤리학 프레임워크를 제안합니다.</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-21_ai_tech_151544.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-21_ai_tech_computational-ethics.html'>연구 노트 정독하기</a></div></article>
+<article class='card' data-theme='health_medicine' data-search='치매 예방, 중재 및 돌봄: 2024년 란셋 상임위원회 보고서 교정 가능한 14가지 위험 요인 관리를 통한 전 생애 치매 예방 전략과 진단·약물·돌봄·기술 활용에 관한 최신 근거 종합 보고서 지정 문헌 심층 요약  교정 가능한 14가지 위험 요인 관리를 통한 전 생애 치매 예방 전략과 진단·약물·돌봄·기술 활용에 관한 최신 근거 종합 보고서 — 전 세계 치매 인구는 2019년 5,700만 명에서 2050년 1억 5,300만 명으로 증가할 전망이나, 기존 12개 요인에 교정되지 않은 시력 손상과 높은 ldl 콜레스테롤을 추가한 14가지 위험 요인을 관리하면 이론적으로 치매의 약 절반을 예방하거나 지연할 수 있다. / 위험 요인 감소는 유전적 치매 위험(apoe 유전자형)이 높은 사람에게도 유효하며, 치매 발병을 늦출 뿐 아니라 질병을 앓는 기간을 압축해 건강한 수명을 늘린다.'><div class='card-top'><div class='meta-row'><span class='meta-date'>2026.11.20</span><span class='meta-chip'>🫀 의학·건강·장수</span><span class='meta-chip subtle'>지정 문헌 심층 요약</span><span class='meta-info'>2인 대화</span><span class='meta-info'>00:26:17</span></div></div><h2><a href='posts/2026-11-20_health_medicine_dementia-prevention-lancet-2024.html'>치매 예방, 중재 및 돌봄: 2024년 란셋 상임위원회 보고서</a></h2><p class='sub'>교정 가능한 14가지 위험 요인 관리를 통한 전 생애 치매 예방 전략과 진단·약물·돌봄·기술 활용에 관한 최신 근거 종합 보고서</p><div class='audio-deck compact'><audio controls preload='none' src='episodes/deep_dive_2026-11-20_health_medicine_200543.mp3'></audio></div><div class='actions'><a class='read-btn' href='posts/2026-11-20_health_medicine_dementia-prevention-lancet-2024.html'>연구 노트 정독하기</a></div></article></section>
+    <p id="no-match" class="empty-state" style="display:none;">선택한 조건에 일치하는 브리핑이 없습니다. 검색어를 지우거나 전체 탭을 선택해 보세요.</p>
+  </main>
+
+  <script>
+(function(){
+  var modeBtn = document.getElementById('color-mode-btn');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', function(){
+      var root = document.documentElement;
+      var current = root.getAttribute('data-color-mode');
+      var isDark = current ? current === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = isDark ? 'light' : 'dark';
+      root.setAttribute('data-color-mode', next);
+      try { localStorage.setItem('briefing-color-mode', next); } catch (e) {}
+    });
+  }
+  document.querySelectorAll('[data-copy-rss]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = btn.getAttribute('data-copy-rss');
+      if (!url || !navigator.clipboard) return;
+      var orig = btn.textContent;
+      navigator.clipboard.writeText(url).then(function(){
+        btn.textContent = 'RSS 주소 복사됨';
+        setTimeout(function(){ btn.textContent = orig; }, 1800);
+      });
+    });
+  });
+  document.querySelectorAll('[data-speed]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var rate = parseFloat(btn.getAttribute('data-speed') || '1');
+      var container = btn.closest('.audio-deck') || document;
+      var audio = container.querySelector('audio');
+      if (audio) audio.playbackRate = rate;
+      container.querySelectorAll('[data-speed]').forEach(function(b){
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+})();
+</script>
+  <script>
+  (function(){
+    var pills = document.querySelectorAll('.pill');
+    var cards = document.querySelectorAll('.card');
+    var searchInput = document.getElementById('archive-search');
+    var noMatch = document.getElementById('no-match');
+    var activeTheme = 'all';
+
+    function applyFilter() {
+      var q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+      var visible = 0;
+      cards.forEach(function(c){
+        var themeOk = activeTheme === 'all' || c.getAttribute('data-theme') === activeTheme;
+        var hay = (c.getAttribute('data-search') || '').toLowerCase();
+        var searchOk = !q || hay.indexOf(q) !== -1;
+        var show = themeOk && searchOk;
+        c.classList.toggle('hidden', !show);
+        if (show) visible++;
+      });
+      if (noMatch) noMatch.style.display = (cards.length > 0 && visible === 0) ? 'block' : 'none';
+    }
+
+    pills.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        pills.forEach(function(p){ p.classList.remove('active'); });
+        btn.classList.add('active');
+        activeTheme = btn.getAttribute('data-theme') || 'all';
+        applyFilter();
+      });
+    });
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilter);
+    }
+  })();
+  </script>
+</body>
+</html>

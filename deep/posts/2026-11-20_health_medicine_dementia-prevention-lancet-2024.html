@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[의학·건강·장수] 치매 예방, 중재 및 돌봄: 2024년 란셋 상임위원회 보고서 | 2026.11.20 — Deep Dive Knowledge Briefing</title>
+  <link rel="alternate" type="application/rss+xml" title="Deep Dive Knowledge Briefing" href="../feed.xml" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin /><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" /><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&display=swap" />
+  <script>
+(function(){
+  try {
+    var saved = localStorage.getItem('briefing-color-mode');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-color-mode', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+  <style>
+    
+    :root {
+      --surface-page: #F5F7FA;
+      --surface-sheet: #FFFFFF;
+      --surface-subtle: #EDF1F6;
+      --ink-primary: #0F172A;
+      --ink-secondary: #334155;
+      --ink-muted: #64748B;
+      --accent: #1E40AF;
+      --accent-hover: #1E3A8A;
+      --accent-soft: #EBF2FF;
+      --speaker-alt: #0F766E;
+      --border: #D8E0EA;
+      --border-strong: #BAC6D6;
+      --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Noto Sans KR", "Malgun Gothic", sans-serif;
+      --font-serif: "Noto Serif KR", Georgia, serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) {
+        --surface-page: #0B1018;
+        --surface-sheet: #121A26;
+        --surface-subtle: #1A2434;
+        --ink-primary: #E6EDF6;
+        --ink-secondary: #B4C2D4;
+        --ink-muted: #7C8FA6;
+        --accent: #7FB3FF;
+        --accent-hover: #A5C8FF;
+        --accent-soft: #172742;
+        --speaker-alt: #5EEAD4;
+        --border: #233044;
+        --border-strong: #33455F;
+      }
+    }
+    :root[data-color-mode="dark"] {
+      --surface-page: #0B1018;
+      --surface-sheet: #121A26;
+      --surface-subtle: #1A2434;
+      --ink-primary: #E6EDF6;
+      --ink-secondary: #B4C2D4;
+      --ink-muted: #7C8FA6;
+      --accent: #7FB3FF;
+      --accent-hover: #A5C8FF;
+      --accent-soft: #172742;
+      --speaker-alt: #5EEAD4;
+      --border: #233044;
+      --border-strong: #33455F;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      line-height: 1.78;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); text-decoration: underline; }
+    a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .masthead {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .masthead-inner {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .channel-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: var(--surface-subtle);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .channel-tab {
+      padding: 0.38rem 0.8rem;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-secondary);
+      text-decoration: none;
+    }
+    .channel-tab:hover { color: var(--ink-primary); text-decoration: none; }
+    .channel-tab.active {
+      background: var(--surface-sheet);
+      color: var(--accent);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .masthead-tools {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .tool-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-secondary);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.36rem 0.72rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .tool-btn:hover { border-color: var(--border-strong); color: var(--ink-primary); }
+
+    .progress-track {
+      position: fixed; top: 0; left: 0; right: 0; height: 3px;
+      background: transparent; z-index: 40; pointer-events: none;
+    }
+    .progress-bar {
+      height: 100%; width: 0%; background: var(--accent);
+      transition: width 80ms linear;
+    }
+    .reader-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4.5rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2.25rem;
+    }
+    @media (min-width: 1040px) {
+      .reader-shell {
+        grid-template-columns: 210px minmax(0, 740px);
+        justify-content: space-between;
+        align-items: start;
+      }
+    }
+    .toc-rail {
+      display: none;
+    }
+    @media (min-width: 1040px) {
+      .toc-rail {
+        display: block;
+        position: sticky;
+        top: 1.5rem;
+        padding-right: 0.75rem;
+        border-right: 1px solid var(--border);
+      }
+    }
+    .toc-heading {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--ink-muted);
+      margin: 0 0 0.65rem;
+    }
+    .toc-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .toc-link {
+      display: block;
+      font-size: 0.83rem;
+      line-height: 1.4;
+      color: var(--ink-muted);
+      padding: 0.25rem 0.45rem;
+      border-radius: 5px;
+      text-decoration: none;
+    }
+    .toc-link:hover { color: var(--ink-primary); text-decoration: none; background: var(--surface-subtle); }
+    .toc-link.active { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+    .paper-sheet {
+      background: var(--surface-sheet);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.25rem 2.25rem 2.75rem;
+    }
+    @media (max-width: 640px) {
+      .paper-sheet { padding: 1.4rem 1.15rem 2rem; border-radius: 10px; }
+    }
+    .date-meta {
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-muted);
+      margin-bottom: 0.55rem;
+    }
+    h1 {
+      font-size: clamp(1.5rem, 2.8vw, 1.95rem);
+      line-height: 1.32;
+      letter-spacing: -0.025em;
+      margin: 0 0 0.9rem;
+      color: var(--ink-primary);
+    }
+    .meta-tags, .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0.75rem 0 0.9rem;
+    }
+    .tag, .badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.22rem 0.62rem;
+      border-radius: 6px;
+      background: var(--surface-subtle);
+      color: var(--ink-secondary);
+      border: 1px solid var(--border);
+    }
+    .tag.primary, .badge:first-child {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: transparent;
+    }
+    .tag.muted, .badge.outline {
+      background: transparent;
+      color: var(--ink-muted);
+    }
+    .subtitle {
+      font-family: var(--font-serif);
+      font-size: 1.06rem;
+      line-height: 1.7;
+      color: var(--ink-secondary);
+      margin: 0.6rem 0 1.4rem;
+    }
+    .audio-deck {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1.05rem;
+      margin: 1.25rem 0 1.75rem;
+    }
+    .audio-deck-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+    .audio-title {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--ink-primary);
+    }
+    .speed-group { display: inline-flex; gap: 0.25rem; }
+    .speed-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-sheet);
+      color: var(--ink-muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.18rem 0.48rem;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .speed-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-color-mode="light"]) .speed-btn.active { color: #0B1018; }
+    }
+    :root[data-color-mode="dark"] .speed-btn.active { color: #0B1018; }
+    audio { width: 100%; height: 38px; display: block; }
+    main { max-width: 68ch; }
+    .tldr-box {
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      padding: 1.05rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0 2rem;
+    }
+    .tldr-box h2 {
+      margin: 0 0 0.55rem;
+      padding: 0;
+      border: none;
+      font-size: 1.02rem;
+      color: var(--accent);
+    }
+    .tldr-box ul { margin: 0; padding-left: 1.2rem; }
+    .tldr-box li { margin-bottom: 0.4rem; }
+    .tldr-box li:last-child { margin-bottom: 0; }
+    section { margin: 2.15rem 0; scroll-margin-top: 1.2rem; }
+    section > h2 {
+      font-size: 1.2rem;
+      letter-spacing: -0.015em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+      margin: 0 0 0.95rem;
+      color: var(--ink-primary);
+    }
+    section p { margin: 0 0 0.9rem; color: var(--ink-primary); }
+    section p:last-child { margin-bottom: 0; }
+    .body-sec {
+      margin: 1.4rem 0;
+      padding-left: 0.85rem;
+      border-left: 2px solid var(--border);
+    }
+    .body-sec h3 {
+      font-size: 1.04rem;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .sec-idx { color: var(--accent); margin-right: 0.2rem; }
+    .table-wrap { overflow-x: auto; margin: 1rem 0; }
+    .analysis-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      border-top: 2px solid var(--border-strong);
+      border-bottom: 2px solid var(--border-strong);
+    }
+    .analysis-table th, .analysis-table td {
+      border-bottom: 1px solid var(--border);
+      padding: 0.7rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .analysis-table thead th {
+      background: var(--surface-subtle);
+      font-weight: 700;
+      color: var(--ink-primary);
+    }
+    .analysis-table tbody th {
+      width: 27%;
+      font-weight: 600;
+      color: var(--ink-primary);
+      background: transparent;
+    }
+    .quote-block {
+      background: var(--surface-subtle);
+      border-left: 3px solid var(--border-strong);
+      margin: 1.1rem 0;
+      padding: 1rem 1.2rem;
+      border-radius: 0 8px 8px 0;
+    }
+    .quote-en {
+      font-family: var(--font-serif);
+      font-size: 0.96rem;
+      line-height: 1.68;
+      margin: 0 0 0.5rem;
+      color: var(--ink-primary);
+    }
+    .quote-kr {
+      font-size: 0.94rem;
+      margin: 0 0 0.4rem;
+      color: var(--ink-secondary);
+    }
+    .quote-block footer {
+      font-size: 0.81rem;
+      color: var(--ink-muted);
+    }
+    .chapter-list, .source-list { padding-left: 1.25rem; }
+    .chapter-list li, .source-list li { margin-bottom: 0.45rem; }
+    .src-venue, .sep { color: var(--ink-muted); }
+    .usage-meta {
+      margin-top: 2rem;
+      padding-top: 0.9rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.82rem;
+      color: var(--ink-muted);
+    }
+    .transcript {
+      margin-top: 2.5rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-subtle);
+      overflow: hidden;
+    }
+    .transcript summary {
+      cursor: pointer;
+      padding: 0.95rem 1.15rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--ink-primary);
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .transcript summary::-webkit-details-marker { display: none; }
+    .transcript summary::after {
+      content: "펼치기";
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .transcript[open] summary::after { content: "접기"; }
+    .transcript-body {
+      padding: 0.25rem 1.2rem 1.35rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface-sheet);
+    }
+    .transcript-filter {
+      width: 100%;
+      margin: 0.9rem 0 1rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-page);
+      color: var(--ink-primary);
+      font-family: inherit;
+      font-size: 0.86rem;
+    }
+    .cast-box {
+      background: var(--surface-subtle);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.85rem 0 1.2rem;
+      font-size: 0.88rem;
+    }
+    .cast-reason { color: var(--ink-muted); font-size: 0.83rem; margin-top: 0.2rem; }
+    .transcript-body h3 {
+      font-size: 1rem;
+      margin: 1.4rem 0 0.6rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .turn { margin: 0.7rem 0; line-height: 1.74; font-size: 0.94rem; }
+    .turn.hidden { display: none; }
+    .speaker {
+      display: inline-block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-right: 0.4rem;
+    }
+    .speaker.s2 { color: var(--speaker-alt); }
+  </style>
+</head>
+<body>
+  <div class="progress-track" aria-hidden="true"><div class="progress-bar" id="reading-progress"></div></div>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <nav class="channel-tabs" aria-label="브리핑 채널 전환">
+        <a class="channel-tab" href="../../index.html">글로벌 모닝 뉴스</a>
+        <a class="channel-tab active" href="../index.html">Deep Dive 심층 연구</a>
+      </nav>
+      <div class="masthead-tools">
+        <button type="button" class="tool-btn" data-copy-rss="https://dndlr56.github.io/nyt-briefing/deep/feed.xml">RSS 주소 복사</button>
+        <button type="button" class="tool-btn" id="color-mode-btn">화면 테마 전환</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="reader-shell">
+    <aside class="toc-rail" aria-label="문서 목차">
+      <a class="back-link" href="../index.html">아카이브 목록으로</a>
+      <p class="toc-heading">문서 구성</p>
+      <ul class="toc-list" id="toc-list"></ul>
+    </aside>
+
+    <article class="paper-sheet">
+      <header>
+        <div class="date-meta">2026년 11월 20일 (Fri) KST</div>
+        <h1>치매 예방, 중재 및 돌봄: 2024년 란셋 상임위원회 보고서</h1>
+      </header>
+      <div class="audio-deck">
+          <div class="audio-deck-top">
+            <span class="audio-title">오디오 브리핑 / 2인 대화 · 지수(진행) · 현수(해설) (00:26:17)</span>
+            <div class="speed-group" role="group" aria-label="재생 배속">
+              <button type="button" class="speed-btn active" data-speed="1">1.0x</button>
+              <button type="button" class="speed-btn" data-speed="1.25">1.25x</button>
+              <button type="button" class="speed-btn" data-speed="1.5">1.5x</button>
+              <button type="button" class="speed-btn" data-speed="1.75">1.75x</button>
+            </div>
+          </div>
+          <audio controls preload="metadata" src="../episodes/deep_dive_2026-11-20_health_medicine_200543.mp3"></audio>
+        </div>
+      <main id="article-main">
+        <p class="badges">
+<span class="badge">🫀 의학·건강·장수</span>
+<span class="badge secondary">지정 문헌 심층 요약</span>
+<span class="badge outline">1편 충실 요약</span>
+</p>
+<p class="subtitle">교정 가능한 14가지 위험 요인 관리를 통한 전 생애 치매 예방 전략과 진단·약물·돌봄·기술 활용에 관한 최신 근거 종합 보고서</p>
+<section class="tldr-box" data-toc="핵심 요약" id="sec-upgraded-1">
+<h2>핵심 요약</h2>
+<ul><li>전 세계 치매 인구는 2019년 5,700만 명에서 2050년 1억 5,300만 명으로 증가할 전망이나, 기존 12개 요인에 교정되지 않은 시력 손상과 높은 LDL 콜레스테롤을 추가한 14가지 위험 요인을 관리하면 이론적으로 치매의 약 절반을 예방하거나 지연할 수 있다.</li><li>위험 요인 감소는 유전적 치매 위험(APOE 유전자형)이 높은 사람에게도 유효하며, 치매 발병을 늦출 뿐 아니라 질병을 앓는 기간을 압축해 건강한 수명을 늘린다.</li><li>뇌척수액 및 혈액 바이오마커는 알츠하이머병 병리 확인을 돕는 보조 수단으로만 사용해야 하며, 항아밀로이드 항체 치료제는 18개월 투여 시 인지 저하를 27~35% 늦추는 소폭의 효과를 보이나 높은 비용과 심각한 부작용 위험, 장기 근거 부족의 한계가 있다.</li><li>치매 진단 이후에는 사람 중심의 다요소 심리사회적 중재와 초조·섬망 관리가 핵심이며, COVID-19 팬데믹에서 드러난 치매 환자의 취약성(사망 위험 약 5배)을 교훈 삼아 돌봄 정책과 기술 도입 시 형평성을 보장해야 한다.</li></ul>
+</section>
+<section data-toc="1. 개요 및 문제의식" id="sec-upgraded-2">
+<h2>1. 개요 및 문제의식</h2>
+<p>2020년 보고서 이후 네 번째로 재소집된 2024년 란셋 치매 상임위원회 보고서는 치매 예방, 중재 및 돌봄에 관한 최신 연구 근거를 종합해 정책, 임상 실무, 연구 방향에 영향을 미치는 것을 목적으로 한다. 기대 수명이 늘어나면서 고소득 국가에서 연령별 치매 발생률이 감소하는 추세에도 불구하고 전 세계 치매 인구 규모는 2019년 5,700만 명에서 2050년 1억 5,300만 명으로 급증할 것으로 예측된다. 본 보고서는 고소득 국가뿐 아니라 저·중소득 국가 및 소외 계층의 데이터까지 포괄하여, 전 생애에 걸친 위험 요인 관리와 진단 후 약물·비약물적 치료, 팬데믹 교훈 및 보조 기술의 실효성에 대한 균형 잡힌 근거를 제시한다.</p>
+</section>
+<section data-toc="2. 연구 방법 및 근거 구조" id="sec-upgraded-3">
+<h2>2. 연구 방법 및 근거 구조</h2>
+<p>다양한 지리적·문화적 배경을 가진 학제 간 국제 전문가 위원회는 체계적 문헌 고찰과 메타분석을 최우선으로 삼는 삼각 검증 체계를 채택하고, 필요한 경우 새로운 메타분석과 인과 추론 분석(멘델 무작위 배정 등)을 직접 수행했다. 난청과 우울증에 대해서는 엄격한 질적 기준(객관적 청력 검사, 5년 이상 추적 관찰 등)을 적용한 신규 메타분석을 실시했으며, 전 세계 위험 요인 유병률과 상대 위험도 최신 문헌을 바탕으로 공분산을 보정해 14개 위험 요인의 인구 기여 분율을 산출했다. 위원들은 각 장을 분담 작성한 뒤 대면 토론과 다수의 서면 검토를 거쳐 최선의 근거와 일관성에 만장일치로 합의했다.</p>
+</section>
+<section data-toc="3. 본문 핵심 내용" id="sec-upgraded-4">
+<h2>3. 본문 핵심 내용</h2>
+<div class="body-sec"><h3>1. 생애 주기 관점의 치매 예방과 14가지 위험 요인</h3><p>위원회는 2020년 보고서에서 제시한 12가지 요인(낮은 교육 수준, 난청, 고혈압, 흡연, 비만, 우울증, 신체 활동 부족, 당뇨병, 과도한 음주, 외상성 뇌손상, 대기 오염, 사회적 고립)에 더해, 교정되지 않은 시력 손상과 높은 LDL 콜레스테롤을 새로운 치매 위험 요인으로 추가했다. 이 14가지 교정 가능한 위험 요인을 생애 전반에 걸쳐 관리하면 이론적으로 치매 사례의 거의 절반을 예방할 수 있다. 건강한 생활 습관을 유지하면 치매 위험이 낮아질 뿐 아니라 치매 발병 시점이 기대 수명 연장 폭보다 더 뒤로 밀려 유병 기간이 압축되는 효과가 나타난다. 또한 위험 감소 노력은 일찍 시작해 오래 유지할수록 좋지만 생애 어느 시점에서든 효과가 있으며, 유전적 위험이 높은 사람에게도 동일하게 작동한다.</p></div><div class="body-sec"><h3>2. 뇌 병리, 인지 예비력 및 사회·인구학적 형평성</h3><p>미국과 영국의 6개 코호트(80세 이상 사망자 4,354명) 부검 연구에 따르면 91%가 두 가지 이상의 신경병리를 지닌 채 사망했으며, 뇌 병리가 있더라도 인지 예비력과 신체적 건강이 높으면 치매 증상을 견뎌낼 수 있다. 고소득 국가의 연령별 치매 발생률 감소 역시 신경퇴행 감소보다는 혈관성 손상 감소와 인지·신체적 예비력 증진에 기인한 것으로 분석된다. 한편 위험 요인은 저·중소득 국가, 소수 인종, 저소득층에 집중되는 경향이 있으며, 국가 치매 계획이 있는 46개국 중 31개국은 문화·인종적 다양성과 형평성에 대한 구체적 권고를 포함하지 않고 있다. 여성에게서 치매 유병률이 더 높게 나타나는 경향 역시 생물학적 성별 자체보다는 긴 수명과 과거 교육·직업 기회의 불평등에서 비롯된 측면이 크다는 연구 결과들이 제시되었다.</p></div><div class="body-sec"><h3>3. 교육, 인지 자극, 난청 등 개별 위험 요인의 최신 근거</h3><p>아동기 교육뿐만 아니라 중년기의 인지 자극도 치매 위험을 낮추며, 고소득 국가 10만 7,896명 추적 연구에서 직무상 인지 자극이 높은 집단은 교육 수준이 낮더라도 치매 위험이 낮았고(위험비 0.80), 고학력과 고자극이 결합하면 위험이 더욱 감소했다(위험비 0.63). 반면 단기 전산화 인지 훈련은 장기적인 인지 유지 효과에 대한 근거가 부족하다. 난청과 관련해 위원회가 6개 고품질 코호트(66만 6,370명)를 메타분석한 결과 난청인은 정상 청력인보다 치매 위험이 유의하게 높았으며(위험비 1.37), 청력이 10데시벨 저하될 때마다 위험이 4%에서 24%까지 증가했다. 특히 소음 환경 속 말소리 인지 저하는 치매 위험을 61~91%까지 높였으며, 보청기 사용이 다른 위험 요인을 동반한 난청인의 치매 위험 감소에 효과적이라는 근거가 강화되었다. 이 밖에도 40세 이후 수축기 혈압 130mmHg 이하 유지, 중년기부터의 고지혈증 관리, 접촉 스포츠에서의 머리 보호구 착용, 대기 질 개선 정책 등이 구체적 예방 과제로 권고되었다.</p></div><div class="body-sec"><h3>4. 바이오마커와 약물 치료: 기존 약제와 항아밀로이드 항체</h3><p>뇌척수액 및 혈액 바이오마커 연구가 발전하고 있으나 주로 3차 의료기관의 백인 집단을 중심으로 검증되어 일반화 가능성과 형평성 문제가 남아 있다. 인지 장애가 없는 고령자에서도 아밀로이드 축적은 흔하므로 바이오마커는 단독 진단 근거가 될 수 없으며, 치매나 인지 장애가 있는 환자의 알츠하이머병 병리 확인 보조 수단으로만 임상적으로 사용해야 한다. 알츠하이머병과 루이소체 치매 치료제인 콜린에스테라아제 억제제와 메만틴은 저렴하고 부작용이 적으며 수년간 인지 저하를 완만하게 늦추는 장기 효과가 확인되었다. 반면 새로운 항아밀로이드 항체 치료제는 18개월 투여 시 인지 저하를 27~35% 줄이는 소폭의 효과를 보였으나, 경증 환자에게만 시험되었고 비용이 매우 높으며 집중적인 영상·혈액 모니터링이 필요하고 심각한 부작용 위험이 있는 데다 장기 안전성 및 효과 근거가 아직 없다.</p></div><div class="body-sec"><h3>5. 신경정신 증상 관리, 섬망, 팬데믹 교훈 및 보조 기술</h3><p>치매 환자의 초조 증상은 통증이나 불편감 등 근본 원인을 먼저 평가하고 비약물적 전략을 우선 적용해야 하며, 항정신병약물은 심혈관계 부작용과 사망률 증가 위험이 있어 위험을 충분히 고지한 뒤 제한적으로만 사용해야 한다. 최근 미국 FDA 승인을 받은 브렉스피프라졸은 리스페리돈과 유사한 수준의 초조 완화 효과를 보였으나 사망 사례가 위약군보다 수치상 더 많았으며(6명 대 1명), 리스페리돈이 여전히 가장 방대한 무작위 대조 시험 근거를 보유하고 있다. 급성 질환으로 입원한 치매 환자는 섬망 발생 위험과 추가 인지·기능 저하 위험이 높으므로 비약물적 환경 관리와 퇴원 후 추적 관찰이 필수적이다. COVID-19 팬데믹 기간 동안 치매 환자는 비치매인보다 사망 위험이 약 5배 높았고 사회적 격리로 60%가 인지 악화를, 93%가 비인지 증상 악화를 겪었다. 한편 스마트홈, 원격 돌봄, 사회적 보조 로봇 등 신기술은 치매 환자의 인지나 삶의 질, 돌봄 부담을 개선한다는 고품질 근거가 아직 부족해 기존 대면 돌봄을 대체하기보다 보조하는 용도로 신중히 접근해야 한다.</p></div>
+</section>
+<section data-toc="4. 주요 수치·내용 요약표" id="sec-upgraded-5">
+<h2>4. 주요 수치·내용 요약표</h2>
+<table class="analysis-table">
+<thead><tr><th>항목</th><th>원문 핵심 내용</th></tr></thead>
+<tbody><tr><th>신규 추가 위험 요인</th><td>교정되지 않은 시력 손상과 중년기 이후의 높은 LDL 콜레스테롤을 포함해 총 14가지 교정 가능 위험 요인 정립</td></tr><tr><th>전체 예방 잠재력</th><td>14가지 위험 요인을 이론적으로 모두 제거할 경우 전체 치매의 약 절반을 예방하거나 발병을 지연 가능</td></tr><tr><th>난청 및 보청기</th><td>고품질 6개 코호트 메타분석 결과 난청 시 치매 위험비 1.37(10데시벨 저하당 4~24% 증가), 보청기 사용 시 위험 완화</td></tr><tr><th>혈압 및 콜레스테롤 관리</th><td>40세 이후 수축기 혈압 130mmHg 이하 유지 및 중년기부터 고밀도 관리 외 높은 LDL 콜레스테롤 선별·치료</td></tr><tr><th>항아밀로이드 항체 치료제</th><td>18개월 투여 시 인지 저하 27~35% 지연(소폭 효과), 고비용·집중 모니터링·부작용 위험 존재 및 장기 근거 부재</td></tr><tr><th>초조 약물 치료</th><td>비약물 중재 우선 원칙, 리스페리돈이 최다 임상 근거 보유(브렉스피프라졸은 효과 유사하나 사망 위험 주의 필요)</td></tr><tr><th>COVID-19 취약성</th><td>치매 환자의 사망 오즈비 5.17(약 5배), 격리 연구 중 60%에서 인지 악화 및 93%에서 신경정신 증상 악화 보고</td></tr><tr><th>돌봄 기술 평가</th><td>보조 기술·원격 돌봄(무작위 시험 495명) 및 돌봄 로봇(66개 연구 고찰) 모두 인지·삶의 질 개선 근거 부족</td></tr></tbody>
+</table>
+</section>
+<section data-toc="5. 원문 핵심 문장 발췌" id="sec-upgraded-6">
+<h2>5. 원문 핵심 문장 발췌</h2>
+<blockquote class="quote-block"><p class="quote-en">“There is new evidence that reducing the risk of dementia increases healthy years of life and compresses the duration of ill health for people who develop it.”</p><p class="quote-kr">치매 위험을 낮추면 건강한 수명이 늘어날 뿐만 아니라, 치매가 발병하더라도 질병을 앓는 기간이 압축된다는 새로운 근거가 확인되었다.</p><footer>— 2024 란셋 치매 상임위원회 보고서 요약문</footer></blockquote><blockquote class="quote-block"><p class="quote-en">“Amyloid and tau biomarkers in those with dementia help confirm the presence of Alzheimer’s disease pathology although not that it is the cause of symptoms.”</p><p class="quote-kr">치매 환자의 아밀로이드와 타우 바이오마커는 알츠하이머병 병리의 존재를 확인하는 데 도움을 주지만, 그것이 증상의 원인임을 입증하는 것은 아니다.</p><footer>— 2024 란셋 치매 상임위원회 보고서 요약문</footer></blockquote><blockquote class="quote-block"><p class="quote-en">“In general, there is a lack of evidence to recommend specific technologies for dementia management. Technologies should, where possible, supplement rather than replace existing care leading to harmful social isolation.”</p><p class="quote-kr">전반적으로 치매 관리를 위해 특정 기술을 권고할 만한 근거가 부족하다. 기술은 가능한 한 해로운 사회적 고립을 초래할 수 있는 기존 돌봄 대체가 아니라 이를 보완하는 역할을 해야 한다.</p><footer>— 2024 란셋 치매 상임위원회 보고서 기술 및 중재 제공 장</footer></blockquote>
+</section>
+<section data-toc="6. 원문이 밝힌 한계 및 주의점" id="sec-upgraded-7">
+<h2>6. 원문이 밝힌 한계 및 주의점</h2>
+<ul><li>기존 코호트 연구와 임상 시험, 바이오마커 검증 데이터 대부분이 고소득 국가의 백인 및 고학력·고소득 계층에 편중되어 있어 저·중소득 국가나 소수 인종에 대한 일반화와 건강 형평성에 한계가 있다.</li><li>치매 발병 10년 이상 전부터 서서히 진행되는 긴 전임상기로 인해 관찰 연구에서 확인된 위험 요인이 실제 원인인지 아니면 치매 초기 변화로 인한 역인과 관계인지 구분하기 어려운 경우가 있으며, 무작위 대조 시험은 수십 년의 추적 관찰과 탈락률 문제로 수행이 현실적으로 어렵다.</li><li>위험 요인 간에 사회적·건강상 불리함이 군집화되는 경향이 있으나 본 모델에서는 개별 요인의 공분산을 보정하여 산출했으며, 일부 연관성은 부분적으로만 인과적일 수 있다.</li><li>항아밀로이드 항체 치료제는 경증 및 동반 질환이 적은 환자를 대상으로 단기(18개월) 시험만 이루어져 장기적인 효과와 안전성 데이터가 아직 없으며, 치매 돌봄 보조 기술 역시 급격한 기술 변화로 인해 고품질의 유효성 검증 연구가 부족하다.</li></ul>
+</section>
+<section data-toc="7. 원문의 결론 및 제언" id="sec-upgraded-8">
+<h2>7. 원문의 결론 및 제언</h2>
+<ul><li>예방은 일찍 시작해 생애 전반에 걸쳐 유지할수록 좋지만 언제 시작해도 결코 이르거나 늦지 않으며, 개인의 생활 습관 개선과 더불어 대기 질 개선, 식품 내 염분·당분 규제, 무상 교육, 보청기·안경 접근성 확대 등 국가적 정책 변화가 병행되어야 한다.</li><li>위험 요인이 취약 계층에 집중되므로 공중보건 정책은 형평성을 최우선으로 삼아 고위험군을 포괄해야 하며, 개인별 위험 요인이 복합적이므로 다요소 중재 접근이 필요하다.</li><li>치매 진단 후에는 환자와 가족 돌봄 제공자의 삶의 질을 지키기 위해 개별화된 사후 지원 계획, 사람 중심의 신경정신 증상 관리, 입원 환자의 섬망 예방 및 퇴원 후 추적 관리를 체계적으로 제공해야 한다.</li><li>콜린에스테라아제 억제제 등 입증된 기존 약물은 저·중소득 국가에서도 보편적으로 이용 가능해야 하며, 신약과 바이오마커, 신기술은 과장 없이 근거에 기반해 기존 돌봄을 보완하는 방향으로 신중히 도입해야 한다.</li></ul>
+</section>
+<section data-toc="8. 오디오 챕터 구성" id="sec-upgraded-9">
+<h2>8. 오디오 챕터 구성</h2>
+<ol><li><strong>Ch.1. 2024년 란셋 보고서 개정 배경과 14가지 예방 요인</strong>: 2050년 전 세계 치매 인구 전망과 2020년 보고서 대비 새롭게 추가된 두 가지 위험 요인을 짚어봅니다. 인지 예비력과 유병 기간 압축 개념을 통해 예방이 왜 중요한지 설명합니다.</li><li><strong>Ch.2. 생애 주기별 위험 요인, 형평성 및 인과성 검증 방법</strong>: 고령자 뇌 부검 연구로 본 인지 예비력의 역할과 더불어, 소수 집단·저소득층에 집중된 치매 위험과 연구 편향 문제를 다룹니다. 난청과 교육·인지 활동에 관한 최신 메타분석 수치를 살펴봅니다.</li><li><strong>Ch.3. 바이오마커 진단의 한계와 알츠하이머 신약의 현주소</strong>: 혈액·뇌척수액 바이오마커의 임상적 허용 범위와 일반화 한계를 명확히 짚습니다. 기존 콜린에스테라아제 억제제와 새로운 항아밀로이드 항체 치료제의 효과, 비용, 부작용을 균형 있게 비교합니다.</li><li><strong>Ch.4. 초조·섬망 관리, COVID-19 교훈 및 돌봄 기술의 실제</strong>: 치매 환자의 초조 증상과 입원 후 섬망에 대한 임상적 대처 원칙을 정리합니다. 팬데믹이 남긴 교훈과 함께 스마트홈·로봇 등 신기술에 대한 보고서의 냉정한 평가를 전달합니다.</li></ol>
+</section>
+<section data-toc="원문 출처" id="sec-upgraded-10">
+<h2>원문 출처</h2>
+<ul><li><strong>Dementia prevention, intervention, and care: 2024 report of the Lancet standing Commission</strong> (The Lancet (OpenAlex OA), 2024-07-31) — <a href="https://www.repository.cam.ac.uk/handle/1810/371957" rel="noopener" target="_blank">원문 보기</a> · <a href="https://www.repository.cam.ac.uk/bitstreams/28a9c76f-ca43-4ebf-ba4b-eddfe99c9442/download" rel="noopener" target="_blank">PDF</a></li></ul>
+</section>
+<hr/><p><small><strong>📊 이번 회차 생성 리포트</strong><br/>• Gemini API (<code>gemini-4-hydrogen, gemini-3.8-flash-tts</code>): 입력 96,150 + 출력 56,869 (추론 5,209 포함) = 총 153,019 토큰<br/>• 예상 API 비용: 무료 티어 $0 (유료 환산 약 $0.6236 · 약 873원)<br/>• 음성 합성(TTS): gemini_tts / <code>gemini-3.8-flash-tts</code> (<code>S1=Kore, S2=Charon</code>) · 11,200자 (무료 티어 $0 (유료 환산 $0.3572))</small></p>
+        <details class="transcript" data-toc="전체 대화 대본" id="sec-transcript"><summary>전체 대화 대본  (11,200자 · 62턴)</summary><div class="transcript-body"><div class="cast-box"><div><strong>진행 구성:</strong> 2인 대화 · 지수(진행) · 현수(해설)</div><div class="cast-reason">대규모 국제 의학 위원회 보고서의 주요 개정 내용, 역학 근거, 임상 지침 및 정책 제언을 체계적이고 충실하게 전달하기 위해 진행자 1인과 해설자 1인의 2인 대담 구성을 선택했다.</div></div><input aria-label="대본 내 키워드 검색" class="transcript-filter" id="transcript-search" placeholder="대본 내 키워드 검색" type="search"/><h3>오프닝</h3><p class="turn"><strong class="speaker">지수 (진행)</strong> 오늘은 의학 학술지 란셋이 2024년 7월에 발표한 치매 예방, 중재 및 돌봄 상임위원회 보고서를 살펴보겠습니다. 2020년 보고서 이후 네 번째로 재소집된 위원회가 전 세계 최신 연구 근거를 종합해 내놓은 지침입니다.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 이번 보고서는 전 생애에 걸쳐 관리할 수 있는 14가지 치매 위험 요인을 중심으로, 바이오마커 진단과 알츠하이머 신약의 현주소, 그리고 진단 후 돌봄과 팬데믹 교훈, 보조 기술의 실효성까지 폭넓게 다루고 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 먼저 첫 번째 챕터에서 2024년 보고서의 개정 배경과 새롭게 추가된 위험 요인, 그리고 예방이 왜 중요한지부터 짚어보겠습니다.</p><h3>Chapter 1. 2024년 란셋 보고서 개정 배경과 14가지 예방 요인</h3><p class="turn"><strong class="speaker">지수 (진행)</strong> 보고서 서두를 보면 전 세계 치매 인구가 앞으로 크게 늘어날 것으로 전망하고 있습니다. 구체적인 수치가 어떻게 되나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 보고서에 따르면 전 세계 치매 인구는 2019년 기준 5,700만 명으로 추산되며, 2050년에는 1억 5,300만 명까지 급증할 것으로 예측됩니다. 흥미로운 점은 일부 고소득 국가에서 연령별 치매 발생률 자체는 감소하는 추세를 보인다는 것입니다. 하지만 기대수명이 늘어나면서 고령 인구가 증가하기 때문에 전체 치매 환자 수는 계속 늘어날 수밖에 없습니다. 특히 저소득 및 중소득 국가에서는 수명 연장 폭이 커지면서 최근 치매 인구 증가세가 더욱 두드러지고 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 연령별 발생률이 줄어드는 국가들이 있다는 건 치매가 어느 정도 예방 가능하다는 신호로도 볼 수 있겠군요. 이번 2024년 보고서에서는 기존 12가지 위험 요인에 두 가지가 새롭게 추가되었다고 들었습니다.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 네, 2020년 보고서에서는 적은 교육, 난청, 고혈압, 흡연, 비만, 우울증, 신체 활동 부족, 당뇨병, 과도한 음주, 외상성 뇌손상, 대기오염, 사회적 고립 등 12가지 위험 요인을 제시했습니다. 이번 2024년 보고서에는 여기에 교정되지 않은 시력 손상과 높은 LDL 콜레스테롤 수치가 새로운 위험 요인으로 추가되었습니다. 두 요인 모두 치매 발병 위험을 높인다는 설득력 있는 최신 근거가 축적되면서 총 14가지 교정 가능한 위험 요인이 확립되었습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 이 14가지 위험 요인을 잘 관리하면 치매를 얼마나 예방할 수 있다고 보나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 위원회는 전 세계의 최신 위험도와 유병률 자료를 바탕으로 새로운 인구 기여 위험도를 산출했습니다. 그 결과 이 14가지 위험 요인을 모두 제거할 수 있다면 이론적으로 전체 치매의 거의 절반을 예방할 수 있다는 결론을 내렸습니다. 물론 현실에서 모든 위험 요인을 완전히 없애기는 어렵고 일부 연관성은 부분적인 인과관계일 수 있지만, 예방의 잠재력이 매우 크다는 점은 분명합니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 단순히 치매에 걸리지 않는 것뿐만 아니라, 설령 발병하더라도 시기를 늦추는 효과도 중요하게 다루고 있더군요. 유병 기간 압축이라는 개념이 나오는데 어떤 의미인가요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 유병 기간 압축은 건강한 생활 습관을 통해 질병을 앓는 기간 자체를 줄이는 것을 말합니다. 보고서에 따르면 규칙적인 운동, 금연, 과음 피하기, 노년기 인지 활동 등 건강한 생활 습관을 유지하는 사람들은 치매 위험이 낮을 뿐만 아니라, 치매가 발병하더라도 그 시점이 기대수명이 늘어나는 것보다 더 뒤로 늦춰집니다. 결과적으로 더 오래 건강하게 살다가, 치매가 오더라도 병을 앓는 기간은 짧아지게 됩니다. 이는 개인의 삶의 질을 높이는 것은 물론이고 사회적 돌봄 비용을 절감하는 데도 큰 의미가 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 이러한 예방 효과가 뇌의 병리적 변화와도 관련이 있을 텐데요. 보고서에서 강조하는 인지 예비력은 어떻게 작용하나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 뇌에 아밀로이드나 타우 같은 신경병리적 변화가 생긴다고 해서 반드시 치매 증상으로 이어지는 것은 아닙니다. 신경병리가 있더라도 치매 증상이 나타나지 않도록 버텨내는 능력을 인지 예비력 또는 뇌 예비력이라고 합니다. 생애 전반에 걸쳐 교육이나 인지 활동, 신체 활동, 사회적 교류를 통해 인지 예비력과 신체적 건강을 키워두면, 뇌에 손상이 쌓이더라도 인지 기능을 더 오래 유지할 수 있습니다. 또한 혈관 손상이 줄어든 점도 최근 일부 국가에서 연령별 치매 발생률이 감소한 주요 원인으로 꼽힙니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 치매에는 유전적 요인도 작용하잖아요. 유전적으로 고위험군에 속하는 사람들도 이런 위험 요인 조절이 효과가 있나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 이번 2024년 보고서에서 처음으로 명확해진 부분 중 하나가 바로 그 지점입니다. 치매의 대표적인 유전적 위험 인자인 APOE 유전자형을 가지고 있어 유전적 위험이 높은 사람이라도, 교정 가능한 위험 요인들을 관리하면 치매 위험을 낮출 수 있다는 사실이 확인되었습니다. 여러 위험 요인을 동시에 다루는 다요소 중재는 유전적 위험이 높은 사람과 낮은 사람 모두에게 잠재적인 이점이 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 그렇다면 치매 예방은 언제부터 시작하는 것이 가장 좋을까요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 보고서의 원칙은 일찍 시작할수록 좋고, 생애 전반에 걸쳐 오래 유지할수록 좋다는 것입니다. 많은 근거가 중년기 중재의 중요성을 가리키고 있지만, 어린 시절의 양질의 교육부터 노년기의 청력 및 시력 관리까지 각 시기마다 중요한 요인이 있습니다. 다만 일찍 시작하는 것이 바람직하기는 해도, 생애 어느 시점에 시작하든 위험 요인을 줄이는 것은 언제나 이득이 됩니다. 보고서는 치매 위험을 낮추는 데 너무 이르거나 너무 늦은 때는 없다고 강조합니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 개인의 노력만으로는 해결하기 어려운 요인들도 많아 보입니다. 정책적 개입의 필요성도 언급되었나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 네, 대기오염이나 교육 기회, 보청기와 안경에 대한 접근성, 식품 내 염분과 당분 함량 등은 개인의 의지만으로 바꾸기 어렵습니다. 그래서 보고서는 국가와 국제 정부 차원의 정책 변화가 반드시 병행되어야 한다고 제언합니다. 공중보건 정책은 형평성을 최우선으로 삼아 위험 요인이 집중된 고위험군과 소외 계층을 포괄해야 하며, 이러한 정책적 투자는 장기적으로 비용을 절감하는 효과도 거둘 수 있습니다.</p><h3>Chapter 2. 생애 주기별 위험 요인, 형평성 및 인과성 검증 방법</h3><p class="turn"><strong class="speaker">지수 (진행)</strong> 정책적 지원과 형평성 이야기가 나왔으니, 두 번째 장에서는 생애 주기별 위험 요인이 실제로 누구에게 집중되는지, 그리고 인지 예비력이 뇌의 병리를 어떻게 방어하는지 자세히 살펴보겠습니다. 뇌에 병리적 변화가 생겨도 모두 치매 증상으로 이어지는 것은 아니라고 하죠?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 그렇습니다. 보고서가 인용한 미국과 영국의 6개 지역사회 코호트 부검 연구를 보면, 80세 이상으로 사망한 4,354명 중 무려 91퍼센트가 두 가지 이상의 신경병리를 가지고 있었습니다. 신경병리가 많을수록 치매에 걸릴 확률이 높아지는 것은 사실이지만, 많은 병리를 가지고도 생전에 치매 증상을 보이지 않은 사람들이 분명히 존재했습니다. 이를 설명하는 개념이 바로 인지 예비력입니다. 신체적으로 건강하고 생애 전반에 걸쳐 인지적, 신체적, 사회적 활동을 꾸준히 한 사람들은 뇌에 병리가 쌓이더라도 그 영향을 견뎌내고 인지 건강을 유지하는 능력이 뛰어납니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 결국 뇌의 손상을 막는 것만큼이나 손상을 견뎌내는 힘을 기르는 것도 중요하다는 뜻이군요. 그런데 이러한 위험 요인과 보호 요인에 관한 연구들이 특정 집단에 편중되어 있다는 지적도 보고서에 담겼습니다.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 네, 현재 치매 위험 요인에 관한 코호트 연구와 메타분석은 압도적으로 고소득 국가에서 나온 자료입니다. 그 안에서도 주로 유럽계 백인이고, 교육 수준이 높으며 사회경제적 지위가 높은 참여자들이 많습니다. 소수 민족이나 저소득층은 연구 참여 조건의 장벽 때문에 배제되는 경우가 흔합니다. 실제로 46개국의 국가 치매 계획을 분석한 결과, 31개국이 소외된 문화나 인종 집단에 대한 다양성, 형평성, 포용성 권고안을 전혀 포함하지 않고 있었습니다. 권고안이 있더라도 인지 검사 해석에만 국한된 경우가 대부분이었습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 연구 데이터 자체가 고소득 국가와 백인 중심이라면, 정작 위험이 높은 취약 계층의 현실을 제대로 반영하기 어렵겠네요.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 맞습니다. 라틴아메리카 15개국의 31개 연구를 종합해 보면, 교육을 전혀 받지 못한 사람은 1년 이상 교육을 받은 사람보다 치매 유병률이 두 배 이상 높았습니다. 또한 미국의 흑인과 히스패닉, 뉴질랜드의 마오리족, 호주의 원주민처럼 소외된 집단일수록 교정 가능한 위험 요인을 더 많이 가지고 있습니다. 고소득 국가 내에서도 저소득층은 고혈압, 당뇨병, 비만, 흡연, 대기오염 노출 같은 위험 요인이 한데 뭉쳐 나타나는 경향이 뚜렷합니다. 게다가 성별에 따른 차이 역시 생물학적 요인보다는 여성의 교육 기회 부족이나 돌봄 및 단순 노무 위주의 직업 환경 같은 사회적 요인이 크게 작용한 것으로 분석됩니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 위험 요인이 특정 계층에 겹쳐서 나타난다는 점이 인상적입니다. 그렇다면 개별 위험 요인들의 인과관계는 어떻게 검증했나요? 치매는 발병 전 전구기가 매우 길어서 인과성을 밝히기가 쉽지 않을 텐데요.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 치매는 증상이 나타나기 10년 이상 전부터 뇌에 아밀로이드나 타우 단백질이 쌓이는 긴 전구기를 거칩니다. 이 때문에 발병 몇 년 전에 나타난 행동 변화가 치매의 원인인지, 아니면 이미 시작된 치매의 초기 증상인지 구분하기 어려운 역인과관계 문제가 발생합니다. 무작위 대조 시험을 수십 년간 진행하기도 현실적으로 어렵습니다. 그래서 이번 위원회는 체계적 문헌 고찰과 메타분석을 우선하되, 인과관계를 더 정교하게 따지기 위해 멘델 무작위 배정 분석 같은 인과 추론 기법을 삼각 검증 틀에 처음으로 도입했습니다. 이를 통해 유전적 요인과 무관하게 환경적 요인이 미치는 영향을 더 명확히 가려내고자 했습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 그렇게 엄격하게 검증한 요인들 중에서, 교육과 인지 활동에 관한 최신 근거는 어떤 내용을 담고 있나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 단순히 학교를 다닌 연수보다는 실제로 달성한 교육 수준과 교육의 질이 치매 예방에 더 결정적인 역할을 합니다. 특히 주목할 만한 것은 중년기 직무에서의 인지 자극입니다. 고소득 국가에서 약 10만 8천 명을 장기간 추적한 연구에 따르면, 직장에서 높은 인지 자극을 받은 사람은 낮은 사람보다 치매 위험이 낮았고 위험비는 0.79로 나타났습니다. 어릴 때 교육을 적게 받았더라도 중년기에 인지적으로 자극이 되는 일을 하면 치매 위험이 줄어드는 효과가 확인되었습니다. 반면, 시중에 흔한 단기 전산화 인지 훈련은 몇 주에서 몇 달간 진행하는 저강도 프로그램이 많아 단기적인 소폭의 개선 외에는 장기적인 치매 예방 근거가 부족한 것으로 평가되었습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 짧은 두뇌 게임이나 훈련보다는 일상과 직업 속에서 꾸준히 머리를 쓰는 지속적인 자극이 훨씬 중요하다는 것이군요. 난청에 대한 최신 메타분석 결과도 궁금합니다.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 전 세계 인구의 약 20퍼센트가 난청을 겪고 있으며, 그중 62퍼센트가 50세 이상이지만 치료받지 않는 경우가 많습니다. 이번 위원회는 5년 이상 추적 관찰하고 객관적인 순음 청력 검사를 시행한 6개의 고품질 코호트 연구, 총 66만여 명의 데이터를 새로 메타분석했습니다. 그 결과 난청이 있는 사람은 정상 청력인 사람보다 치매 위험이 37퍼센트 높았고, 위험비는 1.37로 집계되었습니다. 또한 청력이 10데시벨 떨어질 때마다 치매 위험이 연구에 따라 4퍼센트에서 최대 24퍼센트까지 증가하는 용량-반응 관계도 뚜렷하게 나타났습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 청력이 떨어질수록 치매 위험이 비례해서 높아진다면, 보청기를 사용하는 것이 실제로 예방에 도움이 되나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 그렇습니다. 보청기를 착용하는 사람 비율이 높은 연구일수록 치매 발생 가능성이 낮아지는 경향을 보였습니다. 특히 난청과 함께 다른 치매 위험 요인을 동시에 가진 사람들에게서 보청기 사용의 예방 효과가 더욱 두드러졌습니다. 소리를 잘 듣지 못하면 외로움과 우울감, 사회적 고립이 심해지고 뇌로 들어가는 인지 자극이 줄어들어 인지 예비력이 약화되는데, 보청기가 이러한 악순환을 끊어주는 역할을 합니다. 따라서 유해 소음 노출을 줄이고, 난청이 생기면 빠르게 보청기를 착용할 수 있도록 접근성을 높이는 것이 중요합니다.</p><h3>Chapter 3. 바이오마커 진단의 한계와 알츠하이머 신약의 현주소</h3><p class="turn"><strong class="speaker">지수 (진행)</strong> 이제 세 번째 장으로 넘어가서 치매의 진단과 치료 이야기를 해보겠습니다. 최근 혈액이나 뇌척수액을 이용한 바이오마커 진단과 알츠하이머 신약에 대한 관심이 매우 높은데, 보고서는 이 부분을 어떻게 평가하고 있나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 먼저 바이오마커부터 짚어보면, 혈액이나 뇌척수액에서 아밀로이드와 타우 단백질을 측정하는 기술이 크게 발전한 것은 사실입니다. 하지만 보고서는 현재의 바이오마커가 치매 증상의 직접적인 원인을 판별하는 도구가 아니라, 치매나 인지 장애가 있는 사람에게서 알츠하이머병 병리가 존재하는지 보조적으로 확인하거나 배제하는 용도로만 임상에서 사용해야 한다고 선을 긋습니다. 아밀로이드 축적은 치매 증상이 나타나기 수년 전부터 시작되며, 인지 기능이 정상인 고령자에게서도 매우 흔하게 발견되기 때문입니다. 실제로 아밀로이드가 쌓여 있더라도 평생 치매로 발전하지 않는 경우가 많습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 아밀로이드가 검출되었다고 해서 무조건 치매에 걸리는 것은 아니라는 말이군요. 그렇다면 일반인이 치매 예측을 위해 혈액 검사를 받는 것은 아직 시기상조인가요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 네, 대규모로 치매 발병을 예측하는 혈액 검사라는 목표를 향해 나아가고는 있지만 아직 현실화되지는 않았습니다. 아밀로이드와 타우 바이오마커가 모두 양성이고 신경 퇴행 지표까지 동반되면 치매 확률이 높아지기는 하지만, 현재까지의 바이오마커 연구는 대부분 3차 대형 병원을 찾은 환자들과 백인 인구를 중심으로 검증되었습니다. 따라서 다양한 인종과 지역사회 일반 인구에게 그대로 적용하기에는 일반화의 한계가 크고, 건강 형평성 문제도 제기됩니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 진단에 이어 약물 치료 이야기도 해보겠습니다. 기존에 널리 쓰이던 치매 약물들에 대해서는 어떤 새로운 근거가 나왔나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 알츠하이머 치매와 루이소체 치매에 쓰이는 콜린에스테라아제 억제제와 메만틴은 가격이 저렴하고 부작용이 비교적 적은 편입니다. 이번 보고서에서는 이 약물들이 단기적인 효과뿐만 아니라 수년에 걸친 장기적인 인지 저하 완화 효과를 낸다는 새로운 근거가 확인되었다고 밝히고 있습니다. 물론 인지 저하를 완만하게 늦추는 수준이지만, 효과가 입증된 만큼 모든 환자가 이용할 수 있어야 합니다. 하지만 고소득 국가에서는 널리 쓰이는 반면, 저소득 및 중소득 국가에서는 여전히 접근성이 떨어지는 과제가 남아 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 기존 약물의 장기 효과가 다시 한번 입증되었군요. 그렇다면 최근 큰 주목을 받고 있는 항아밀로이드 항체 치료제, 이른바 알츠하이머 신약에 대한 평가는 어떤가요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 뇌 속 아밀로이드를 대폭 줄이는 항아밀로이드 항체 치료제가 처음으로 소수의 임상시험에서 인지 저하 속도를 늦추는 결과를 보였다는 점은 분명 고무적입니다. 18개월간 투여했을 때 위약군 대비 인지 저하가 27퍼센트에서 35퍼센트 감소하는 효과를 보였습니다. 하지만 보고서는 이 수치를 냉정하게 해석해야 한다고 강조합니다. 절대적인 효과 크기 자체는 작고, 주로 경증 질환이면서 다른 기저 질환이 거의 없는 환자들을 대상으로 시험했다는 한계가 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 임상시험의 조건이 꽤 제한적이었네요. 실제 의료 현장에 도입할 때 고려해야 할 비용이나 부작용 문제는 어떤가요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 가장 큰 걸림돌은 막대한 비용과 까다로운 관리 부담입니다. 약가 자체가 매우 비쌀 뿐만 아니라, 투약 과정에서 전문 인력과 정밀 뇌 영상 촬영, 특수 혈액 검사 등 집중적인 모니터링이 필수적이어서 보건 의료 체계에 큰 부담을 줍니다. 또한 뇌부종이나 뇌출혈 같은 심각한 부작용이 발생할 위험이 있고, 18개월 이후의 장기적인 효과와 안전성에 대한 데이터는 아직 부족합니다. 따라서 보고서는 신약이 희망을 주기는 하지만, 현재로서는 사용이 제한적일 수밖에 없으며 과장 없이 근거에 기반해 신중하게 접근해야 한다고 결론짓습니다.</p><h3>Chapter 4. 초조·섬망 관리, COVID-19 교훈 및 돌봄 기술의 실제</h3><p class="turn"><strong class="speaker">지수 (진행)</strong> 신약에 이어 이제는 치매 환자의 일상을 지키는 돌봄과 증상 관리 이야기를 살펴보겠습니다. 치매 환자에게 흔히 나타나는 초조 증상은 환자와 가족 모두에게 큰 부담이 되는데, 보고서는 이를 어떻게 대처하라고 권고하나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 초조 증상은 원인이 다양하고 환자와 돌봄 제공자의 고통과 돌봄 비용을 크게 높이는 문제입니다. 보고서는 약물을 쓰기 전에 먼저 초조를 유발한 근본 원인을 평가하고 해결해야 한다고 강조합니다. 예를 들어 환자가 통증이나 신체적 불편감, 정서적 고통을 겪고 있는지 살펴보고 이를 먼저 다스려야 합니다. 그다음으로 비약물적 중재 전략을 충분히 시도한 뒤에야 약물 치료를 신중히 고려해야 한다는 원칙을 분명히 하고 있습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 비약물적 방법으로도 조절되지 않아 불가피하게 항정신병 약물을 써야 할 때는 어떤 약물들이 근거를 가지고 있나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 현재 치매의 초조 증상 치료에 가장 방대한 무작위 대조 임상시험 근거를 가진 약물은 리스페리돈입니다. 여러 임상시험을 통합 분석한 결과, 하루 평균 1밀리그램을 투여했을 때 12주 시점에서 초조 척도가 위약 대비 5.4점 개선되었습니다. 한편 2023년 5월 미국 식품의약국 승인을 받은 브렉스피프라졸의 경우, 12주 임상시험에서 위약 대비 3.77점에서 5.3점의 개선을 보였지만 기존 비정형 항정신병 약물보다 효능이나 안전성이 더 뛰어나지는 않았습니다. 특히 치매 환자에게 항정신병 약물을 쓸 때는 심혈관계 이상 반응과 사망 위험이 높아진다는 점이 가장 큰 우려입니다. 실제로 브렉스피프라졸 임상시험에서도 위약군에서 1명이 사망한 반면 투약군에서는 6명이 사망해 수치상 더 많은 사망이 보고되었습니다. 따라서 약물의 잠재적 위험을 환자와 가족에게 충분히 설명하고 논의한 뒤에 제한적으로 사용해야 합니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 치매 환자가 다른 급성 질환으로 병원에 입원했을 때 겪는 섬망도 큰 문제로 꼽히는데요. 보고서는 입원과 섬망의 관계를 어떻게 분석했나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 섬망은 고령층에서 매우 흔하지만 종종 간과되거나 적절히 치료되지 않는 상태입니다. 특히 치매 환자에게 섬망이 겹치면 입원 기간이 길어지고 인지 기능과 신체 기능이 더 나빠지며, 요양시설 입소와 사망 위험까지 높아집니다. 최근 메타분석에서도 섬망이 향후 인지 저하와 유의미한 관련이 있는 것으로 나타났습니다. 런던의 한 전향적 코호트 연구를 보면, 입원한 환자 중 인지 기능이 더 저하된 사람일수록 섬망이 발생할 확률이 높았고 증상도 더 심했습니다. 즉, 인지 저하가 섬망의 위험 요인이 되고, 섬망은 다시 추가적인 인지 및 기능 저하를 부르는 악순환이 일어납니다. 게다가 섬망을 개선하는 확실한 약물은 없으며, 진정 작용이 있는 벤조디아제핀 계열 약물은 효과가 없을 뿐 아니라 오히려 사망률과 이환율을 높입니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 약물로 해결하기 어렵다면 입원 환자의 섬망은 어떻게 관리하고 예방해야 할까요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 가장 중요한 것은 섬망을 유발한 기저 질환을 적극적으로 치료하면서 비약물적 관리를 병행하는 것입니다. 환자의 지남력을 높여주고, 안경이나 보청기를 활용해 시력과 청력을 최대한 유지해 주며, 통증과 저산소증을 관리하고 수분과 영양 섭취를 돕는 것이 핵심입니다. 또한 섬망을 겪고 퇴원한 환자는 인지 기능이 저하되어 있거나 치매를 앓고 있는 경우가 많아서, 집에서 스스로 치료 계획을 따라가기 어렵습니다. 따라서 퇴원 후에도 지역사회에서 건강 상태를 지속적으로 추적 관찰하고 지원하는 체계가 반드시 필요합니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 이번 2024년 보고서에는 팬데믹이 치매 환자에게 남긴 교훈도 별도로 다뤄졌죠. 팬데믹 기간 동안 치매 환자들은 어떤 어려움을 겪었나요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 팬데믹 자체와 그로 인한 사회적 격리, 봉쇄 조치는 치매 환자와 가족에게 매우 불균형적이고 부정적인 영향을 미쳤습니다. 10개 연구를 종합한 메타분석에 따르면 치매 환자의 팬데믹 사망 위험은 치매가 없는 사람보다 약 5배 높았습니다. 또한 사회적 격리의 영향을 다룬 체계적 문헌고찰에서는 전체 15개 연구 중 60퍼센트에서 예상보다 더 심한 인지 기능 저하가 보고되었고, 93퍼센트에서는 비인지 증상이 악화되거나 새로 나타났습니다. 특히 요양시설의 경우 규모가 크거나 파견 인력을 많이 쓰고, 직원들이 여러 시설을 오가며 근무하거나, 진단 검사와 개인 보호 장비 접근성이 낮았던 곳에서 감염률과 사망률이 더 높게 나타났습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 그러한 아픈 경험을 바탕으로 보고서가 제시한 장기적인 대책과 권고사항은 무엇인가요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 향후 또 다른 감염병 위기가 올 때를 대비해, 감염 여부가 확인되지 않았거나 양성인 사람이 요양시설에 입소하지 않도록 정책을 마련해야 합니다. 또한 직원들이 여러 시설을 이동하지 않도록 제한하고, 개인 보호 장비를 우선적으로 확보해 착용하도록 해야 합니다. 무엇보다 24시간 돌봄이 필요한 치매 환자를 완전히 격리하는 것은 불가능하며, 가족 면회 제한으로 환자가 고립되지 않도록 보호해야 합니다. 아울러 치매 환자가 아직 의사결정 능력이 있을 때 향후 치료나 연명 의료에 대한 법적 결정을 미리 내릴 수 있도록 장려해야 하며, 치매 환자라는 이유로 일률적인 결정을 내리기보다 다른 인구 집단과 동등한 완화 의료 접근권을 보장해야 한다고 강조합니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 마지막으로 돌봄 현장에서 기대를 모으고 있는 스마트홈이나 원격 돌봄, 보조 로봇 같은 신기술에 대해서는 보고서가 어떤 평가를 내렸는지 궁금합니다.</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 결론부터 말씀드리면 신기술의 임상적 효과를 입증할 만한 양질의 연구 근거가 아직 매우 부족하다는 냉정한 평가를 내렸습니다. 예를 들어 활동량 측정기 같은 감지 기술은 일부 연구에서 초조나 공격성과 상관관계를 보였지만, 수면의 질을 평가할 때는 기존의 설문지 방식보다 나은 점이 없었습니다. 인터넷으로 가전과 기기를 연결하는 스마트홈 기술 역시 아직 치매 환자에게 적용할 준비가 되지 않았고 명확한 효과 근거가 없습니다. 495명의 치매 환자를 대상으로 진행한 보조 기술 및 원격 돌봄 무작위 대조 임상시험에서도, 기본적인 안전 장치만 제공한 대조군에 비해 지역사회 거주 기간이나 돌봄 부담, 우울, 불안, 삶의 질 면에서 더 나은 결과를 보이지 못했습니다. 66개 연구를 검토한 사회적 보조 로봇 역시 환자와 돌봄 제공자에게 수용 가능성은 있었지만, 인지 기능이나 신경정신 증상, 삶의 질을 개선한다는 근거는 없었습니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 기대에 비하면 아직 실제 효과에 대한 근거가 부족한 상황이군요. 그렇다면 앞으로 돌봄 기술을 현장에 도입할 때 어떤 원칙을 지켜야 할까요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 보고서는 현재로서는 치매 관리를 위해 특정 기술을 권고할 만한 근거가 부족하다고 정리합니다. 기술은 어디까지나 기존의 대면 돌봄을 대체하는 것이 아니라 보완하는 수단으로 쓰여야 하며, 기술 도입이 오히려 환자의 해로운 사회적 고립을 부추겨서는 안 됩니다. 또한 비용 부담 때문에 경제적 여건이 어려운 계층이 신기술에서 소외되어 건강 형평성이 악화될 수 있다는 점도 경계해야 한다고 제언합니다.</p><h3>클로징</h3><p class="turn"><strong class="speaker">지수 (진행)</strong> 오늘 2024년 란셋 치매 상임위원회 보고서의 핵심 내용을 짚어보았습니다. 마지막으로 보고서가 전하는 최종 결론과 제언을 정리해 주시겠어요?</p><p class="turn"><strong class="speaker s2">현수 (해설)</strong> 보고서는 치매 예방을 시작하기에 너무 이르거나 늦은 때는 없으며, 개인의 생활 습관 개선과 더불어 대기 질 개선, 무상 교육, 보청기와 안경 접근성 확대 같은 국가적 정책 변화가 반드시 병행되어야 한다고 강조합니다. 특히 위험 요인이 취약 계층에 집중되는 만큼 공중보건 정책은 형평성을 최우선으로 삼아야 하며, 진단 이후에도 환자와 가족의 삶의 질을 지키는 사람 중심의 돌봄과 입증된 치료에 대한 보편적 접근이 보장되어야 한다고 제언합니다.</p><p class="turn"><strong class="speaker">지수 (진행)</strong> 예방부터 돌봄까지 전 생애에 걸친 과학적 근거와 정책적 과제를 짚어본 시간이었습니다. 오늘 브리핑은 여기서 마치겠습니다.</p></div></details>
+      </main>
+    </article>
+  </div>
+
+  <script>
+(function(){
+  var modeBtn = document.getElementById('color-mode-btn');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', function(){
+      var root = document.documentElement;
+      var current = root.getAttribute('data-color-mode');
+      var isDark = current ? current === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = isDark ? 'light' : 'dark';
+      root.setAttribute('data-color-mode', next);
+      try { localStorage.setItem('briefing-color-mode', next); } catch (e) {}
+    });
+  }
+  document.querySelectorAll('[data-copy-rss]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = btn.getAttribute('data-copy-rss');
+      if (!url || !navigator.clipboard) return;
+      var orig = btn.textContent;
+      navigator.clipboard.writeText(url).then(function(){
+        btn.textContent = 'RSS 주소 복사됨';
+        setTimeout(function(){ btn.textContent = orig; }, 1800);
+      });
+    });
+  });
+  document.querySelectorAll('[data-speed]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var rate = parseFloat(btn.getAttribute('data-speed') || '1');
+      var container = btn.closest('.audio-deck') || document;
+      var audio = container.querySelector('audio');
+      if (audio) audio.playbackRate = rate;
+      container.querySelectorAll('[data-speed]').forEach(function(b){
+        b.classList.toggle('active', b === btn);
+      });
+    });
+  });
+})();
+</script>
+  <script>
+  (function(){
+    var bar = document.getElementById('reading-progress');
+    window.addEventListener('scroll', function(){
+      if (!bar) return;
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      bar.style.width = max > 0 ? Math.min(100, (doc.scrollTop / max) * 100) + '%' : '0%';
+    }, { passive: true });
+
+    var tocList = document.getElementById('toc-list');
+    var mainEl = document.getElementById('article-main');
+    if (tocList && mainEl) {
+      var secs = Array.prototype.slice.call(mainEl.querySelectorAll('section, details.transcript'));
+      var links = [];
+      secs.forEach(function(sec, idx){
+        if (!sec.id) sec.id = 'auto-sec-' + (idx + 1);
+        var label = sec.getAttribute('data-toc');
+        if (!label) {
+          var h = sec.querySelector('h2, summary');
+          label = h ? h.textContent.replace(/^[^가-힣a-zA-Z0-9]+/, '').trim() : ('섹션 ' + (idx + 1));
+        }
+        if (label.length > 22) label = label.slice(0, 22) + '…';
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.className = 'toc-link';
+        a.href = '#' + sec.id;
+        a.textContent = label;
+        li.appendChild(a);
+        tocList.appendChild(li);
+        links.push({ sec: sec, link: a });
+      });
+
+      if ('IntersectionObserver' in window && links.length) {
+        var obs = new IntersectionObserver(function(entries){
+          entries.forEach(function(entry){
+            if (entry.isIntersecting) {
+              links.forEach(function(item){
+                item.link.classList.toggle('active', item.sec === entry.target);
+              });
+            }
+          });
+        }, { rootMargin: '-15% 0px -72% 0px' });
+        links.forEach(function(item){ obs.observe(item.sec); });
+      }
+    }
+
+    var tf = document.getElementById('transcript-search');
+    if (tf) {
+      tf.addEventListener('input', function(){
+        var q = tf.value.trim().toLowerCase();
+        document.querySelectorAll('.transcript-body .turn').forEach(function(p){
+          p.classList.toggle('hidden', Boolean(q) && p.textContent.toLowerCase().indexOf(q) === -1);
+        });
+      });
+    }
+  })();
+  </script>
+</body>
+</html>
